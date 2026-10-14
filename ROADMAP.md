@@ -20,7 +20,7 @@ Stages follow SPEC §12. A stage is done only when its acceptance criteria pass.
    - Scaffold the app by copying StrataSQL's setup (package.json deps, vite.config.ts incl. the PWA precache plugin, tsconfig, `.github/workflows/deploy.yml`, `.claude/launch.json` with dev on port **5174** so it does not clash with StrataSQL's 5173). No StrataSQL domain code.
    - Spike D1: one pool with two lanes, a task, an XOR gateway, a timer event and orthogonal flows on React Flow. Spike D2: parse a `.bpmn` (BPMN 2.0 XML with DI) with bpmn-moddle; check its license file.
    - Pages: enable (build_type=workflow), add custom domain `flow.quaera.app` via `gh api`; the owner adds the Cloudflare CNAME `flow → stanislavsidorovich.github.io` (DNS only) by hand; then enforce HTTPS.
-2. Ask the owner for course material (put in `/private/course/`, gitignored): BPM course slides on BPMN, one Bizagi example (`.bpm` + its BPMN XML export via Bizagi *Export → BPMN*), the professor's style rules. Turn them into SPEC §13 answers.
+2. Course material: received 2026-10-14 in `/private/course/` (gitignored); read its `README.md` first (course follows Dumas et al. 2013; Bizagi `.bpm` + `.bpmn` exports; findings and what is still missing). Turn it into SPEC §13 answers. Chapters 3–5 and the exercise 3.7 diagram added the same day (findings in that README, "Chapter 3–5 findings"; 3.7 solved in `exercises/exercise-3.7-solution.md`). Still to ask the owner: the professor's style rules / grading criteria.
 3. Write the first 3 own cases in `cases/` (see `cases/README.md`), easy → hard.
 4. Stage 1.
 
@@ -41,10 +41,15 @@ Stages follow SPEC §12. A stage is done only when its acceptance criteria pass.
 - 2026-10-14 ✱ Same stack and architecture as StrataSQL (pure TS core + React Flow canvas). D1 (React Flow vs bpmn-js) and D2 (bpmn-moddle vs own XML) to be confirmed in stage 0.
 - 2026-10-14 ✱ BPMN XML is the interchange format with Bizagi; native `.bpm` is optional.
 - 2026-10-14 ✱ Case domains mirror StrataSQL's (Library, Hotel, Online Shop, Hospital, Scooter Sharing, Football) so a student can see the data model and the process of the same business; later they can be linked.
+- 2026-10-14 ✱ Modeling conventions = NOVA BPM Chapter 3 (Dumas et al. 2013) and the 7PMG from Chapter 4; Silver's Method and Style only where the course is silent. Chapter 5 (VA/BVA/NVA, waste, issue register) is a later analysis feature, not stage 1–3.
 - 2026-10-14 ✱ Own cases only in the public repo; course cases only with the professor's permission; the graded group project never before grading.
 
 ## Sprints
 
 ### 2026-10-14 · Handoff from StrataSQL
 Project folder, CLAUDE.md, SPEC v0.1, ROADMAP, lessons from StrataSQL, design notes, research list, case plan, licenses. Repo created. No code yet.
+Built with: Claude Opus 5.5 (Claude Code), effort low.
+
+### 2026-10-14 · Course chapters 3–5
+Chapters 3–5 and exercise 3.7 copied to `/private/course/`, conventions extracted for SPEC §13, exercise 3.7 solved (cross-pool deadlock, event-based gateway fix). No code yet.
 Built with: Claude Opus 5.5 (Claude Code), effort low.
