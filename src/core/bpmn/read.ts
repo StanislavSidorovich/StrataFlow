@@ -53,6 +53,8 @@ const TRIGGERS: Record<string, EventTrigger> = {
   'bpmn:CompensateEventDefinition': 'compensation',
 }
 
+const SUBPROCESSES = ['bpmn:SubProcess', 'bpmn:Transaction', 'bpmn:AdHocSubProcess']
+
 const EVENTS: Record<string, { position: 'start' | 'intermediate' | 'end' | 'boundary'; throwing: boolean }> = {
   'bpmn:StartEvent': { position: 'start', throwing: false },
   'bpmn:EndEvent': { position: 'end', throwing: true },
@@ -78,19 +80,25 @@ export async function readBpmn(xml: string): Promise<ReadResult> {
   const processes = roots.filter((r) => r.$type === 'bpmn:Process')
   const messageFlows: El[] = collaboration?.messageFlows ?? []
 
-  // Pools. Bizagi's empty "Main Process" pool is dropped unless something points at it; an empty pool
-  // drawn by another tool (ours too) is kept with its process.
+  // Pools. A pool whose process has no steps is a black box (Bizagi and our writer give every pool a
+  // process). Bizagi's empty "Main Process" pool is dropped unless something points at it.
   const poolOf = new Map<string, string>() // process id → participant id
   const referenced = new Set(messageFlows.flatMap((m) => [m.sourceRef?.id, m.targetRef?.id]))
   const bizagi = /bizagi/i.test(defs.targetNamespace ?? '') || /bizagi/i.test(defs.exporter ?? '')
+  const isStep = (e: El) => e.$type in TASKS || e.$type in GATEWAYS || e.$type in EVENTS || SUBPROCESSES.includes(e.$type)
   for (const p of (collaboration?.participants ?? []) as El[]) {
     const proc = p.processRef as El | undefined
-    const empty = proc && !(proc.flowElements?.length || proc.artifacts?.length)
-    if (empty && bizagi && !referenced.has(p.id)) continue
-    participants.push({ id: p.id, name: p.name ?? '', processId: empty && bizagi ? undefined : proc?.id })
+    const steps = !!proc?.flowElements?.some(isStep)
+    if (bizagi && proc && !steps && !proc.flowElements?.length && !proc.artifacts?.length && !referenced.has(p.id)) continue
+    participants.push({ id: p.id, name: p.name ?? '', processId: steps ? proc!.id : undefined })
     known.add(p.id)
-    if (proc && !empty) poolOf.set(proc.id, p.id)
+    if (proc) poolOf.set(proc.id, p.id)
   }
+
+  // Bizagi draws a data object on the bare DataObject (no reference): such a one is read as the shape.
+  const drawn = new Set<string>()
+  for (const diagram of (defs.diagrams ?? []) as El[])
+    for (const d of (diagram.plane?.planeElement ?? []) as El[]) if (d.bpmnElement?.id) drawn.add(d.bpmnElement.id)
 
   for (const proc of processes) {
     const participantId = poolOf.get(proc.id)
@@ -129,7 +137,7 @@ export async function readBpmn(xml: string): Promise<ReadResult> {
             interrupting: t === 'bpmn:BoundaryEvent' ? el.cancelActivity !== false : t === 'bpmn:StartEvent' && el.isInterrupting === false ? false : undefined,
             attachedTo: el.attachedToRef?.id,
           })
-        } else if (t === 'bpmn:SubProcess' || t === 'bpmn:Transaction' || t === 'bpmn:AdHocSubProcess') {
+        } else if (SUBPROCESSES.includes(t)) {
           nodes.push({ ...base, type: 'subProcess', collapsed: true })
           walk(el.flowElements ?? [], el.id)
           walk(el.artifacts ?? [], el.id)
@@ -142,7 +150,8 @@ export async function readBpmn(xml: string): Promise<ReadResult> {
         } else if (t === 'bpmn:Association') {
           flows.push({ id: el.id, kind: 'association', source: el.sourceRef?.id, target: el.targetRef?.id, name: '' })
           continue
-        } else if (t === 'bpmn:DataObject' || t === 'bpmn:Group') continue // the reference carries the shape; groups come later
+        } else if (t === 'bpmn:DataObject' && drawn.has(el.id)) nodes.push({ ...base, type: 'dataObject', state: el.dataState?.name || undefined })
+        else if (t === 'bpmn:DataObject' || t === 'bpmn:Group') continue // the reference carries the shape; groups come later
         else {
           warnings.push(`Skipped ${t.replace('bpmn:', '')} "${base.name || el.id}"`)
           continue
@@ -167,8 +176,19 @@ export async function readBpmn(xml: string): Promise<ReadResult> {
     } else if (a.$type === 'bpmn:Association') flows.push({ id: a.id, kind: 'association', source: a.sourceRef?.id, target: a.targetRef?.id, name: '' })
   }
 
-  const kept = flows.filter((f) => known.has(f.source) && known.has(f.target))
-  for (const f of flows) if (!kept.includes(f)) warnings.push(`Skipped ${f.kind} flow ${f.id}: an end is not in the model`)
+  // A line between a step and data is a data association. Bizagi (and our writer, for Bizagi) draw it as a
+  // plain association next to the data association: keep one flow, with the line's waypoints.
+  const alias = new Map<string, string>() // dropped association id → the data flow it duplicates
+  const isData = (id: string) => nodes.some((n) => n.id === id && (n.type === 'dataObject' || n.type === 'dataStore'))
+  const isNote = (id: string) => nodes.some((n) => n.id === id && n.type === 'annotation')
+  for (const f of flows) {
+    if (f.kind !== 'association' || isNote(f.source) || isNote(f.target) || isData(f.source) === isData(f.target)) continue
+    const twin = flows.find((d) => d.kind === 'data' && d.source === f.source && d.target === f.target)
+    if (twin) alias.set(f.id, twin.id)
+    else f.kind = 'data'
+  }
+  const kept = flows.filter((f) => !alias.has(f.id) && known.has(f.source) && known.has(f.target))
+  for (const f of flows) if (!kept.includes(f) && !alias.has(f.id)) warnings.push(`Skipped ${f.kind} flow ${f.id}: an end is not in the model`)
 
   // Diagram interchange. Bizagi writes one diagram per file; bpmn.io (and our writer) add one per collapsed
   // sub-process for its content. The first one to draw an element wins.
@@ -178,7 +198,8 @@ export async function readBpmn(xml: string): Promise<ReadResult> {
   const keptIds = new Set(kept.map((f) => f.id))
   for (const diagram of (defs.diagrams ?? []) as El[])
     for (const d of (diagram.plane?.planeElement ?? []) as El[]) {
-      const ref = (d.bpmnElement as El | undefined)?.id
+      const own = (d.bpmnElement as El | undefined)?.id
+      const ref = own && (alias.get(own) ?? own)
       if (!ref || !(known.has(ref) || keptIds.has(ref)) || shapes[ref] || edges[ref]) continue
       if (d.$type === 'bpmndi:BPMNShape' && d.bounds) {
         const { x, y, width, height } = d.bounds as Bounds

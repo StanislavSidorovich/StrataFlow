@@ -1,9 +1,14 @@
 // FlowModel → BPMN 2.0 XML with diagram interchange (DI). Serialising is bpmn-moddle's `toXML`; the
 // mapping is ours and mirrors read.ts, so read(write(m)) gives m back (tests/bpmn-roundtrip.test.ts).
-// Choices made for Bizagi and bpmn.io:
-// - pools → a collaboration; a pool with steps gets a process named after it; a black-box pool none;
+// Choices made so that both Bizagi Modeler 4.3 and bpmn.io open the file as drawn (checked by the owner):
+// - pools → a collaboration; every pool gets a process named after it, empty for a black box (Bizagi drops
+//   a pool without one); a process without steps reads back as a black box;
 // - lanes list every flow node in them (flowNodeRef), also the ones inside a sub-process;
-// - lane bounds are absolute (the standard; Bizagi itself writes x relative to the pool);
+// - the drawing is shifted so the leftmost pool sits at x = 0: lane x is absolute for bpmn.io and relative
+//   to the pool for Bizagi, and the two agree there;
+// - a data object is a DataObjectReference only (Bizagi draws a bare DataObject a second time); a data
+//   association also gets a plain association along the same line, which is what Bizagi draws;
+// - labels of events, gateways, data and flows get bounds where the canvas shows them;
 // - a flow without stored waypoints is routed between the facing sides of its ends, as the canvas draws it;
 // - the content of a collapsed sub-process is drawn in a diagram of its own, as bpmn.io does.
 import { BpmnModdle } from 'bpmn-moddle'
@@ -68,10 +73,8 @@ export async function writeBpmn(m: FlowModel): Promise<string> {
     return p
   }
   for (const pool of m.participants) {
-    const holdsSteps = m.nodes.some((n) => n.participantId === pool.id && !isArtifact(n))
-    const procId = pool.processId ?? (holdsSteps ? fresh(`Process_${pool.id}`) : undefined)
-    const proc = procId ? newProcess(procId, pool.name) : undefined
-    if (proc) processOf.set(pool.id, proc)
+    const proc = newProcess(pool.processId ?? fresh(`Process_${pool.id}`), pool.name)
+    processOf.set(pool.id, proc)
     const p = make('bpmn:Participant', { id: pool.id, name: pool.name || undefined, processRef: proc })
     collaboration.participants.push(p)
     el.set(pool.id, p)
@@ -141,9 +144,7 @@ export async function writeBpmn(m: FlowModel): Promise<string> {
         break
       }
       case 'dataObject': {
-        const obj = make('bpmn:DataObject', { id: fresh(`${n.id}_object`), name: base.name })
-        homeOf(n)?.flowElements.push(obj)
-        e = make('bpmn:DataObjectReference', { ...base, dataObjectRef: obj })
+        e = make('bpmn:DataObjectReference', base)
         if (n.state) e.dataState = make('bpmn:DataState', { id: fresh(`${n.id}_state`), name: n.state })
         break
       }
@@ -168,6 +169,7 @@ export async function writeBpmn(m: FlowModel): Promise<string> {
   }
 
   // ---------------------------------------------------------------- flows
+  const lines = new Map<string, El>() // data flow id → the association Bizagi draws for it
   const link = (from: El, to: El, f: El) => {
     ;(from.outgoing ??= []).push(f)
     ;(to.incoming ??= []).push(f)
@@ -201,6 +203,10 @@ export async function writeBpmn(m: FlowModel): Promise<string> {
         ;(s.dataOutputAssociations ??= []).push(e)
         el.set(f.id, e)
       }
+      const line = make('bpmn:Association', { id: fresh(`${f.id}_line`), sourceRef: s, targetRef: t, associationDirection: 'One' })
+      lines.set(f.id, line)
+      const home = sn && !isArtifact(sn) ? homeOf(sn) : tn ? homeOf(tn) : undefined
+      ;(home ?? collaboration ?? processOf.get(undefined)).artifacts.push(line)
     } else {
       const e = make('bpmn:Association', { id: f.id, sourceRef: s, targetRef: t })
       el.set(f.id, e)
@@ -229,8 +235,14 @@ export async function writeBpmn(m: FlowModel): Promise<string> {
     if (!planes.has(id)) planes.set(id, [])
     return planes.get(id)!
   }
-  const bounds = (b: Bounds) => make('dc:Bounds', { x: b.x, y: b.y, width: b.width, height: b.height })
-  const shape = (id: string, b: Bounds, extra: object = {}) => make('bpmndi:BPMNShape', { id: fresh(`${id}_di`), bpmnElement: el.get(id), bounds: bounds(b), ...extra })
+  const poolX = m.participants.flatMap((p) => (m.diagram.shapes[p.id] ? [m.diagram.shapes[p.id].x] : []))
+  const shift = poolX.length ? -Math.min(...poolX) : 0
+  const bounds = (b: Bounds) => make('dc:Bounds', { x: b.x + shift, y: b.y, width: b.width, height: b.height })
+  const label = (b: Bounds | undefined) => (b ? { label: make('bpmndi:BPMNLabel', { bounds: bounds(b) }) } : {})
+  const shape = (id: string, b: Bounds, extra: object = {}) => {
+    const n = node(id)
+    return make('bpmndi:BPMNShape', { id: fresh(`${id}_di`), bpmnElement: el.get(id), bounds: bounds(b), ...(n ? label(outerLabel(n, b)) : {}), ...extra })
+  }
 
   for (const p of m.participants) if (m.diagram.shapes[p.id]) planeOf().push(shape(p.id, m.diagram.shapes[p.id], { isHorizontal: true }))
   const laneDepth = (l: Lane): number => (l.parentLaneId ? 1 + laneDepth(m.lanes.find((x) => x.id === l.parentLaneId)!) : 0)
@@ -247,9 +259,11 @@ export async function writeBpmn(m: FlowModel): Promise<string> {
     const pts = m.diagram.edges[f.id]?.length >= 2 ? m.diagram.edges[f.id] : route(f, boxOf(f.source), boxOf(f.target), !!m.participants.find((p) => p.id === f.target), !!m.participants.find((p) => p.id === f.source))
     if (!pts) continue
     const ends = [node(f.source), node(f.target)].filter(Boolean).map((n) => hidden(n!))
-    planeOf(ends.find((h) => h !== undefined) && ends.every((h) => h === ends[0]) ? ends[0] : undefined).push(
-      make('bpmndi:BPMNEdge', { id: fresh(`${f.id}_di`), bpmnElement: el.get(f.id), waypoint: pts.map((p) => make('dc:Point', { x: Math.round(p.x), y: Math.round(p.y) })) }),
-    )
+    const plane = planeOf(ends.find((h) => h !== undefined) && ends.every((h) => h === ends[0]) ? ends[0] : undefined)
+    const waypoint = () => pts.map((p) => make('dc:Point', { x: Math.round(p.x) + shift, y: Math.round(p.y) }))
+    plane.push(make('bpmndi:BPMNEdge', { id: fresh(`${f.id}_di`), bpmnElement: el.get(f.id), waypoint: waypoint(), ...label(flowLabel(f.name, pts)) }))
+    const line = lines.get(f.id)
+    if (line) plane.push(make('bpmndi:BPMNEdge', { id: fresh(`${line.id}_di`), bpmnElement: line, waypoint: waypoint() }))
   }
   for (const [holder, elements] of planes) {
     const owner = holder ? el.get(holder) : (collaboration ?? processOf.get(undefined))
@@ -259,6 +273,32 @@ export async function writeBpmn(m: FlowModel): Promise<string> {
 
   const { xml } = await moddle.toXML(defs, { format: true })
   return xml
+}
+
+const CHAR = 6 // average width of a character at the canvas's 11px label font
+const LINE = 14
+
+/** Where the canvas shows a name outside the shape: above a gateway, below an event or a data shape. */
+function outerLabel(n: FlowNode, b: Bounds): Bounds | undefined {
+  if (!n.name || !(n.type === 'event' || n.type === 'gateway' || n.type === 'dataObject' || n.type === 'dataStore')) return undefined
+  const text = n.type === 'dataObject' && n.state ? `${n.name} [${n.state}]` : n.name
+  const width = Math.min(110, Math.max(20, text.length * CHAR))
+  const height = Math.ceil((text.length * CHAR) / 110) * LINE
+  const x = Math.round(b.x + b.width / 2 - width / 2)
+  return { x, y: n.type === 'gateway' ? b.y - 3 - height : b.y + b.height + 3, width, height }
+}
+
+/** A flow's name sits on the middle of its longest segment, as on the canvas. */
+function flowLabel(name: string, pts: Point[]): Bounds | undefined {
+  if (!name || pts.length < 2) return undefined
+  let best = 0
+  const len = (i: number) => Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y)
+  for (let i = 1; i < pts.length - 1; i++) if (len(i) > len(best)) best = i
+  const width = Math.min(110, Math.max(16, name.length * CHAR))
+  const height = Math.ceil((name.length * CHAR) / 110) * LINE
+  const cx = (pts[best].x + pts[best + 1].x) / 2
+  const cy = (pts[best].y + pts[best + 1].y) / 2
+  return { x: Math.round(cx - width / 2), y: Math.round(cy - height / 2), width, height }
 }
 
 /** An orthogonal path between the sides of two shapes that face each other (as edges.tsx draws it). */
