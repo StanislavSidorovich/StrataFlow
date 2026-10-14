@@ -20,7 +20,7 @@ Stages follow SPEC §12. A stage is done only when its acceptance criteria pass.
    - Scaffold the app by copying StrataSQL's setup (package.json deps, vite.config.ts incl. the PWA precache plugin, tsconfig, `.github/workflows/deploy.yml`, `.claude/launch.json` with dev on port **5174** so it does not clash with StrataSQL's 5173). No StrataSQL domain code.
    - Spike D1: one pool with two lanes, a task, an XOR gateway, a timer event and orthogonal flows on React Flow. Spike D2: parse a `.bpmn` (BPMN 2.0 XML with DI) with bpmn-moddle; check its license file.
    - Pages: enable (build_type=workflow), add custom domain `flow.quaera.app` via `gh api`; the owner adds the Cloudflare CNAME `flow → stanislavsidorovich.github.io` (DNS only) by hand; then enforce HTTPS.
-2. Course material: received 2026-10-14 in `/private/course/` (gitignored); read its `README.md` first (course follows Dumas et al. 2013; Bizagi `.bpm` + `.bpmn` exports; findings and what is still missing). Turn it into SPEC §13 answers. Chapters 3–5 and the exercise 3.7 diagram added the same day (findings in that README, "Chapter 3–5 findings"; 3.7 solved in `exercises/exercise-3.7-solution.md`). Still to ask the owner: the professor's style rules / grading criteria.
+2. Course material: received 2026-10-14 in `/private/course/` (gitignored); read its `README.md` first (course follows Dumas et al. 2013; Bizagi `.bpm` + `.bpmn` exports; findings and what is still missing). Turn it into SPEC §13 answers. Chapters 3–5 and the exercise 3.7 diagram added the same day (findings in that README, "Chapter 3–5 findings"; 3.7 solved in `exercises/exercise-3.7-solution.md`). Syllabus, practical assignment and Hammer (1990) added too: there is no separate style guide (Chapter 3 conventions rule); deliverables are Bizagi files, so Bizagi-openable BPMN export is a hard requirement. Chapters 6–8 (quantitative analysis, redesign, process mining) come later in the semester.
 3. Write the first 3 own cases in `cases/` (see `cases/README.md`), easy → hard.
 4. Stage 1.
 
@@ -51,5 +51,5 @@ Project folder, CLAUDE.md, SPEC v0.1, ROADMAP, lessons from StrataSQL, design no
 Built with: Claude Opus 5.5 (Claude Code), effort low.
 
 ### 2026-10-14 · Course chapters 3–5
-Chapters 3–5 and exercise 3.7 copied to `/private/course/`, conventions extracted for SPEC §13, exercise 3.7 solved (cross-pool deadlock, event-based gateway fix). No code yet.
+Chapters 3–5, exercise 3.7, syllabus, assignment and Hammer (1990) copied to `/private/course/`, conventions extracted for SPEC §13, exercise 3.7 solved (cross-pool deadlock, event-based gateway fix). No code yet.
 Built with: Claude Opus 5.5 (Claude Code), effort low.
