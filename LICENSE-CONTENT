@@ -1,0 +1,64 @@
+Learning content of StrataFlow — the case texts and model answers under
+`cases/` and `src/data/` (tagged phrases and their explanations, walkthrough
+notes, hints, help cards, open exercises, sandbox scenarios) —
+Copyright 2026 Stanislav Sidorovich.
+
+This content is licensed under the Creative Commons
+Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0).
+
+You are free to:
+
+  Share — copy and redistribute the material in any medium or format
+  Adapt — remix, transform, and build upon the material
+
+Under the following terms:
+
+  Attribution — You must give appropriate credit, provide a link to the
+  license, and indicate if changes were made. You may do so in any
+  reasonable manner, but not in any way that suggests the licensor
+  endorses you or your use.
+
+  NonCommercial — You may not use the material for commercial purposes.
+
+  ShareAlike — If you remix, transform, or build upon the material, you
+  must distribute your contributions under the same license as the original.
+
+  No additional restrictions — You may not apply legal terms or
+  technological measures that legally restrict others from doing anything
+  the license permits.
+
+Full legal text: https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode
+
+---
+
+HOW TO ATTRIBUTE
+-----------------
+"Appropriate credit" above is deliberately open-ended in the license text,
+so here is a form that satisfies it. Reproduce it wherever the reused
+material appears:
+
+  Learning content from StrataFlow by Stanislav Sidorovich
+  (https://github.com/StanislavSidorovich/StrataFlow), licensed under
+  CC BY-NC-SA 4.0. Changes were made. / No changes were made.
+
+Author: Stanislav Sidorovich — https://www.linkedin.com/in/stanislavsidorovich
+Project: https://flow.quaera.app (part of Quaera, https://quaera.app)
+
+---
+
+NOT COVERED: COURSE MATERIAL
+----------------------------
+Course material (texts, examples or files from NOVA IMS classes), if ever
+included with permission, stays with its authors and is not licensed here.
+All cases in `cases/` are original unless marked otherwise.
+
+---
+
+WHY A SEPARATE LICENSE FROM THE CODE
+-------------------------------------
+The application code (see `LICENSE`, Apache-2.0) is the editor, the
+BPMN engine, the linter and the trainer. The work that took the
+most editorial effort — case texts, model answers, the reason behind every
+modeling step, hints and help cards — is learning content. Apache-2.0 is
+not written for prose, and Creative Commons licenses are explicitly not
+recommended for software; hence the split, the same as in Quaera.

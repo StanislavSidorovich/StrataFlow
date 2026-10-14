@@ -1,0 +1,10 @@
+node_modules
+dist
+*.log
+.vite
+.playwright-mcp
+tsconfig.tsbuildinfo
+
+# private: course material, the graded group project, owner's work files. Never committed.
+/private/
+*.bpm
