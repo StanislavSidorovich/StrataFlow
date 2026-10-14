@@ -1,4 +1,5 @@
-// Files: save the model as `*.flow.json`, open a `*.flow.json` or a BPMN 2.0 XML file (Bizagi export).
+// Files: save the model as `*.flow.json`, open a `*.flow.json` or a BPMN 2.0 XML file (Bizagi export),
+// export BPMN 2.0 XML for Bizagi Modeler and bpmn.io.
 // Same pattern as StrataSQL's fileSave.ts: "Save as" picks the folder and name (Chrome, Edge), after which
 // "Save" writes to that file until another document is loaded; other browsers download the file.
 import { parseModel, serializeModel, FILE_EXTENSION } from '../core/serialize'
@@ -19,15 +20,28 @@ export function fileBaseName(name: string): string {
   return (name.trim() || 'process').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, '-').toLowerCase()
 }
 
-function download(): string {
-  const { model } = useEditor.getState()
-  const name = `${fileBaseName(model.name)}${FILE_EXTENSION}`
+function downloadText(name: string, text: string, type: string) {
   const a = document.createElement('a')
-  a.href = URL.createObjectURL(new Blob([serializeModel(model)], { type: 'application/json' }))
+  a.href = URL.createObjectURL(new Blob([text], { type }))
   a.download = name
   a.click()
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+}
+
+function download(): string {
+  const { model } = useEditor.getState()
+  const name = `${fileBaseName(model.name)}${FILE_EXTENSION}`
+  downloadText(name, serializeModel(model), 'application/json')
   return name
+}
+
+/** Export: BPMN 2.0 XML with the diagram, as a download (the writer loads on first use). */
+export async function exportBpmn(): Promise<string> {
+  const { writeBpmn } = await import('../core/bpmn/write')
+  const { model } = useEditor.getState()
+  const name = `${fileBaseName(model.name)}.bpmn`
+  downloadText(name, await writeBpmn(model), 'application/xml')
+  return `Exported ${name}: BPMN 2.0 XML. In Bizagi Modeler use Import, BPMN; bpmn.io opens it directly.`
 }
 
 async function write(file: WritableFile) {

@@ -1,13 +1,13 @@
-// Stage 1: the editor. Top bar (files, example, theme), the canvas with its draw bar, and Properties.
+// The editor. Top bar (files, example, theme), the canvas with its draw bar, and Properties.
 import { useEffect, useRef, useState } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
-import { BookOpen, FilePlus2, FolderOpen, Moon, Save, Sun, TriangleAlert, X } from 'lucide-react'
+import { BookOpen, FileDown, FilePlus2, FolderOpen, Moon, Save, Sun, TriangleAlert, X } from 'lucide-react'
 import { emptyModel } from '../core/metamodel'
 import { deleteElements } from '../core/ops'
 import { parseModel } from '../core/serialize'
 import { Canvas } from './canvas/Canvas'
 import { TOOLS } from './canvas/Palette'
-import { openText, saveModel, saveModelAs } from './files'
+import { exportBpmn, openText, saveModel, saveModelAs } from './files'
 import { Properties } from './panels/Properties'
 import { hadStoredModel, useEditor } from './store'
 import example from '../data/examples/library-loan.flow.json?raw'
@@ -112,6 +112,20 @@ export function App() {
         </button>
         <button
           className="btn"
+          onClick={async () => {
+            try {
+              useEditor.getState().say(await exportBpmn())
+            } catch (e) {
+              useEditor.getState().showError(`Not exported: ${(e as Error).message}`)
+            }
+          }}
+          title="Export as BPMN 2.0 XML (.bpmn) for Bizagi Modeler, bpmn.io and other BPMN tools"
+          data-testid="export-bpmn"
+        >
+          <FileDown size={15} /> Export BPMN
+        </button>
+        <button
+          className="btn"
           onClick={() => {
             useEditor.getState().load(parseModel(example))
             useEditor.getState().say('Opened the example: a library lends a book. Undo brings your process back.')
@@ -145,7 +159,7 @@ export function App() {
         <Properties />
       </main>
       <footer className="statusbar">
-        Stage 1 preview: draw, save and reopen BPMN processes; opens Bizagi .bpmn exports. BPMN export, auto layout and the model check come next. Unofficial student project.
+        Preview: draw, save and reopen BPMN processes; opens Bizagi .bpmn exports and exports BPMN 2.0 XML. Auto layout and the model check come next. Unofficial student project.
       </footer>
     </div>
   )

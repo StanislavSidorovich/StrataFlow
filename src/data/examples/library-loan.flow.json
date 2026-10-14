@@ -34,8 +34,7 @@
       "type": "event",
       "position": "start",
       "trigger": "message",
-      "throwing": false,
-      "interrupting": true
+      "throwing": false
     },
     {
       "id": "Task_check",
@@ -112,6 +111,7 @@
       "id": "DataRef_slip",
       "name": "Loan slip",
       "participantId": "Participant_library",
+      "laneId": "Lane_stacks",
       "type": "dataObject",
       "state": "filled"
     }

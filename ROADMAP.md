@@ -6,7 +6,7 @@ Stages follow SPEC §12. A stage is done only when its acceptance criteria pass.
 |---|---|---|
 | 0. Setup | ✅ | Repo + Vite app + CI deploy at flow.quaera.app; D1/D2 decided by a spike (done 2026-10-14) |
 | 1. Editor | ✅ | Reference process (pools, lanes, XOR + AND, timer and message events, boundary event, data object) drawn, saved, reloaded; undo/redo (done 2026-10-14) |
-| 2. Interop + productivity | ⏳ next | Lossless BPMN XML round-trip of every case; Bizagi file opens; our export opens in Bizagi and bpmn.io; auto layout; group into / ungroup sub-process |
+| 2. Interop + productivity | ⏳ in progress (BPMN export done) | Lossless BPMN XML round-trip of every case; Bizagi file opens; our export opens in Bizagi and bpmn.io; auto layout; group into / ungroup sub-process |
 | 3. Linter + Help | ⬜ | P01–P17 with tests; cases lint clean; ≥ 20 help cards; `?` everywhere |
 | 4. Trainer | ⬜ | 3 cases × levels 0–3; text cues; comparator; tour; lessons |
 | 5. Story | ⬜ | Story files, Present, token beats, in-app story editor, recording script |
@@ -15,7 +15,7 @@ Stages follow SPEC §12. A stage is done only when its acceptance criteria pass.
 
 ## Next steps (by priority)
 
-1. **Stage 2, interop + productivity.** BPMN XML writer (bpmn-moddle `toXML`, with DI; lanes' flowNodeRef, Bizagi-friendly ids) and a round-trip test per case; our export opened in bpmn.io and by the owner in Bizagi; auto layout (elkjs, lanes kept); group into / ungroup sub-process (SPEC §6) with tests. Also insert-on-flow, duplicate, align.
+1. **Stage 2, interop + productivity.** Done: BPMN XML export with round-trip tests, opens in bpmn.io. Left: **owner opens an exported `.bpmn` in Bizagi Modeler** (Export BPMN button; lane x is written absolute, Bizagi itself writes it relative to the pool, so check that lanes sit right); auto layout (elkjs, lanes kept); group into / ungroup sub-process (SPEC §6) with tests for single and multi entry/exit. Also insert-on-flow, duplicate, align. Each future case in `cases/` gets added to `tests/bpmn-roundtrip.test.ts`.
    - Stage 1 leftovers: dragging an end of an existing flow onto another shape (the `reconnect` op exists, no UI yet); nested lanes cannot be created (they are read and kept); a node moved to another pool keeps a sequence flow that now crosses pools (the linter's P03 will catch it); event labels can overlap a lane header; bundle 480 kB (React + React Flow; bpmn-moddle already loads only on opening a .bpmn).
 2. Course material: received 2026-10-14 in `/private/course/` (gitignored); read its `README.md` first (course follows Dumas et al. 2013; Bizagi `.bpm` + `.bpmn` exports; findings and what is still missing). Turn it into SPEC §13 answers. Chapters 3–5 and the exercise 3.7 diagram added the same day (findings in that README, "Chapter 3–5 findings"; 3.7 solved in `exercises/exercise-3.7-solution.md`). Syllabus, practical assignment and Hammer (1990) added too: there is no separate style guide (Chapter 3 conventions rule); deliverables are Bizagi files, so Bizagi-openable BPMN export is a hard requirement. Chapters 6–8 (quantitative analysis, redesign, process mining) come later in the semester.
 3. Write the first 3 own cases (the stage 1 acceptance test draws the planned case 3, Online shop, through the ops: reuse it) in `cases/` (see `cases/README.md`), easy → hard.
@@ -48,6 +48,9 @@ Stages follow SPEC §12. A stage is done only when its acceptance criteria pass.
 - 2026-10-14 ✱ Deleting a lane gives its room and its steps to the lane above (the one below for the first lane), so nothing on the canvas moves. Appending past a pool's end widens the pool.
 - 2026-10-14 ✱ First visit opens the Library example (from `library-loan.flow.json`); later visits reopen what was there (localStorage). New and Open are undoable.
 
+- 2026-10-14 ✱ **BPMN writer = bpmn-moddle `toXML`**, mapping in `core/bpmn/write.ts` mirrors the reader. A pool with steps gets a process named after it; lanes list every flow node in them, also inside sub-processes; data and annotations get their pool and lane from where they sit (BPMN has no lane for them); flows without stored waypoints are routed as the canvas draws them; a collapsed sub-process's content goes in a diagram of its own (as bpmn.io). "Lossless" = read(write(m)) equals m up to list order, plus waypoints for flows that had none; a second trip changes nothing.
+- 2026-10-14 ✱ The reader drops an empty unreferenced pool only in Bizagi files (targetNamespace or exporter says Bizagi); elsewhere an empty pool is kept with its process. A start event stores `interrupting` only when false.
+
 ## Sprints
 
 ### 2026-10-14 · Handoff from StrataSQL
@@ -64,4 +67,8 @@ Built with: Claude Opus 5.5 (Claude Code), effort low.
 
 ### 2026-10-14 · Stage 1: editor
 Edit ops in `core/ops.ts` (add, append, boundary event, pool, lane, connect with automatic flow kind, reconnect, reverse, move with followers, resize pool / lane / shape, rename, update and convert type, default flow, delete with cascade) and `*.flow.json` read/write with reference checks. Store with undo/redo, typing coalesced, autosave (StrataSQL pattern). UI: floating draw bar with keys, context pad (append task / XOR / AND / event / end, boundary event, delete), Properties panel per element, flows routed between facing sides, connection dots, resizers, New / Open (.flow.json or .bpmn) / Save / Save as / Example. Acceptance test draws an order-fulfilment process with every stage-1 element, saves, reloads, undoes. 43 tests. Checked in the browser with Playwright (draw, connect, message flow to a pool, boundary event follows its task, undo/redo, reload, save).
+Built with: Claude Opus 5.5 (Claude Code), effort low.
+
+### 2026-10-14 · Stage 2a: BPMN XML export
+`writeBpmn` (bpmn-moddle `toXML` with DI: collaboration, processes, nested lane sets with flowNodeRef, every task / gateway / event kind, sub-processes expanded and collapsed, data objects with state, data stores, annotations, sequence / message / data / association flows, conditions, default flows, incoming / outgoing). Reader made lossless (empty pools, start-event interrupting, all diagrams, artifacts placed by geometry). Round-trip tests: order fulfilment, the example (.flow.json and the Bizagi-shaped .bpmn), every element type, pools with nested lanes, and the owner's 6 Bizagi exports locally. Fixed: appending a step inside an expanded sub-process pushed it out. Export BPMN button. Checked in the browser: the exported example opens in demo.bpmn.io with every shape and flow. 58 tests.
 Built with: Claude Opus 5.5 (Claude Code), effort low.

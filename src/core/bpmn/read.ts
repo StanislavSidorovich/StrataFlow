@@ -3,7 +3,8 @@
 // - every diagram carries an empty "Main Process" pool drawn at 30,30 under the real one;
 // - lane bounds have x relative to the pool (y is absolute): x = header width.
 import { BpmnModdle } from 'bpmn-moddle'
-import type { Bounds, EventTrigger, Flow, FlowModel, FlowNode, GatewayKind, Lane, Participant, TaskKind } from '../metamodel'
+import { place } from '../ops'
+import { isArtifact, type Bounds, type EventTrigger, type Flow, type FlowModel, type FlowNode, type GatewayKind, type Lane, type Participant, type TaskKind } from '../metamodel'
 
 /** A moddle element: typed loosely on purpose, the reader checks `$type` itself. */
 interface El {
@@ -77,21 +78,23 @@ export async function readBpmn(xml: string): Promise<ReadResult> {
   const processes = roots.filter((r) => r.$type === 'bpmn:Process')
   const messageFlows: El[] = collaboration?.messageFlows ?? []
 
-  // Pools. Bizagi's empty "Main Process" pool is dropped unless something points at it.
+  // Pools. Bizagi's empty "Main Process" pool is dropped unless something points at it; an empty pool
+  // drawn by another tool (ours too) is kept with its process.
   const poolOf = new Map<string, string>() // process id → participant id
   const referenced = new Set(messageFlows.flatMap((m) => [m.sourceRef?.id, m.targetRef?.id]))
+  const bizagi = /bizagi/i.test(defs.targetNamespace ?? '') || /bizagi/i.test(defs.exporter ?? '')
   for (const p of (collaboration?.participants ?? []) as El[]) {
     const proc = p.processRef as El | undefined
     const empty = proc && !(proc.flowElements?.length || proc.artifacts?.length)
-    if (empty && !referenced.has(p.id)) continue
-    participants.push({ id: p.id, name: p.name ?? '', processId: empty ? undefined : proc?.id })
+    if (empty && bizagi && !referenced.has(p.id)) continue
+    participants.push({ id: p.id, name: p.name ?? '', processId: empty && bizagi ? undefined : proc?.id })
     known.add(p.id)
     if (proc && !empty) poolOf.set(proc.id, p.id)
   }
 
   for (const proc of processes) {
     const participantId = poolOf.get(proc.id)
-    if (!participantId && !proc.flowElements?.length) continue
+    if (!participantId && !proc.flowElements?.length && !proc.artifacts?.length) continue
 
     const laneOf = new Map<string, string>()
     const walkLanes = (laneSets: El[] | undefined, parentLaneId?: string) => {
@@ -122,7 +125,8 @@ export async function readBpmn(xml: string): Promise<ReadResult> {
             position,
             trigger,
             throwing,
-            interrupting: t === 'bpmn:BoundaryEvent' ? el.cancelActivity !== false : t === 'bpmn:StartEvent' ? el.isInterrupting !== false : undefined,
+            // Start events interrupt unless told otherwise; only "false" is kept, as the editor does.
+            interrupting: t === 'bpmn:BoundaryEvent' ? el.cancelActivity !== false : t === 'bpmn:StartEvent' && el.isInterrupting === false ? false : undefined,
             attachedTo: el.attachedToRef?.id,
           })
         } else if (t === 'bpmn:SubProcess' || t === 'bpmn:Transaction' || t === 'bpmn:AdHocSubProcess') {
@@ -166,30 +170,33 @@ export async function readBpmn(xml: string): Promise<ReadResult> {
   const kept = flows.filter((f) => known.has(f.source) && known.has(f.target))
   for (const f of flows) if (!kept.includes(f)) warnings.push(`Skipped ${f.kind} flow ${f.id}: an end is not in the model`)
 
-  // Diagram interchange: the first diagram only (Bizagi writes one file per diagram).
+  // Diagram interchange. Bizagi writes one diagram per file; bpmn.io (and our writer) add one per collapsed
+  // sub-process for its content. The first one to draw an element wins.
   const shapes: FlowModel['diagram']['shapes'] = {}
   const edges: FlowModel['diagram']['edges'] = {}
+  const expanded = new Set<string>()
   const keptIds = new Set(kept.map((f) => f.id))
-  const plane = (defs.diagrams?.[0] as El | undefined)?.plane as El | undefined
-  for (const d of (plane?.planeElement ?? []) as El[]) {
-    const ref = (d.bpmnElement as El | undefined)?.id
-    if (!ref || !(known.has(ref) || keptIds.has(ref))) continue
-    if (d.$type === 'bpmndi:BPMNShape' && d.bounds) {
-      const { x, y, width, height } = d.bounds as Bounds
-      shapes[ref] = { x, y, width, height, ...(d.isExpanded ? { expanded: true } : {}) }
-    } else if (d.$type === 'bpmndi:BPMNEdge') edges[ref] = ((d.waypoint ?? []) as El[]).map((p) => ({ x: p.x, y: p.y }))
-  }
+  for (const diagram of (defs.diagrams ?? []) as El[])
+    for (const d of (diagram.plane?.planeElement ?? []) as El[]) {
+      const ref = (d.bpmnElement as El | undefined)?.id
+      if (!ref || !(known.has(ref) || keptIds.has(ref)) || shapes[ref] || edges[ref]) continue
+      if (d.$type === 'bpmndi:BPMNShape' && d.bounds) {
+        const { x, y, width, height } = d.bounds as Bounds
+        shapes[ref] = { x, y, width, height }
+        if (d.isExpanded) expanded.add(ref)
+      } else if (d.$type === 'bpmndi:BPMNEdge') edges[ref] = ((d.waypoint ?? []) as El[]).map((p) => ({ x: p.x, y: p.y }))
+    }
   for (const lane of lanes) {
     const pool = lane.participantId ? shapes[lane.participantId] : undefined
     const s = shapes[lane.id]
     // Lanes are flush with the pool's right edge in every tool; this also undoes Bizagi's relative x.
     if (pool && s && s.width <= pool.width) s.x = pool.x + pool.width - s.width
   }
-  for (const n of nodes) if (n.type === 'subProcess' && shapes[n.id]?.expanded) n.collapsed = false
+  for (const n of nodes) if (n.type === 'subProcess' && expanded.has(n.id)) n.collapsed = false
 
-  const name = (collaboration?.name || processes.find((p) => poolOf.has(p.id))?.name || '').trim()
-  return {
-    model: { format: 'strata-flow', version: 1, name, participants, lanes, nodes, flows: kept, diagram: { shapes, edges } },
-    warnings,
-  }
+  const name = (collaboration?.name || processes.find((p) => poolOf.has(p.id))?.name || (participants.length ? '' : processes[0]?.name) || '').trim()
+  const model: FlowModel = { format: 'strata-flow', version: 1, name, participants, lanes, nodes, flows: kept, diagram: { shapes, edges } }
+  // Data and annotations belong to no lane in BPMN: like the editor, put them where they sit.
+  for (const n of nodes) if (isArtifact(n)) place(model, n.id)
+  return { model, warnings }
 }

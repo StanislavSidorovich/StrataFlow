@@ -87,6 +87,17 @@ describe('add and place', () => {
     ])
   })
 
+  it('appending inside an expanded sub-process stays inside it', () => {
+    const m = emptyModel()
+    const sp = addNode(m, { type: 'subProcess' }, { x: 300, y: 400 })
+    Object.assign(m.diagram.shapes[sp.id], { x: 100, y: 300, width: 500, height: 200 })
+    updateNode(m, sp.id, { collapsed: false })
+    const s = addNode(m, { type: 'event' }, { x: 150, y: 400 })
+    const t = appendNode(m, s.id, { type: 'task' })
+    expect(m.diagram.shapes[t.id].y).toBe(360)
+    expect(nodeOf(m, t.id)?.parentId).toBe(sp.id)
+  })
+
   it('appending past the end of a pool widens it', () => {
     const m = poolWithLanes()
     const t = addNode(m, { type: 'task' }, { x: 700, y: 100 })

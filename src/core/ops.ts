@@ -153,8 +153,11 @@ export function appendNode(m: FlowModel, fromId: string, spec: NodeSpec, name = 
   const { width, height } = SIZES[spec.type]
   const x = from.x + from.width + 60 + width / 2
   let y = from.y + from.height / 2
+  // The sub-processes holding the step are its room, not obstacles.
+  const holders = new Set<string>()
+  for (let p = nodeOf(m, fromId)?.parentId; p && !holders.has(p); p = nodeOf(m, p)?.parentId) holders.add(p)
   const busy = (cy: number) =>
-    Object.entries(m.diagram.shapes).some(([id, s]) => nodeOf(m, id) && Math.abs(s.x + s.width / 2 - x) < (s.width + width) / 2 + 10 && Math.abs(s.y + s.height / 2 - cy) < (s.height + height) / 2 + 10)
+    Object.entries(m.diagram.shapes).some(([id, s]) => nodeOf(m, id) && !holders.has(id) && Math.abs(s.x + s.width / 2 - x) < (s.width + width) / 2 + 10 && Math.abs(s.y + s.height / 2 - cy) < (s.height + height) / 2 + 10)
   for (let i = 0; i < 20 && busy(y); i++) y += height + 30
   // Appending past the end of the pool widens the pool, so the new step stays in the process.
   const pool = nodeOf(m, fromId)?.participantId
@@ -409,7 +412,9 @@ export function updateNode(m: FlowModel, id: string, patch: NodePatch): void {
     }
     if (patch.trigger) n.trigger = patch.trigger
     if (patch.throwing !== undefined && n.position === 'intermediate') n.throwing = patch.throwing
-    if (patch.interrupting !== undefined && (n.position === 'boundary' || n.position === 'start')) n.interrupting = patch.interrupting
+    if (patch.interrupting !== undefined && n.position === 'boundary') n.interrupting = patch.interrupting
+    // A start event interrupts unless marked otherwise (as BPMN XML keeps it): only "false" is stored.
+    if (patch.interrupting !== undefined && n.position === 'start') n.interrupting = patch.interrupting ? undefined : false
   } else if (n.type === 'dataObject' && patch.state !== undefined) n.state = patch.state.trim() || undefined
   else if (n.type === 'subProcess' && patch.collapsed !== undefined) n.collapsed = patch.collapsed
 }

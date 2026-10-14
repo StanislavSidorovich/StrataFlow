@@ -70,7 +70,7 @@ export interface Bounds {
 }
 
 export interface Diagram {
-  shapes: Record<string, Bounds & { expanded?: boolean }>
+  shapes: Record<string, Bounds>
   edges: Record<string, { x: number; y: number }[]>
 }
 
