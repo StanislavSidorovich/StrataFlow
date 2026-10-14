@@ -1,0 +1,12 @@
+{
+  "name": "StrataFlow: BPMN process modeling",
+  "short_name": "StrataFlow",
+  "description": "Learn BPMN by doing: model a process in the browser, open Bizagi exports, get feedback that explains the rules.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0d9488",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

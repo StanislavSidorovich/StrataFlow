@@ -1,0 +1,42 @@
+/// <reference types="vitest/config" />
+import { createHash } from 'node:crypto'
+import { readdirSync, readFileSync } from 'node:fs'
+import { defineConfig, type Plugin } from 'vite'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+
+// PWA without extra dependencies: emits sw.js with every built file in its precache list.
+function pwaPlugin(): Plugin {
+  return {
+    name: 'strataflow-pwa',
+    apply: 'build',
+    enforce: 'post',
+    generateBundle(_, bundle) {
+      const files = [...Object.keys(bundle), ...readdirSync('public')]
+        .filter((f) => !f.endsWith('.map') && f !== 'sw.js')
+        .sort()
+      const hash = createHash('sha256')
+      for (const f of Object.keys(bundle).sort()) {
+        const out = bundle[f]
+        hash.update(f).update(out.type === 'chunk' ? out.code : out.source)
+      }
+      for (const f of readdirSync('public').sort()) hash.update(f).update(readFileSync(`public/${f}`))
+      const version = hash.digest('hex').slice(0, 12)
+      const precache = ['./', ...files.map((f) => `./${f}`)]
+      const source = readFileSync('src/pwa/sw.js', 'utf8')
+        .replace("'__VERSION__'", JSON.stringify(version))
+        .replace('__PRECACHE__', JSON.stringify(precache, null, 2))
+      this.emitFile({ type: 'asset', fileName: 'sw.js', source })
+    },
+  }
+}
+
+export default defineConfig({
+  base: './',
+  plugins: [react(), tailwindcss(), pwaPlugin()],
+
+  test: {
+    include: ['tests/**/*.test.ts'],
+    environment: 'node',
+  },
+})

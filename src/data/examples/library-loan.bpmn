@@ -1,0 +1,177 @@
+<?xml version="1.0"?>
+<!-- StrataFlow sample (CC BY-NC-SA 4.0). Written in the shape of a Bizagi Modeler 4.3 export:
+     an empty "Main Process" pool, bizagi:BizagiExtensions, lane x relative to the pool. -->
+<definitions xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_library" targetNamespace="http://www.bizagi.com/definitions/library" xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <process id="Process_main" name="Main Process">
+    <documentation />
+    <laneSet id="LaneSet_main" />
+  </process>
+  <process id="Process_loan" name="Book loan">
+    <documentation />
+    <laneSet id="LaneSet_loan">
+      <lane id="Lane_desk" name="Front desk">
+        <flowNodeRef>Start_requested</flowNodeRef>
+        <flowNodeRef>Task_check</flowNodeRef>
+        <flowNodeRef>Gateway_valid</flowNodeRef>
+        <flowNodeRef>End_refused</flowNodeRef>
+        <flowNodeRef>Task_lend</flowNodeRef>
+        <flowNodeRef>Timer_due</flowNodeRef>
+        <flowNodeRef>Task_remind</flowNodeRef>
+        <flowNodeRef>End_reminded</flowNodeRef>
+      </lane>
+      <lane id="Lane_stacks" name="Stacks">
+        <flowNodeRef>Task_fetch</flowNodeRef>
+      </lane>
+    </laneSet>
+    <startEvent id="Start_requested" name="Loan requested">
+      <extensionElements>
+        <bizagi:BizagiExtensions xmlns:bizagi="http://www.bizagi.com/bpmn20">
+          <bizagi:BizagiProperties>
+            <bizagi:BizagiProperty name="bgColor" value="#E6FF97" />
+            <bizagi:BizagiProperty name="borderColor" value="#62A716" />
+          </bizagi:BizagiProperties>
+        </bizagi:BizagiExtensions>
+      </extensionElements>
+      <outgoing>Flow_1</outgoing>
+      <messageEventDefinition id="Def_msg_1" />
+    </startEvent>
+    <task id="Task_check" name="Check membership">
+      <incoming>Flow_1</incoming>
+      <outgoing>Flow_2</outgoing>
+    </task>
+    <exclusiveGateway id="Gateway_valid" name="Member valid?" default="Flow_yes">
+      <incoming>Flow_2</incoming>
+      <outgoing>Flow_no</outgoing>
+      <outgoing>Flow_yes</outgoing>
+    </exclusiveGateway>
+    <endEvent id="End_refused" name="Loan refused">
+      <incoming>Flow_no</incoming>
+    </endEvent>
+    <task id="Task_fetch" name="Fetch book">
+      <incoming>Flow_yes</incoming>
+      <outgoing>Flow_3</outgoing>
+      <dataOutputAssociation id="Assoc_slip">
+        <targetRef>DataRef_slip</targetRef>
+      </dataOutputAssociation>
+    </task>
+    <task id="Task_lend" name="Lend book">
+      <incoming>Flow_3</incoming>
+      <outgoing>Flow_4</outgoing>
+    </task>
+    <intermediateCatchEvent id="Timer_due" name="Due date reached">
+      <incoming>Flow_4</incoming>
+      <outgoing>Flow_5</outgoing>
+      <timerEventDefinition id="Def_timer_1" />
+    </intermediateCatchEvent>
+    <sendTask id="Task_remind" name="Send reminder">
+      <incoming>Flow_5</incoming>
+      <outgoing>Flow_6</outgoing>
+    </sendTask>
+    <endEvent id="End_reminded" name="Reminder sent">
+      <incoming>Flow_6</incoming>
+    </endEvent>
+    <dataObject id="DataObject_slip" name="Loan slip" />
+    <dataObjectReference id="DataRef_slip" name="Loan slip" dataObjectRef="DataObject_slip">
+      <dataState id="State_slip" name="filled" />
+    </dataObjectReference>
+    <sequenceFlow id="Flow_1" sourceRef="Start_requested" targetRef="Task_check" />
+    <sequenceFlow id="Flow_2" sourceRef="Task_check" targetRef="Gateway_valid" />
+    <sequenceFlow id="Flow_no" name="No" sourceRef="Gateway_valid" targetRef="End_refused">
+      <conditionExpression xsi:type="tFormalExpression">membership expired</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="Flow_yes" name="Yes" sourceRef="Gateway_valid" targetRef="Task_fetch" />
+    <sequenceFlow id="Flow_3" sourceRef="Task_fetch" targetRef="Task_lend" />
+    <sequenceFlow id="Flow_4" sourceRef="Task_lend" targetRef="Timer_due" />
+    <sequenceFlow id="Flow_5" sourceRef="Timer_due" targetRef="Task_remind" />
+    <sequenceFlow id="Flow_6" sourceRef="Task_remind" targetRef="End_reminded" />
+  </process>
+  <collaboration id="Collab_library" name="Library book loan">
+    <participant id="Participant_main" name="Main Process" processRef="Process_main" />
+    <participant id="Participant_library" name="Library" processRef="Process_loan" />
+    <participant id="Participant_member" name="Member" />
+    <messageFlow id="Msg_request" name="Book request" sourceRef="Participant_member" targetRef="Start_requested" />
+    <messageFlow id="Msg_reminder" name="Reminder" sourceRef="Task_remind" targetRef="Participant_member" />
+  </collaboration>
+  <BPMNDiagram id="Diagram_library" xmlns="http://www.omg.org/spec/BPMN/20100524/DI">
+    <BPMNPlane id="Plane_library" bpmnElement="Collab_library">
+      <BPMNShape id="DI_main" bpmnElement="Participant_main" isHorizontal="true">
+        <Bounds x="30" y="30" width="700" height="350" xmlns="http://www.omg.org/spec/DD/20100524/DC" />
+      </BPMNShape>
+      <BPMNShape id="DI_library" bpmnElement="Participant_library" isHorizontal="true">
+        <Bounds x="30" y="30" width="960" height="320" xmlns="http://www.omg.org/spec/DD/20100524/DC" />
+      </BPMNShape>
+      <BPMNShape id="DI_desk" bpmnElement="Lane_desk" isHorizontal="true">
+        <Bounds x="30" y="30" width="930" height="180" xmlns="http://www.omg.org/spec/DD/20100524/DC" />
+      </BPMNShape>
+      <BPMNShape id="DI_stacks" bpmnElement="Lane_stacks" isHorizontal="true">
+        <Bounds x="30" y="210" width="930" height="140" xmlns="http://www.omg.org/spec/DD/20100524/DC" />
+      </BPMNShape>
+      <BPMNShape id="DI_member" bpmnElement="Participant_member" isHorizontal="true">
+        <Bounds x="30" y="390" width="960" height="70" xmlns="http://www.omg.org/spec/DD/20100524/DC" />
+      </BPMNShape>
+      <BPMNShape id="DI_start" bpmnElement="Start_requested">
+        <Bounds x="100" y="95" width="30" height="30" xmlns="http://www.omg.org/spec/DD/20100524/DC" />
+      </BPMNShape>
+      <BPMNShape id="DI_check" bpmnElement="Task_check">
+        <Bounds x="170" y="80" width="90" height="60" xmlns="http://www.omg.org/spec/DD/20100524/DC" />
+      </BPMNShape>
+      <BPMNShape id="DI_valid" bpmnElement="Gateway_valid">
+        <Bounds x="305" y="90" width="40" height="40" xmlns="http://www.omg.org/spec/DD/20100524/DC" />
+      </BPMNShape>
+      <BPMNShape id="DI_refused" bpmnElement="End_refused">
+        <Bounds x="310" y="165" width="30" height="30" xmlns="http://www.omg.org/spec/DD/20100524/DC" />
+      </BPMNShape>
+      <BPMNShape id="DI_fetch" bpmnElement="Task_fetch">
+        <Bounds x="400" y="250" width="90" height="60" xmlns="http://www.omg.org/spec/DD/20100524/DC" />
+      </BPMNShape>
+      <BPMNShape id="DI_slip" bpmnElement="DataRef_slip">
+        <Bounds x="530" y="245" width="40" height="50" xmlns="http://www.omg.org/spec/DD/20100524/DC" />
+      </BPMNShape>
+      <BPMNShape id="DI_lend" bpmnElement="Task_lend">
+        <Bounds x="540" y="80" width="90" height="60" xmlns="http://www.omg.org/spec/DD/20100524/DC" />
+      </BPMNShape>
+      <BPMNShape id="DI_due" bpmnElement="Timer_due">
+        <Bounds x="680" y="95" width="30" height="30" xmlns="http://www.omg.org/spec/DD/20100524/DC" />
+      </BPMNShape>
+      <BPMNShape id="DI_remind" bpmnElement="Task_remind">
+        <Bounds x="760" y="80" width="90" height="60" xmlns="http://www.omg.org/spec/DD/20100524/DC" />
+      </BPMNShape>
+      <BPMNShape id="DI_reminded" bpmnElement="End_reminded">
+        <Bounds x="895" y="95" width="30" height="30" xmlns="http://www.omg.org/spec/DD/20100524/DC" />
+      </BPMNShape>
+      <BPMNEdge id="DI_f1" bpmnElement="Flow_1">
+        <waypoint x="130" y="110" xmlns="http://www.omg.org/spec/DD/20100524/DI" /><waypoint x="170" y="110" xmlns="http://www.omg.org/spec/DD/20100524/DI" />
+      </BPMNEdge>
+      <BPMNEdge id="DI_f2" bpmnElement="Flow_2">
+        <waypoint x="260" y="110" xmlns="http://www.omg.org/spec/DD/20100524/DI" /><waypoint x="305" y="110" xmlns="http://www.omg.org/spec/DD/20100524/DI" />
+      </BPMNEdge>
+      <BPMNEdge id="DI_fno" bpmnElement="Flow_no">
+        <waypoint x="325" y="130" xmlns="http://www.omg.org/spec/DD/20100524/DI" /><waypoint x="325" y="165" xmlns="http://www.omg.org/spec/DD/20100524/DI" />
+      </BPMNEdge>
+      <BPMNEdge id="DI_fyes" bpmnElement="Flow_yes">
+        <waypoint x="345" y="110" xmlns="http://www.omg.org/spec/DD/20100524/DI" /><waypoint x="445" y="110" xmlns="http://www.omg.org/spec/DD/20100524/DI" /><waypoint x="445" y="250" xmlns="http://www.omg.org/spec/DD/20100524/DI" />
+      </BPMNEdge>
+      <BPMNEdge id="DI_f3" bpmnElement="Flow_3">
+        <waypoint x="490" y="280" xmlns="http://www.omg.org/spec/DD/20100524/DI" /><waypoint x="510" y="280" xmlns="http://www.omg.org/spec/DD/20100524/DI" /><waypoint x="510" y="225" xmlns="http://www.omg.org/spec/DD/20100524/DI" /><waypoint x="585" y="225" xmlns="http://www.omg.org/spec/DD/20100524/DI" /><waypoint x="585" y="140" xmlns="http://www.omg.org/spec/DD/20100524/DI" />
+      </BPMNEdge>
+      <BPMNEdge id="DI_f4" bpmnElement="Flow_4">
+        <waypoint x="630" y="110" xmlns="http://www.omg.org/spec/DD/20100524/DI" /><waypoint x="680" y="110" xmlns="http://www.omg.org/spec/DD/20100524/DI" />
+      </BPMNEdge>
+      <BPMNEdge id="DI_f5" bpmnElement="Flow_5">
+        <waypoint x="710" y="110" xmlns="http://www.omg.org/spec/DD/20100524/DI" /><waypoint x="760" y="110" xmlns="http://www.omg.org/spec/DD/20100524/DI" />
+      </BPMNEdge>
+      <BPMNEdge id="DI_f6" bpmnElement="Flow_6">
+        <waypoint x="850" y="110" xmlns="http://www.omg.org/spec/DD/20100524/DI" /><waypoint x="895" y="110" xmlns="http://www.omg.org/spec/DD/20100524/DI" />
+      </BPMNEdge>
+      <BPMNEdge id="DI_slipAssoc" bpmnElement="Assoc_slip">
+        <waypoint x="490" y="295" xmlns="http://www.omg.org/spec/DD/20100524/DI" /><waypoint x="530" y="285" xmlns="http://www.omg.org/spec/DD/20100524/DI" />
+      </BPMNEdge>
+      <BPMNEdge id="DI_mreq" bpmnElement="Msg_request">
+        <waypoint x="115" y="390" xmlns="http://www.omg.org/spec/DD/20100524/DI" /><waypoint x="115" y="125" xmlns="http://www.omg.org/spec/DD/20100524/DI" />
+      </BPMNEdge>
+      <BPMNEdge id="DI_mrem" bpmnElement="Msg_reminder">
+        <waypoint x="805" y="140" xmlns="http://www.omg.org/spec/DD/20100524/DI" /><waypoint x="805" y="390" xmlns="http://www.omg.org/spec/DD/20100524/DI" />
+      </BPMNEdge>
+    </BPMNPlane>
+  </BPMNDiagram>
+</definitions>
