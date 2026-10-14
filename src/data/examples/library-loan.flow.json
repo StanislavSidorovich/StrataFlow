@@ -1,0 +1,415 @@
+{
+  "format": "strata-flow",
+  "version": 1,
+  "name": "Library book loan",
+  "participants": [
+    {
+      "id": "Participant_library",
+      "name": "Library",
+      "processId": "Process_loan"
+    },
+    {
+      "id": "Participant_member",
+      "name": "Member"
+    }
+  ],
+  "lanes": [
+    {
+      "id": "Lane_desk",
+      "name": "Front desk",
+      "participantId": "Participant_library"
+    },
+    {
+      "id": "Lane_stacks",
+      "name": "Stacks",
+      "participantId": "Participant_library"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "Start_requested",
+      "name": "Loan requested",
+      "participantId": "Participant_library",
+      "laneId": "Lane_desk",
+      "type": "event",
+      "position": "start",
+      "trigger": "message",
+      "throwing": false,
+      "interrupting": true
+    },
+    {
+      "id": "Task_check",
+      "name": "Check membership",
+      "participantId": "Participant_library",
+      "laneId": "Lane_desk",
+      "type": "task",
+      "kind": "task"
+    },
+    {
+      "id": "Gateway_valid",
+      "name": "Member valid?",
+      "participantId": "Participant_library",
+      "laneId": "Lane_desk",
+      "type": "gateway",
+      "kind": "exclusive",
+      "defaultFlow": "Flow_yes"
+    },
+    {
+      "id": "End_refused",
+      "name": "Loan refused",
+      "participantId": "Participant_library",
+      "laneId": "Lane_desk",
+      "type": "event",
+      "position": "end",
+      "trigger": "none",
+      "throwing": true
+    },
+    {
+      "id": "Task_fetch",
+      "name": "Fetch book",
+      "participantId": "Participant_library",
+      "laneId": "Lane_stacks",
+      "type": "task",
+      "kind": "task"
+    },
+    {
+      "id": "Task_lend",
+      "name": "Lend book",
+      "participantId": "Participant_library",
+      "laneId": "Lane_desk",
+      "type": "task",
+      "kind": "task"
+    },
+    {
+      "id": "Timer_due",
+      "name": "Due date reached",
+      "participantId": "Participant_library",
+      "laneId": "Lane_desk",
+      "type": "event",
+      "position": "intermediate",
+      "trigger": "timer",
+      "throwing": false
+    },
+    {
+      "id": "Task_remind",
+      "name": "Send reminder",
+      "participantId": "Participant_library",
+      "laneId": "Lane_desk",
+      "type": "task",
+      "kind": "send"
+    },
+    {
+      "id": "End_reminded",
+      "name": "Reminder sent",
+      "participantId": "Participant_library",
+      "laneId": "Lane_desk",
+      "type": "event",
+      "position": "end",
+      "trigger": "none",
+      "throwing": true
+    },
+    {
+      "id": "DataRef_slip",
+      "name": "Loan slip",
+      "participantId": "Participant_library",
+      "type": "dataObject",
+      "state": "filled"
+    }
+  ],
+  "flows": [
+    {
+      "id": "Assoc_slip",
+      "kind": "data",
+      "source": "Task_fetch",
+      "target": "DataRef_slip",
+      "name": ""
+    },
+    {
+      "id": "Flow_1",
+      "kind": "sequence",
+      "source": "Start_requested",
+      "target": "Task_check",
+      "name": ""
+    },
+    {
+      "id": "Flow_2",
+      "kind": "sequence",
+      "source": "Task_check",
+      "target": "Gateway_valid",
+      "name": ""
+    },
+    {
+      "id": "Flow_no",
+      "kind": "sequence",
+      "source": "Gateway_valid",
+      "target": "End_refused",
+      "name": "No",
+      "condition": "membership expired"
+    },
+    {
+      "id": "Flow_yes",
+      "kind": "sequence",
+      "source": "Gateway_valid",
+      "target": "Task_fetch",
+      "name": "Yes"
+    },
+    {
+      "id": "Flow_3",
+      "kind": "sequence",
+      "source": "Task_fetch",
+      "target": "Task_lend",
+      "name": ""
+    },
+    {
+      "id": "Flow_4",
+      "kind": "sequence",
+      "source": "Task_lend",
+      "target": "Timer_due",
+      "name": ""
+    },
+    {
+      "id": "Flow_5",
+      "kind": "sequence",
+      "source": "Timer_due",
+      "target": "Task_remind",
+      "name": ""
+    },
+    {
+      "id": "Flow_6",
+      "kind": "sequence",
+      "source": "Task_remind",
+      "target": "End_reminded",
+      "name": ""
+    },
+    {
+      "id": "Msg_request",
+      "kind": "message",
+      "source": "Participant_member",
+      "target": "Start_requested",
+      "name": "Book request"
+    },
+    {
+      "id": "Msg_reminder",
+      "kind": "message",
+      "source": "Task_remind",
+      "target": "Participant_member",
+      "name": "Reminder"
+    }
+  ],
+  "diagram": {
+    "shapes": {
+      "Participant_library": {
+        "x": 30,
+        "y": 30,
+        "width": 960,
+        "height": 320
+      },
+      "Lane_desk": {
+        "x": 60,
+        "y": 30,
+        "width": 930,
+        "height": 180
+      },
+      "Lane_stacks": {
+        "x": 60,
+        "y": 210,
+        "width": 930,
+        "height": 140
+      },
+      "Participant_member": {
+        "x": 30,
+        "y": 390,
+        "width": 960,
+        "height": 70
+      },
+      "Start_requested": {
+        "x": 100,
+        "y": 95,
+        "width": 30,
+        "height": 30
+      },
+      "Task_check": {
+        "x": 170,
+        "y": 80,
+        "width": 90,
+        "height": 60
+      },
+      "Gateway_valid": {
+        "x": 305,
+        "y": 90,
+        "width": 40,
+        "height": 40
+      },
+      "End_refused": {
+        "x": 310,
+        "y": 165,
+        "width": 30,
+        "height": 30
+      },
+      "Task_fetch": {
+        "x": 400,
+        "y": 250,
+        "width": 90,
+        "height": 60
+      },
+      "DataRef_slip": {
+        "x": 530,
+        "y": 245,
+        "width": 40,
+        "height": 50
+      },
+      "Task_lend": {
+        "x": 540,
+        "y": 80,
+        "width": 90,
+        "height": 60
+      },
+      "Timer_due": {
+        "x": 680,
+        "y": 95,
+        "width": 30,
+        "height": 30
+      },
+      "Task_remind": {
+        "x": 760,
+        "y": 80,
+        "width": 90,
+        "height": 60
+      },
+      "End_reminded": {
+        "x": 895,
+        "y": 95,
+        "width": 30,
+        "height": 30
+      }
+    },
+    "edges": {
+      "Flow_1": [
+        {
+          "x": 130,
+          "y": 110
+        },
+        {
+          "x": 170,
+          "y": 110
+        }
+      ],
+      "Flow_2": [
+        {
+          "x": 260,
+          "y": 110
+        },
+        {
+          "x": 305,
+          "y": 110
+        }
+      ],
+      "Flow_no": [
+        {
+          "x": 325,
+          "y": 130
+        },
+        {
+          "x": 325,
+          "y": 165
+        }
+      ],
+      "Flow_yes": [
+        {
+          "x": 345,
+          "y": 110
+        },
+        {
+          "x": 445,
+          "y": 110
+        },
+        {
+          "x": 445,
+          "y": 250
+        }
+      ],
+      "Flow_3": [
+        {
+          "x": 490,
+          "y": 280
+        },
+        {
+          "x": 510,
+          "y": 280
+        },
+        {
+          "x": 510,
+          "y": 225
+        },
+        {
+          "x": 585,
+          "y": 225
+        },
+        {
+          "x": 585,
+          "y": 140
+        }
+      ],
+      "Flow_4": [
+        {
+          "x": 630,
+          "y": 110
+        },
+        {
+          "x": 680,
+          "y": 110
+        }
+      ],
+      "Flow_5": [
+        {
+          "x": 710,
+          "y": 110
+        },
+        {
+          "x": 760,
+          "y": 110
+        }
+      ],
+      "Flow_6": [
+        {
+          "x": 850,
+          "y": 110
+        },
+        {
+          "x": 895,
+          "y": 110
+        }
+      ],
+      "Assoc_slip": [
+        {
+          "x": 490,
+          "y": 295
+        },
+        {
+          "x": 530,
+          "y": 285
+        }
+      ],
+      "Msg_request": [
+        {
+          "x": 115,
+          "y": 390
+        },
+        {
+          "x": 115,
+          "y": 125
+        }
+      ],
+      "Msg_reminder": [
+        {
+          "x": 805,
+          "y": 140
+        },
+        {
+          "x": 805,
+          "y": 390
+        }
+      ]
+    }
+  }
+}

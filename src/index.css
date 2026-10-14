@@ -14,6 +14,8 @@
   --brand: #0d9488;
   --warning: #9a5b00;
   --warning-soft: #fff4e0;
+  --error: #d0342c;
+  --error-soft: #fdecea;
 
   --canvas-bg: #fbfbfc;
   --shape-fill: #ffffff;
@@ -40,6 +42,8 @@
   --brand: #2dd4bf;
   --warning: #ffc266;
   --warning-soft: #3a2c12;
+  --error: #ff7b72;
+  --error-soft: #3d1c1a;
 
   --canvas-bg: #171a21;
   --shape-fill: #20252f;
@@ -138,6 +142,104 @@ body {
 .main {
   flex: 1;
   min-height: 0;
+  display: flex;
+}
+.notice.is-error {
+  background: var(--error-soft);
+  color: var(--error);
+}
+.notice span {
+  flex: 1;
+}
+.notice-close {
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 2px;
+}
+.btn.danger:hover {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+/* ------------------------------------------------------------ properties */
+
+.side-panel {
+  width: 280px;
+  flex: none;
+  overflow-y: auto;
+  background: var(--panel-bg);
+  border-left: 1px solid var(--panel-border);
+  padding: 12px 14px;
+  box-sizing: border-box;
+}
+.side-panel h2 {
+  font-size: 14px;
+  margin: 0 0 6px;
+}
+.side-panel h3 {
+  font-size: 12px;
+  margin: 16px 0 4px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.side-panel p {
+  margin: 4px 0 10px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0 0 10px;
+}
+.field > span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.field input,
+.field textarea,
+.field select {
+  font: inherit;
+  color: var(--text);
+  background: var(--app-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 5px 7px;
+  resize: vertical;
+}
+.field input:focus,
+.field textarea:focus,
+.field select:focus {
+  outline: 2px solid var(--accent-soft);
+  border-color: var(--accent);
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+.delete-row {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--panel-border);
+}
+.tips {
+  margin: 0;
+  padding-left: 16px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.tips li {
+  margin-bottom: 4px;
 }
 .statusbar {
   padding: 4px 10px;
@@ -150,7 +252,101 @@ body {
 /* ------------------------------------------------------------ canvas */
 
 .canvas-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
   height: 100%;
+}
+.canvas-wrap.is-placing .react-flow__pane {
+  cursor: crosshair;
+}
+.canvas-hint {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  max-width: 340px;
+  text-align: center;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+/* Draw bar */
+.palette {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.08);
+}
+.palette-btn,
+.pad-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+.palette-btn:hover,
+.pad-btn:hover {
+  background: var(--accent-soft);
+}
+.palette-btn.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.context-pad {
+  display: grid;
+  grid-template-columns: repeat(2, 30px);
+  gap: 2px;
+  padding: 3px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.08);
+}
+
+/* Connection dots: shown on hover and on the selected shape */
+.react-flow__handle.bpmn-handle {
+  width: 9px;
+  height: 9px;
+  background: var(--panel-bg);
+  border: 1.5px solid var(--accent);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.react-flow__node:hover .bpmn-handle,
+.react-flow__node.selected .bpmn-handle,
+.react-flow.connecting .bpmn-handle {
+  opacity: 1;
+}
+.react-flow__resize-control.handle.bpmn-resize-handle {
+  width: 8px;
+  height: 8px;
+  background: var(--panel-bg);
+  border: 1.5px solid var(--accent);
+  pointer-events: all;
+}
+.react-flow__resize-control.line.bpmn-resize-line {
+  border-color: transparent;
+  pointer-events: all;
+}
+.react-flow__resize-control.bpmn-lane-resize {
+  pointer-events: all;
+  border-color: var(--accent);
 }
 .react-flow {
   --xy-background-color: var(--canvas-bg);
@@ -170,7 +366,7 @@ body {
 
 /* Pools and lanes: a vertical header strip with the name; the body lets clicks through to flows. */
 .react-flow__node.pool-node {
-  pointer-events: none;
+  pointer-events: none !important;
 }
 .bpmn-pool,
 .bpmn-lane {
@@ -193,6 +389,18 @@ body {
 }
 .bpmn-lane .bpmn-pool-header {
   background: transparent;
+}
+.bpmn-pool-header {
+  pointer-events: all;
+  cursor: pointer;
+}
+.bpmn-pool > .bpmn-pool-header {
+  cursor: move;
+}
+.bpmn-pool.is-selected,
+.bpmn-lane.is-selected {
+  outline: 2px solid var(--edge-selected);
+  outline-offset: -1px;
 }
 .bpmn-pool-header span {
   transform: rotate(-90deg);

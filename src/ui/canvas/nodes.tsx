@@ -1,28 +1,51 @@
 // BPMN shapes as React Flow nodes. Each node is drawn in SVG at its DI size; labels of events,
-// gateways and data sit under the shape, as in Bizagi and bpmn.io.
-import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
+// gateways and data sit under the shape, as in Bizagi and bpmn.io. Dots on the four sides start a
+// connection; the editor decides the flow kind. Resizing ends in one undoable edit.
+import { Handle, NodeResizer, NodeResizeControl, Position, type Node, type NodeProps } from '@xyflow/react'
 import type { FlowNode } from '../../core/metamodel'
+import { resizeElement, resizeLane } from '../../core/ops'
+import { useEditor } from '../store'
+import { ContextPad } from './ContextPad'
 
 export type ShapeData = { el: FlowNode }
 export type PoolData = { name: string; header: number; lane?: boolean }
 export type ShapeNode = Node<ShapeData, 'shape'>
 export type PoolNode = Node<PoolData, 'pool'>
 
-/** Edges are drawn from DI waypoints or routed between node centres, so handles only need to exist. */
-const Handles = () => (
+const SIDES = [Position.Top, Position.Right, Position.Bottom, Position.Left]
+
+/** Connection dots; edges are routed between shapes, so the dot only says where a drag starts. */
+const Handles = ({ connectable = true }: { connectable?: boolean }) => (
   <>
-    <Handle type="target" position={Position.Left} className="hidden-handle" />
-    <Handle type="source" position={Position.Right} className="hidden-handle" />
+    {SIDES.map((p) => (
+      <Handle key={p} id={p} type="source" position={p} className={connectable ? 'bpmn-handle' : 'hidden-handle'} isConnectable={connectable} />
+    ))}
   </>
 )
 
-export function PoolShape({ data, width = 0, height = 0 }: NodeProps<PoolNode>) {
+const resized = (id: string) => (_: unknown, p: { x: number; y: number; width: number; height: number }) =>
+  useEditor.getState().apply((m) => resizeElement(m, id, p))
+
+export function PoolShape({ id, data, width = 0, height = 0, selected }: NodeProps<PoolNode>) {
   return (
-    <div className={data.lane ? 'bpmn-lane' : 'bpmn-pool'} style={{ width, height }} data-testid={data.lane ? 'lane' : 'pool'}>
-      <div className="bpmn-pool-header" style={{ width: data.header }}>
+    <div className={`${data.lane ? 'bpmn-lane' : 'bpmn-pool'}${selected ? ' is-selected' : ''}`} style={{ width, height }} data-testid={data.lane ? `lane:${data.name}` : `pool:${data.name}`}>
+      <div className="bpmn-pool-header" style={{ width: data.header }} title={data.lane ? 'Lane: click to select' : 'Pool: drag here to move, click to select'}>
         <span>{data.name}</span>
       </div>
-      <Handles />
+      {data.lane ? (
+        selected && (
+          <NodeResizeControl
+            position="bottom"
+            resizeDirection="vertical"
+            minHeight={40}
+            className="bpmn-lane-resize"
+            onResizeEnd={(_, p) => useEditor.getState().apply((m) => resizeLane(m, id, p.height))}
+          />
+        )
+      ) : (
+        <NodeResizer isVisible={selected} minWidth={200} minHeight={60} lineClassName="bpmn-resize-line" handleClassName="bpmn-resize-handle" onResizeEnd={resized(id)} />
+      )}
+      <Handles connectable={false} />
     </div>
   )
 }
@@ -31,6 +54,10 @@ export function BpmnShape({ data, width = 0, height = 0, selected }: NodeProps<S
   const el = data.el
   return (
     <div className={`bpmn-shape bpmn-${el.type}${selected ? ' is-selected' : ''}`} style={{ width, height }} data-testid={`${el.type}:${el.name}`}>
+      {(el.type === 'task' || el.type === 'subProcess' || el.type === 'annotation') && (
+        <NodeResizer isVisible={selected} minWidth={40} minHeight={30} lineClassName="bpmn-resize-line" handleClassName="bpmn-resize-handle" onResizeEnd={resized(el.id)} />
+      )}
+      <ContextPad el={el} />
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} overflow="visible">
         <Figure el={el} w={width} h={height} />
       </svg>

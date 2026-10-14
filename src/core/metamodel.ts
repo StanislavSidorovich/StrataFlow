@@ -1,5 +1,5 @@
 // The process model (SPEC §5): semantic model and layout kept apart, like BPMN's model vs DI.
-// Stage 0 draft: enough to show a BPMN file on the canvas. Stage 1 refines it into the editor's model.
+// Coordinates are absolute (as in BPMN DI); a node's pool, lane and sub-process follow from where it sits.
 
 export type TaskKind = 'task' | 'user' | 'service' | 'manual' | 'send' | 'receive' | 'script' | 'businessRule'
 export type EventPosition = 'start' | 'intermediate' | 'end' | 'boundary'
@@ -84,3 +84,28 @@ export interface FlowModel {
   flows: Flow[]
   diagram: Diagram
 }
+
+export type ElementType = FlowNode['type']
+export type Point = { x: number; y: number }
+
+/** Default shape sizes, as in bpmn.io (Bizagi draws a little smaller). */
+export const SIZES: Record<ElementType, { width: number; height: number }> = {
+  task: { width: 100, height: 80 },
+  subProcess: { width: 100, height: 80 },
+  event: { width: 36, height: 36 },
+  gateway: { width: 50, height: 50 },
+  dataObject: { width: 36, height: 50 },
+  dataStore: { width: 50, height: 50 },
+  annotation: { width: 100, height: 50 },
+}
+/** Width of the vertical name strip on the left of a pool and of a lane. */
+export const POOL_HEADER = 30
+export const POOL_SIZE = { width: 800, height: 250 }
+export const LANE_HEIGHT = 150
+
+export function emptyModel(name = 'New process'): FlowModel {
+  return { format: 'strata-flow', version: 1, name, participants: [], lanes: [], nodes: [], flows: [], diagram: { shapes: {}, edges: {} } }
+}
+
+/** Data and annotations are artifacts: they sit on the canvas but are not steps of the process. */
+export const isArtifact = (n: FlowNode) => n.type === 'dataObject' || n.type === 'dataStore' || n.type === 'annotation'

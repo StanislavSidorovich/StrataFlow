@@ -1,0 +1,507 @@
+// Edit operations (SPEC §6). Each one changes a model in place (the store runs it on an immer draft)
+// and throws ModelError, leaving the caller to drop the draft, when the edit makes no sense.
+// Coordinates are absolute; after a node moves, place() works out its pool, lane and sub-process.
+import {
+  isArtifact,
+  LANE_HEIGHT,
+  POOL_HEADER,
+  POOL_SIZE,
+  SIZES,
+  type Bounds,
+  type EventPosition,
+  type EventTrigger,
+  type Flow,
+  type FlowKind,
+  type FlowModel,
+  type FlowNode,
+  type GatewayKind,
+  type Lane,
+  type Participant,
+  type Point,
+  type TaskKind,
+} from './metamodel'
+
+export class ModelError extends Error {}
+
+const PREFIX: Record<FlowNode['type'], string> = {
+  task: 'Task',
+  subProcess: 'SubProcess',
+  event: 'Event',
+  gateway: 'Gateway',
+  dataObject: 'DataObject',
+  dataStore: 'DataStore',
+  annotation: 'Annotation',
+}
+
+/** `Task_7` style ids, one more than the highest number in use with that prefix. */
+export function nextId(m: FlowModel, prefix: string): string {
+  const used = [...m.nodes.map((n) => n.id), ...m.flows.map((f) => f.id), ...m.participants.flatMap((p) => [p.id, p.processId ?? '']), ...m.lanes.map((l) => l.id)]
+  let max = 0
+  for (const id of used) {
+    const hit = id.startsWith(prefix + '_') ? Number(id.slice(prefix.length + 1)) : NaN
+    if (Number.isInteger(hit) && hit > max) max = hit
+  }
+  return `${prefix}_${max + 1}`
+}
+
+// ---------------------------------------------------------------- lookups
+
+export const nodeOf = (m: FlowModel, id: string) => m.nodes.find((n) => n.id === id)
+export const poolOf = (m: FlowModel, id: string) => m.participants.find((p) => p.id === id)
+export const laneOf = (m: FlowModel, id: string) => m.lanes.find((l) => l.id === id)
+export const flowOf = (m: FlowModel, id: string) => m.flows.find((f) => f.id === id)
+
+function nodeOrThrow(m: FlowModel, id: string): FlowNode {
+  const n = nodeOf(m, id)
+  if (!n) throw new ModelError(`No element ${id}`)
+  return n
+}
+
+const centre = (b: Bounds): Point => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 })
+const inside = (p: Point, b: Bounds) => p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height
+const area = (b: Bounds) => b.width * b.height
+
+/** The element and everything nested in it: boundary events, and the content of a sub-process. */
+export function withDescendants(m: FlowModel, id: string): Set<string> {
+  const out = new Set([id])
+  let grew = true
+  while (grew) {
+    grew = false
+    for (const n of m.nodes)
+      if (!out.has(n.id) && ((n.parentId && out.has(n.parentId)) || (n.type === 'event' && n.attachedTo && out.has(n.attachedTo)))) {
+        out.add(n.id)
+        grew = true
+      }
+  }
+  return out
+}
+
+/** Sets a node's pool, lane and enclosing sub-process from where its centre sits. */
+export function place(m: FlowModel, id: string): void {
+  const n = nodeOrThrow(m, id)
+  if (n.type === 'event' && n.attachedTo) {
+    const host = nodeOrThrow(m, n.attachedTo)
+    n.participantId = host.participantId
+    n.laneId = host.laneId
+    n.parentId = host.parentId
+    return
+  }
+  // Inside a collapsed sub-process a node is hidden: it stays where it belongs.
+  const holder = n.parentId ? nodeOf(m, n.parentId) : undefined
+  if (holder?.type === 'subProcess' && holder.collapsed) return
+  const s = m.diagram.shapes[id]
+  if (!s) return
+  const c = centre(s)
+  const own = withDescendants(m, id)
+  const smallest = <T extends { id: string }>(items: T[]) =>
+    items
+      .filter((i) => m.diagram.shapes[i.id] && inside(c, m.diagram.shapes[i.id]))
+      .sort((a, b) => area(m.diagram.shapes[a.id]) - area(m.diagram.shapes[b.id]))[0]
+
+  const parent = smallest(m.nodes.filter((x) => x.type === 'subProcess' && !x.collapsed && !own.has(x.id)))
+  const pool = smallest(m.participants)
+  n.parentId = parent?.id
+  n.participantId = pool?.id
+  n.laneId = pool ? smallest(m.lanes.filter((l) => l.participantId === pool.id))?.id : undefined
+  // A black-box pool that receives a step gets a process of its own.
+  if (pool && !pool.processId && !isArtifact(n)) pool.processId = nextId(m, 'Process')
+}
+
+// ---------------------------------------------------------------- add
+
+export type NodeSpec =
+  | { type: 'task'; kind?: TaskKind }
+  | { type: 'subProcess' }
+  | { type: 'event'; position?: Exclude<EventPosition, 'boundary'>; trigger?: EventTrigger; throwing?: boolean }
+  | { type: 'gateway'; kind?: GatewayKind }
+  | { type: 'dataObject' }
+  | { type: 'dataStore' }
+  | { type: 'annotation' }
+
+function makeNode(id: string, spec: NodeSpec, name: string): FlowNode {
+  switch (spec.type) {
+    case 'task':
+      return { id, name, type: 'task', kind: spec.kind ?? 'task' }
+    case 'subProcess':
+      return { id, name, type: 'subProcess', collapsed: true }
+    case 'event': {
+      const position = spec.position ?? 'start'
+      return { id, name, type: 'event', position, trigger: spec.trigger ?? 'none', throwing: position === 'end' ? true : position === 'start' ? false : !!spec.throwing }
+    }
+    case 'gateway':
+      return { id, name, type: 'gateway', kind: spec.kind ?? 'exclusive' }
+    default:
+      return { id, name, type: spec.type }
+  }
+}
+
+/** Adds a node centred on `at`. */
+export function addNode(m: FlowModel, spec: NodeSpec, at: Point, name = ''): FlowNode {
+  const id = nextId(m, PREFIX[spec.type])
+  const node = makeNode(id, spec, name)
+  m.nodes.push(node)
+  const { width, height } = SIZES[spec.type]
+  m.diagram.shapes[id] = { x: Math.round(at.x - width / 2), y: Math.round(at.y - height / 2), width, height }
+  place(m, id)
+  return nodeOf(m, id)!
+}
+
+/** Adds a node to the right of `fromId` (below the ones already there) and connects the two. */
+export function appendNode(m: FlowModel, fromId: string, spec: NodeSpec, name = ''): FlowNode {
+  const from = m.diagram.shapes[fromId]
+  if (!from) throw new ModelError(`No element ${fromId}`)
+  const { width, height } = SIZES[spec.type]
+  const x = from.x + from.width + 60 + width / 2
+  let y = from.y + from.height / 2
+  const busy = (cy: number) =>
+    Object.entries(m.diagram.shapes).some(([id, s]) => nodeOf(m, id) && Math.abs(s.x + s.width / 2 - x) < (s.width + width) / 2 + 10 && Math.abs(s.y + s.height / 2 - cy) < (s.height + height) / 2 + 10)
+  for (let i = 0; i < 20 && busy(y); i++) y += height + 30
+  // Appending past the end of the pool widens the pool, so the new step stays in the process.
+  const pool = nodeOf(m, fromId)?.participantId
+  const ps = pool && m.diagram.shapes[pool]
+  if (ps && inside(centre(from), ps) && x + width / 2 + 30 > ps.x + ps.width) resizeElement(m, pool, { ...ps, width: x + width / 2 + 30 - ps.x })
+  const node = addNode(m, spec, { x, y }, name)
+  connect(m, fromId, node.id)
+  return node
+}
+
+/** Adds an event on the lower border of a task or sub-process. */
+export function addBoundaryEvent(m: FlowModel, hostId: string, trigger: EventTrigger = 'timer'): FlowNode {
+  const host = nodeOrThrow(m, hostId)
+  if (host.type !== 'task' && host.type !== 'subProcess') throw new ModelError('Only a task or a sub-process can carry a boundary event')
+  const hs = m.diagram.shapes[hostId]
+  const count = m.nodes.filter((n) => n.type === 'event' && n.attachedTo === hostId).length
+  const id = nextId(m, 'Event')
+  const { width, height } = SIZES.event
+  m.nodes.push({ id, name: '', type: 'event', position: 'boundary', trigger, throwing: false, interrupting: true, attachedTo: hostId })
+  m.diagram.shapes[id] = { x: Math.round(hs.x + hs.width * 0.7 - width / 2 - count * (width + 6)), y: Math.round(hs.y + hs.height - height / 2), width, height }
+  place(m, id)
+  return nodeOf(m, id)!
+}
+
+/** Adds a white-box pool (with an empty process) whose top-left corner is `at`. */
+export function addPool(m: FlowModel, at: Point, name = ''): Participant {
+  const id = nextId(m, 'Participant')
+  const pool: Participant = { id, name, processId: nextId(m, 'Process') }
+  m.participants.push(pool)
+  m.diagram.shapes[id] = { x: Math.round(at.x), y: Math.round(at.y), ...POOL_SIZE }
+  for (const n of m.nodes) if (!n.participantId) place(m, n.id)
+  return pool
+}
+
+/** The first lane fills the pool; each next one is added at the bottom and the pool grows. */
+export function addLane(m: FlowModel, poolId: string, name = ''): Lane {
+  const pool = poolOf(m, poolId)
+  const ps = m.diagram.shapes[poolId]
+  if (!pool || !ps) throw new ModelError(`No pool ${poolId}`)
+  const lanes = topLanes(m, poolId)
+  const id = nextId(m, 'Lane')
+  const lane: Lane = { id, name, participantId: poolId }
+  m.lanes.push(lane)
+  if (!lanes.length) m.diagram.shapes[id] = { x: ps.x + POOL_HEADER, y: ps.y, width: ps.width - POOL_HEADER, height: ps.height }
+  else {
+    m.diagram.shapes[id] = { x: ps.x + POOL_HEADER, y: ps.y + ps.height, width: ps.width - POOL_HEADER, height: LANE_HEIGHT }
+    ps.height += LANE_HEIGHT
+  }
+  for (const n of m.nodes) if (n.participantId === poolId) place(m, n.id)
+  return lane
+}
+
+/** Top-level lanes of a pool, top to bottom. */
+export function topLanes(m: FlowModel, poolId: string): Lane[] {
+  return m.lanes.filter((l) => l.participantId === poolId && !l.parentLaneId && m.diagram.shapes[l.id]).sort((a, b) => m.diagram.shapes[a.id].y - m.diagram.shapes[b.id].y)
+}
+
+// ---------------------------------------------------------------- connect
+
+/** Which kind of flow joins two elements: decided by what they are and which pools they sit in. */
+export function flowKindBetween(m: FlowModel, source: string, target: string): FlowKind {
+  const s = nodeOf(m, source)
+  const t = nodeOf(m, target)
+  const sPool = s ? s.participantId : poolOf(m, source)?.id
+  const tPool = t ? t.participantId : poolOf(m, target)?.id
+  if (!s && !sPool) throw new ModelError(`No element ${source}`)
+  if (!t && !tPool) throw new ModelError(`No element ${target}`)
+  if (s?.type === 'annotation' || t?.type === 'annotation') return 'association'
+  const sData = s?.type === 'dataObject' || s?.type === 'dataStore'
+  const tData = t?.type === 'dataObject' || t?.type === 'dataStore'
+  if (sData && tData) throw new ModelError('Data connects to an activity or an event, not to other data')
+  if (sData || tData) {
+    if (!s || !t) throw new ModelError('Data connects to an activity or an event, not to a pool')
+    return 'data'
+  }
+  if (!s || !t) {
+    if (sPool === tPool) throw new ModelError('A message flow joins two different pools')
+    return 'message'
+  }
+  return sPool !== tPool ? 'message' : 'sequence'
+}
+
+export function connect(m: FlowModel, source: string, target: string): Flow {
+  if (source === target) throw new ModelError('A flow joins two different elements')
+  const kind = flowKindBetween(m, source, target)
+  if (m.flows.some((f) => f.source === source && f.target === target && f.kind === kind)) throw new ModelError('These two are already connected')
+  const flow: Flow = { id: nextId(m, kind === 'association' ? 'Association' : kind === 'data' ? 'DataAssociation' : kind === 'message' ? 'MessageFlow' : 'Flow'), kind, source, target, name: '' }
+  m.flows.push(flow)
+  return flow
+}
+
+/** Moves one end of a flow to another element; the kind follows the new ends. */
+export function reconnect(m: FlowModel, flowId: string, end: 'source' | 'target', to: string): void {
+  const f = flowOf(m, flowId)
+  if (!f) throw new ModelError(`No flow ${flowId}`)
+  const source = end === 'source' ? to : f.source
+  const target = end === 'target' ? to : f.target
+  if (source === target) throw new ModelError('A flow joins two different elements')
+  const kind = flowKindBetween(m, source, target)
+  if (kind !== 'sequence' || f.source !== source) clearDefault(m, flowId)
+  Object.assign(f, { source, target, kind })
+  if (kind !== 'sequence') delete f.condition
+  delete m.diagram.edges[flowId]
+}
+
+/** Turns a flow around (a message drawn from the receiver, for example). */
+export function reverseFlow(m: FlowModel, flowId: string): void {
+  const f = flowOf(m, flowId)
+  if (!f) throw new ModelError(`No flow ${flowId}`)
+  const { source, target } = f
+  if (f.kind === 'sequence') clearDefault(m, flowId)
+  f.source = target
+  f.target = source
+  const pts = m.diagram.edges[flowId]
+  if (pts) m.diagram.edges[flowId] = [...pts].reverse()
+}
+
+// ---------------------------------------------------------------- move and resize
+
+/** Moves elements to new top-left positions; boundary events, sub-process content and pool content come along. */
+export function moveElements(m: FlowModel, to: Record<string, Point>): void {
+  const delta = new Map<string, Point>()
+  for (const [id, p] of Object.entries(to)) {
+    const s = m.diagram.shapes[id]
+    if (!s) throw new ModelError(`No element ${id}`)
+    const d = { x: Math.round(p.x) - s.x, y: Math.round(p.y) - s.y }
+    if (poolOf(m, id)) {
+      delta.set(id, d)
+      for (const l of m.lanes) if (l.participantId === id) delta.set(l.id, d)
+      for (const n of m.nodes) if (n.participantId === id) delta.set(n.id, d)
+    }
+  }
+  for (const [id, p] of Object.entries(to)) {
+    if (poolOf(m, id)) continue
+    const s = m.diagram.shapes[id]
+    const d = { x: Math.round(p.x) - s.x, y: Math.round(p.y) - s.y }
+    for (const f of withDescendants(m, id)) if (f === id || !(f in to)) delta.set(f, d)
+  }
+  const moved = new Set<string>()
+  for (const [id, d] of delta) {
+    const s = m.diagram.shapes[id]
+    if (!s || (!d.x && !d.y)) continue
+    s.x += d.x
+    s.y += d.y
+    moved.add(id)
+  }
+  for (const f of m.flows) {
+    const pts = m.diagram.edges[f.id]
+    if (!pts || !(moved.has(f.source) || moved.has(f.target))) continue
+    const ds = delta.get(f.source)
+    const dt = delta.get(f.target)
+    // Both ends moved together: the route moves too. Otherwise it is routed again from the new positions.
+    if (ds && dt && ds.x === dt.x && ds.y === dt.y) m.diagram.edges[f.id] = pts.map((p) => ({ x: p.x + ds.x, y: p.y + ds.y }))
+    else delete m.diagram.edges[f.id]
+  }
+  // Sub-processes first, so their content finds them where they now are.
+  const order = m.nodes.filter((n) => moved.has(n.id)).sort((a, b) => (a.type === 'subProcess' ? 0 : 1) - (b.type === 'subProcess' ? 0 : 1))
+  for (const n of order) place(m, n.id)
+}
+
+/** New bounds for a task, sub-process, annotation, data, or a pool (its lanes stretch with it). */
+export function resizeElement(m: FlowModel, id: string, b: Bounds): void {
+  const s = m.diagram.shapes[id]
+  if (!s) throw new ModelError(`No element ${id}`)
+  const next = { x: Math.round(b.x), y: Math.round(b.y), width: Math.max(20, Math.round(b.width)), height: Math.max(20, Math.round(b.height)) }
+  if (poolOf(m, id)) {
+    const lanes = topLanes(m, id)
+    const minH = lanes.length > 1 ? lanes.slice(0, -1).reduce((h, l) => h + m.diagram.shapes[l.id].height, 0) + 40 : 60
+    next.height = Math.max(next.height, minH)
+    next.width = Math.max(next.width, POOL_HEADER + 100)
+    const dyTop = next.y - s.y
+    const dyBottom = next.y + next.height - (s.y + s.height)
+    lanes.forEach((l, i) => {
+      const ls = m.diagram.shapes[l.id]
+      // Lanes keep their place after the header and stay flush with the pool's right edge.
+      ls.x = next.x + (ls.x - s.x)
+      ls.width = next.x + next.width - ls.x
+      if (i === 0) {
+        ls.y += dyTop
+        ls.height -= dyTop
+      }
+      if (i === lanes.length - 1) ls.height += dyBottom
+    })
+    Object.assign(s, next)
+    for (const n of m.nodes) if (n.participantId === id || !n.participantId) place(m, n.id)
+    return
+  }
+  if (laneOf(m, id)) throw new ModelError('Resize the lane with resizeLane')
+  const n = nodeOrThrow(m, id)
+  if (n.type === 'event' || n.type === 'gateway') throw new ModelError('Events and gateways keep their size')
+  Object.assign(s, next)
+  for (const f of m.flows) if (f.source === id || f.target === id) delete m.diagram.edges[f.id]
+  if (n.type === 'subProcess' && !n.collapsed) for (const x of m.nodes) if (x.id !== id) place(m, x.id)
+}
+
+/** A lane's new height: the lanes below (and what is in them) move, the pool grows or shrinks. */
+export function resizeLane(m: FlowModel, id: string, height: number): void {
+  const lane = laneOf(m, id)
+  const ls = m.diagram.shapes[id]
+  if (!lane || !ls || !lane.participantId) throw new ModelError(`No lane ${id}`)
+  const dh = Math.max(40, Math.round(height)) - ls.height
+  if (!dh) return
+  const bottom = ls.y + ls.height
+  const pool = m.diagram.shapes[lane.participantId]
+  const below: Record<string, Point> = {}
+  for (const l of m.lanes) {
+    const s = m.diagram.shapes[l.id]
+    if (l.participantId === lane.participantId && l.id !== id && s && s.y >= bottom - 1) s.y += dh
+  }
+  for (const n of m.nodes) {
+    const s = m.diagram.shapes[n.id]
+    if (n.participantId === lane.participantId && s && centre(s).y > bottom && !(n.type === 'event' && n.attachedTo)) below[n.id] = { x: s.x, y: s.y + dh }
+  }
+  ls.height += dh
+  pool.height += dh
+  if (Object.keys(below).length) moveElements(m, below)
+}
+
+// ---------------------------------------------------------------- change
+
+export function rename(m: FlowModel, id: string, name: string): void {
+  const el = nodeOf(m, id) ?? poolOf(m, id) ?? laneOf(m, id) ?? flowOf(m, id)
+  if (!el) throw new ModelError(`No element ${id}`)
+  el.name = name
+}
+
+export type NodePatch = {
+  kind?: TaskKind | GatewayKind
+  position?: Exclude<EventPosition, 'boundary'>
+  trigger?: EventTrigger
+  throwing?: boolean
+  interrupting?: boolean
+  state?: string
+  collapsed?: boolean
+}
+
+/** Changes what a node is, keeping its flows: task type, gateway kind, event position and trigger. */
+export function updateNode(m: FlowModel, id: string, patch: NodePatch): void {
+  const n = nodeOrThrow(m, id)
+  if (n.type === 'task' && patch.kind) n.kind = patch.kind as TaskKind
+  else if (n.type === 'gateway' && patch.kind) {
+    n.kind = patch.kind as GatewayKind
+    if (n.kind === 'parallel' || n.kind === 'eventBased') {
+      delete n.defaultFlow
+      for (const f of m.flows) if (f.source === id) delete f.condition
+    }
+  } else if (n.type === 'event') {
+    if (patch.position && n.position !== 'boundary') {
+      n.position = patch.position
+      if (n.position === 'start') n.throwing = false
+      if (n.position === 'end') n.throwing = true
+    }
+    if (patch.trigger) n.trigger = patch.trigger
+    if (patch.throwing !== undefined && n.position === 'intermediate') n.throwing = patch.throwing
+    if (patch.interrupting !== undefined && (n.position === 'boundary' || n.position === 'start')) n.interrupting = patch.interrupting
+  } else if (n.type === 'dataObject' && patch.state !== undefined) n.state = patch.state.trim() || undefined
+  else if (n.type === 'subProcess' && patch.collapsed !== undefined) n.collapsed = patch.collapsed
+}
+
+/** Task ↔ sub-process. The id, name, size and flows stay. */
+export function convertActivity(m: FlowModel, id: string, to: 'task' | 'subProcess'): void {
+  const i = m.nodes.findIndex((n) => n.id === id)
+  const n = m.nodes[i]
+  if (!n || (n.type !== 'task' && n.type !== 'subProcess')) throw new ModelError('Only a task or a sub-process converts')
+  if (n.type === to) return
+  if (n.type === 'subProcess' && m.nodes.some((x) => x.parentId === id)) throw new ModelError('Empty the sub-process first (ungroup comes in stage 2)')
+  const { participantId, laneId, parentId, name } = n
+  m.nodes[i] = to === 'task' ? { id, name, participantId, laneId, parentId, type: 'task', kind: 'task' } : { id, name, participantId, laneId, parentId, type: 'subProcess', collapsed: true }
+}
+
+export function setFlow(m: FlowModel, id: string, patch: { name?: string; condition?: string }): void {
+  const f = flowOf(m, id)
+  if (!f) throw new ModelError(`No flow ${id}`)
+  if (patch.name !== undefined) f.name = patch.name
+  if (patch.condition !== undefined) {
+    if (f.kind !== 'sequence') throw new ModelError('Only a sequence flow has a condition')
+    f.condition = patch.condition.trim() || undefined
+  }
+}
+
+/** Marks the flow as its gateway's default (taken when no condition holds), or unmarks it. */
+export function setDefaultFlow(m: FlowModel, flowId: string, on: boolean): void {
+  const f = flowOf(m, flowId)
+  const g = f && nodeOf(m, f.source)
+  if (!f || f.kind !== 'sequence' || g?.type !== 'gateway' || !['exclusive', 'inclusive', 'complex'].includes(g.kind))
+    throw new ModelError('Only a flow leaving an exclusive, inclusive or complex gateway can be the default')
+  if (on) {
+    g.defaultFlow = flowId
+    delete f.condition
+  } else if (g.defaultFlow === flowId) delete g.defaultFlow
+}
+
+function clearDefault(m: FlowModel, flowId: string) {
+  for (const n of m.nodes) if (n.type === 'gateway' && n.defaultFlow === flowId) delete n.defaultFlow
+}
+
+export function setModelName(m: FlowModel, name: string): void {
+  m.name = name
+}
+
+// ---------------------------------------------------------------- delete
+
+/**
+ * Deletes elements and what hangs on them: a node takes its flows, boundary events and sub-process content;
+ * a pool takes its lanes and process; a lane gives its room and its nodes to the lane next to it.
+ */
+export function deleteElements(m: FlowModel, ids: string[]): void {
+  const gone = new Set<string>()
+  for (const id of ids) {
+    if (poolOf(m, id)) {
+      gone.add(id)
+      for (const l of m.lanes) if (l.participantId === id) gone.add(l.id)
+      for (const n of m.nodes) if (n.participantId === id) gone.add(n.id)
+    } else if (laneOf(m, id)) removeLane(m, id)
+    else if (nodeOf(m, id)) for (const x of withDescendants(m, id)) gone.add(x)
+    else if (flowOf(m, id)) gone.add(id)
+  }
+  for (const f of m.flows) if (gone.has(f.source) || gone.has(f.target)) gone.add(f.id)
+  for (const id of gone) {
+    clearDefault(m, id)
+    delete m.diagram.shapes[id]
+    delete m.diagram.edges[id]
+  }
+  m.participants = m.participants.filter((p) => !gone.has(p.id))
+  m.lanes = m.lanes.filter((l) => !gone.has(l.id))
+  m.nodes = m.nodes.filter((n) => !gone.has(n.id))
+  m.flows = m.flows.filter((f) => !gone.has(f.id))
+}
+
+function removeLane(m: FlowModel, id: string) {
+  const lane = laneOf(m, id)!
+  const s = m.diagram.shapes[id]
+  const siblings = m.lanes
+    .filter((l) => l.participantId === lane.participantId && l.parentLaneId === lane.parentLaneId && l.id !== id && m.diagram.shapes[l.id])
+    .sort((a, b) => m.diagram.shapes[a.id].y - m.diagram.shapes[b.id].y)
+  // The lane above takes the room (the one below when it was the first): nothing on the canvas moves.
+  const heir = s && ([...siblings].reverse().find((l) => m.diagram.shapes[l.id].y < s.y) ?? siblings[0])
+  if (heir && s) {
+    const hs = m.diagram.shapes[heir.id]
+    const top = Math.min(hs.y, s.y)
+    hs.height = Math.max(hs.y + hs.height, s.y + s.height) - top
+    hs.y = top
+  }
+  const into = heir?.id ?? lane.parentLaneId
+  for (const l of m.lanes) if (l.parentLaneId === id) l.parentLaneId = into
+  for (const n of m.nodes) if (n.laneId === id) n.laneId = into
+  m.lanes = m.lanes.filter((l) => l.id !== id)
+  delete m.diagram.shapes[id]
+  for (const n of m.nodes) if (n.participantId === lane.participantId) place(m, n.id)
+}

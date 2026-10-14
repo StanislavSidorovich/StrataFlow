@@ -1,0 +1,369 @@
+// The right column: what the selected element is and what it can be changed into. Typing in a field
+// is one undo step per field (coalesced), every other change is one step.
+import { useEffect, useRef } from 'react'
+import { ArrowLeftRight, Plus, Trash2 } from 'lucide-react'
+import type { EventPosition, EventTrigger, FlowModel, FlowNode, GatewayKind, TaskKind } from '../../core/metamodel'
+import {
+  addBoundaryEvent,
+  addLane,
+  convertActivity,
+  deleteElements,
+  flowOf,
+  laneOf,
+  nodeOf,
+  poolOf,
+  rename,
+  resizeElement,
+  reverseFlow,
+  setDefaultFlow,
+  setFlow,
+  setModelName,
+  updateNode,
+  type NodePatch,
+} from '../../core/ops'
+import { useEditor } from '../store'
+
+const TASK_KINDS: [TaskKind, string][] = [
+  ['task', 'Task (no type)'],
+  ['user', 'User task (a person, with a system)'],
+  ['manual', 'Manual task (a person, no system)'],
+  ['service', 'Service task (a system, automatic)'],
+  ['send', 'Send task'],
+  ['receive', 'Receive task'],
+  ['script', 'Script task'],
+  ['businessRule', 'Business rule task'],
+]
+
+const GATEWAY_KINDS: [GatewayKind, string][] = [
+  ['exclusive', 'Exclusive (XOR): exactly one way'],
+  ['parallel', 'Parallel (AND): all ways'],
+  ['inclusive', 'Inclusive (OR): one or more ways'],
+  ['eventBased', 'Event-based: the first event to happen'],
+  ['complex', 'Complex'],
+]
+
+/** Triggers BPMN allows per event position (catching for start, intermediate catch and boundary). */
+const TRIGGERS: Record<EventPosition | 'throw', EventTrigger[]> = {
+  start: ['none', 'message', 'timer', 'signal', 'conditional'],
+  intermediate: ['none', 'message', 'timer', 'signal', 'conditional', 'link'],
+  throw: ['none', 'message', 'signal', 'escalation', 'link', 'compensation'],
+  boundary: ['message', 'timer', 'error', 'signal', 'conditional', 'escalation', 'compensation'],
+  end: ['none', 'message', 'error', 'signal', 'terminate', 'escalation', 'compensation'],
+}
+
+const label = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+
+export function Properties() {
+  const model = useEditor((s) => s.model)
+  const selection = useEditor((s) => s.selection)
+  const ids = selection
+  return (
+    <aside className="side-panel" aria-label="Properties">
+      {ids.length === 0 && <ProcessProps model={model} />}
+      {ids.length === 1 && <ElementProps model={model} id={ids[0]} />}
+      {ids.length > 1 && (
+        <section>
+          <h2>{ids.length} selected</h2>
+          <p className="muted">Drag one of them to move them all.</p>
+          <DeleteButton ids={ids} />
+        </section>
+      )}
+    </aside>
+  )
+}
+
+function ProcessProps({ model }: { model: FlowModel }) {
+  const apply = useEditor((s) => s.apply)
+  return (
+    <section>
+      <h2>Process</h2>
+      <Field label="Name">
+        <input value={model.name} onChange={(e) => apply((m) => setModelName(m, e.target.value), { coalesce: 'model-name' })} data-testid="model-name" />
+      </Field>
+      <p className="muted">
+        {model.participants.length} pools · {model.lanes.length} lanes · {model.nodes.length} elements · {model.flows.length} flows
+      </p>
+      <h3>How to draw</h3>
+      <ul className="tips">
+        <li>Pick a shape on the left bar (or press its key), then click on the canvas. Shift+click keeps the tool.</li>
+        <li>Double-click the empty canvas: a new task.</li>
+        <li>Select a shape: the pad next to it appends the next step.</li>
+        <li>Drag from the dots on a shape to another shape to connect. Between pools it becomes a message flow.</li>
+        <li>Del deletes, Ctrl+Z undoes, Ctrl+S saves a file. The model is also kept in this browser.</li>
+      </ul>
+    </section>
+  )
+}
+
+function ElementProps({ model, id }: { model: FlowModel; id: string }) {
+  const node = nodeOf(model, id)
+  if (node) return <NodeProps model={model} n={node} />
+  const pool = poolOf(model, id)
+  if (pool)
+    return (
+      <section>
+        <h2>Pool</h2>
+        <NameField id={id} value={pool.name} />
+        <p className="muted">{pool.processId ? 'Holds a process: put its steps inside.' : 'Black box: its process is not shown; message flows go to its border.'}</p>
+        <button className="btn" data-testid="add-lane" onClick={() => addLaneTo(id)}>
+          <Plus size={14} /> Add lane
+        </button>
+        <DeleteButton ids={[id]} note="Deletes the pool with its lanes and everything in it." />
+      </section>
+    )
+  const lane = laneOf(model, id)
+  if (lane)
+    return (
+      <section>
+        <h2>Lane</h2>
+        <NameField id={id} value={lane.name} placeholder="A role, e.g. Clerk" />
+        <p className="muted">Drag the line under a selected lane to change its height.</p>
+        {lane.participantId && (
+          <button className="btn" data-testid="add-lane" onClick={() => addLaneTo(lane.participantId!)}>
+            <Plus size={14} /> Add lane
+          </button>
+        )}
+        <DeleteButton ids={[id]} note="Its room and its steps go to the lane next to it." />
+      </section>
+    )
+  const flow = flowOf(model, id)
+  if (flow) return <FlowProps model={model} id={id} />
+  return null
+}
+
+function addLaneTo(poolId: string) {
+  let lane: string | null = null
+  if (useEditor.getState().apply((m) => void (lane = addLane(m, poolId).id)) && lane) useEditor.setState({ selection: [lane], focusName: lane })
+}
+
+function NodeProps({ model, n }: { model: FlowModel; n: FlowNode }) {
+  const apply = useEditor((s) => s.apply)
+  const patch = (p: NodePatch) => apply((m) => updateNode(m, n.id, p))
+  const title = n.type === 'event' ? `${label(n.position)} event` : n.type === 'subProcess' ? 'Sub-process' : n.type === 'dataObject' ? 'Data object' : n.type === 'dataStore' ? 'Data store' : n.type === 'annotation' ? 'Text annotation' : label(n.type)
+  const where = [n.participantId && poolOf(model, n.participantId)?.name, n.laneId && laneOf(model, n.laneId)?.name].filter(Boolean).join(' · ')
+  return (
+    <section>
+      <h2>{title}</h2>
+      {where && <p className="muted">In {where}</p>}
+      <NameField id={n.id} value={n.name} multiline placeholder={n.type === 'task' ? 'Verb + object, e.g. Check invoice' : n.type === 'gateway' ? 'A question, e.g. Invoice OK?' : undefined} />
+
+      {n.type === 'task' && (
+        <>
+          <Field label="Type">
+            <select value={n.kind} onChange={(e) => patch({ kind: e.target.value as TaskKind })} data-testid="task-kind">
+              {TASK_KINDS.map(([k, l]) => (
+                <option key={k} value={k}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <div className="row">
+            <button className="btn" onClick={() => apply((m) => convertActivity(m, n.id, 'subProcess'))}>
+              To sub-process
+            </button>
+            <BoundaryButton id={n.id} />
+          </div>
+        </>
+      )}
+
+      {n.type === 'subProcess' && (
+        <>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={!n.collapsed}
+              onChange={(e) =>
+                apply((m) => {
+                  updateNode(m, n.id, { collapsed: !e.target.checked })
+                  const s = m.diagram.shapes[n.id]
+                  // Expanded, it needs room for its steps; collapsed, it is a task-sized box again.
+                  if (e.target.checked && s.width < 300) resizeElement(m, n.id, { ...s, width: 350, height: 200 })
+                  if (!e.target.checked) resizeElement(m, n.id, { ...s, width: 100, height: 80 })
+                })
+              }
+              data-testid="expanded"
+            />
+            Expanded (shows its steps inside)
+          </label>
+          <div className="row">
+            <button className="btn" onClick={() => apply((m) => convertActivity(m, n.id, 'task'))}>
+              To task
+            </button>
+            <BoundaryButton id={n.id} />
+          </div>
+        </>
+      )}
+
+      {n.type === 'event' && (
+        <>
+          {n.position !== 'boundary' && (
+            <Field label="Position">
+              <select
+                value={n.position}
+                onChange={(e) => {
+                  const position = e.target.value as Exclude<EventPosition, 'boundary'>
+                  const allowed = TRIGGERS[position]
+                  patch({ position, trigger: allowed.includes(n.trigger) ? n.trigger : 'none' })
+                }}
+                data-testid="event-position"
+              >
+                <option value="start">Start: the process begins</option>
+                <option value="intermediate">Intermediate: something happens on the way</option>
+                <option value="end">End: the process ends</option>
+              </select>
+            </Field>
+          )}
+          {n.position === 'intermediate' && (
+            <Field label="Direction">
+              <select
+                value={n.throwing ? 'throw' : 'catch'}
+                onChange={(e) => {
+                  const throwing = e.target.value === 'throw'
+                  patch({ throwing, trigger: TRIGGERS[throwing ? 'throw' : 'intermediate'].includes(n.trigger) ? n.trigger : 'none' })
+                }}
+                data-testid="event-direction"
+              >
+                <option value="catch">Catching: waits for it</option>
+                <option value="throw">Throwing: makes it happen</option>
+              </select>
+            </Field>
+          )}
+          <Field label="Trigger">
+            <select value={n.trigger} onChange={(e) => patch({ trigger: e.target.value as EventTrigger })} data-testid="event-trigger">
+              {TRIGGERS[n.position === 'intermediate' && n.throwing ? 'throw' : n.position].map((t) => (
+                <option key={t} value={t}>
+                  {t === 'none' ? 'None' : label(t)}
+                </option>
+              ))}
+            </select>
+          </Field>
+          {n.position === 'boundary' && (
+            <label className="check">
+              <input type="checkbox" checked={n.interrupting !== false} onChange={(e) => patch({ interrupting: e.target.checked })} data-testid="interrupting" />
+              Interrupting (stops the activity)
+            </label>
+          )}
+        </>
+      )}
+
+      {n.type === 'gateway' && (
+        <Field label="Kind">
+          <select value={n.kind} onChange={(e) => patch({ kind: e.target.value as GatewayKind })} data-testid="gateway-kind">
+            {GATEWAY_KINDS.map(([k, l]) => (
+              <option key={k} value={k}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
+
+      {n.type === 'dataObject' && (
+        <Field label="State">
+          <input value={n.state ?? ''} placeholder="e.g. approved" onChange={(e) => apply((m) => updateNode(m, n.id, { state: e.target.value }), { coalesce: `state:${n.id}` })} />
+        </Field>
+      )}
+
+      <DeleteButton ids={[n.id]} />
+    </section>
+  )
+}
+
+function BoundaryButton({ id }: { id: string }) {
+  return (
+    <button
+      className="btn"
+      title="An event on the border: a deadline, an error or a message while the activity runs"
+      onClick={() => {
+        let ev: string | null = null
+        if (useEditor.getState().apply((m) => void (ev = addBoundaryEvent(m, id).id)) && ev) useEditor.setState({ selection: [ev] })
+      }}
+    >
+      <Plus size={14} /> Boundary event
+    </button>
+  )
+}
+
+function FlowProps({ model, id }: { model: FlowModel; id: string }) {
+  const apply = useEditor((s) => s.apply)
+  const f = flowOf(model, id)!
+  const src = nodeOf(model, f.source)
+  const name = (x: string) => nodeOf(model, x)?.name || poolOf(model, x)?.name || x
+  const decides = src?.type === 'gateway' && ['exclusive', 'inclusive', 'complex'].includes(src.kind)
+  const isDefault = src?.type === 'gateway' && src.defaultFlow === id
+  const title = { sequence: 'Sequence flow', message: 'Message flow', association: 'Association', data: 'Data association' }[f.kind]
+  return (
+    <section>
+      <h2>{title}</h2>
+      <p className="muted">
+        {name(f.source)} → {name(f.target)}
+      </p>
+      {f.kind !== 'association' && f.kind !== 'data' && <NameField id={id} value={f.name} placeholder={decides ? 'The answer, e.g. Yes' : f.kind === 'message' ? 'What is sent, e.g. Invoice' : undefined} />}
+      {decides && (
+        <>
+          <Field label="Condition">
+            <input value={f.condition ?? ''} disabled={isDefault} placeholder={isDefault ? 'Default: taken when no other holds' : 'e.g. amount > 1000'} onChange={(e) => apply((m) => setFlow(m, id, { condition: e.target.value }), { coalesce: `cond:${id}` })} />
+          </Field>
+          <label className="check">
+            <input type="checkbox" checked={isDefault} onChange={(e) => apply((m) => setDefaultFlow(m, id, e.target.checked))} data-testid="default-flow" />
+            Default flow (taken when no condition holds)
+          </label>
+        </>
+      )}
+      <div className="row">
+        <button className="btn" onClick={() => apply((m) => reverseFlow(m, id))} title="Swap source and target">
+          <ArrowLeftRight size={14} /> Reverse
+        </button>
+      </div>
+      <DeleteButton ids={[id]} />
+    </section>
+  )
+}
+
+function NameField({ id, value, multiline, placeholder }: { id: string; value: string; multiline?: boolean; placeholder?: string }) {
+  const apply = useEditor((s) => s.apply)
+  const focus = useEditor((s) => s.focusName === id)
+  const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null)
+  useEffect(() => {
+    if (!focus || !ref.current) return
+    ref.current.focus()
+    ref.current.select()
+    useEditor.setState({ focusName: null })
+  }, [focus])
+  const props = {
+    ref,
+    value,
+    placeholder,
+    'data-testid': 'name',
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => apply((m) => rename(m, id, e.target.value), { coalesce: `name:${id}` }),
+    // Enter finishes the name (Shift+Enter: a new line), as in Bizagi.
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Escape') {
+        e.preventDefault()
+        ;(e.target as HTMLElement).blur()
+      }
+    },
+  }
+  return <Field label="Name">{multiline ? <textarea rows={2} {...props} /> : <input {...props} />}</Field>
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      {children}
+    </label>
+  )
+}
+
+function DeleteButton({ ids, note }: { ids: string[]; note?: string }) {
+  return (
+    <div className="delete-row">
+      <button className="btn danger" onClick={() => useEditor.getState().apply((m) => deleteElements(m, ids))} data-testid="delete">
+        <Trash2 size={14} /> Delete
+      </button>
+      {note && <p className="muted">{note}</p>}
+    </div>
+  )
+}

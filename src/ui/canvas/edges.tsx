@@ -1,13 +1,45 @@
 // BPMN connections: sequence (solid, filled arrow), message (dashed, open circle → open arrow),
-// association and data association (dotted). Drawn along DI waypoints; once an end has moved,
-// routed orthogonally between the shapes instead.
-import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, type Edge, type EdgeProps } from '@xyflow/react'
+// association and data association (dotted). Drawn along DI waypoints; without them (a new flow, or an
+// end has moved) routed orthogonally between the sides of the two shapes that face each other.
+import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, Position, useInternalNode, type Edge, type EdgeProps, type InternalNode } from '@xyflow/react'
 import type { FlowKind } from '../../core/metamodel'
 
 export type FlowData = { kind: FlowKind; name: string; points?: { x: number; y: number }[]; isDefault?: boolean; conditional?: boolean }
 export type FlowEdge = Edge<FlowData, 'flow'>
 
-export function BpmnEdge({ id, data, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected }: EdgeProps<FlowEdge>) {
+type Box = { x: number; y: number; w: number; h: number; pool: boolean }
+
+function boxOf(n: InternalNode | undefined): Box | undefined {
+  if (!n) return undefined
+  const { x, y } = n.internals.positionAbsolute
+  return { x, y, w: n.measured.width ?? n.width ?? 0, h: n.measured.height ?? n.height ?? 0, pool: n.type === 'pool' }
+}
+
+const side = (b: Box, p: Position) =>
+  p === Position.Left ? { x: b.x, y: b.y + b.h / 2 } : p === Position.Right ? { x: b.x + b.w, y: b.y + b.h / 2 } : p === Position.Top ? { x: b.x + b.w / 2, y: b.y } : { x: b.x + b.w / 2, y: b.y + b.h }
+
+/** The sides of two shapes that face each other: left/right when apart sideways, else top/bottom. */
+export function facingSides(s: Box, t: Box, preferVertical: boolean) {
+  const apartX = t.x >= s.x + s.w + 10 ? 1 : t.x + t.w <= s.x - 10 ? -1 : 0
+  const apartY = t.y >= s.y + s.h + 10 ? 1 : t.y + t.h <= s.y - 10 ? -1 : 0
+  if (apartX && !(preferVertical && apartY))
+    return apartX > 0 ? ([Position.Right, Position.Left] as const) : ([Position.Left, Position.Right] as const)
+  return apartY >= 0 ? ([Position.Bottom, Position.Top] as const) : ([Position.Top, Position.Bottom] as const)
+}
+
+export function BpmnEdge({ id, source, target, data, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected }: EdgeProps<FlowEdge>) {
+  const sb = boxOf(useInternalNode(source))
+  const tb = boxOf(useInternalNode(target))
+  if (sb && tb) {
+    const [sp, tp] = facingSides(sb, tb, data?.kind === 'message')
+    ;({ x: sourceX, y: sourceY } = side(sb, sp))
+    ;({ x: targetX, y: targetY } = side(tb, tp))
+    sourcePosition = sp
+    targetPosition = tp
+    // A message to or from a pool meets the pool's border straight above or below the other end.
+    if (tb.pool && (tp === Position.Top || tp === Position.Bottom)) targetX = Math.min(Math.max(sourceX, tb.x + 40), tb.x + tb.w - 10)
+    if (sb.pool && (sp === Position.Top || sp === Position.Bottom)) sourceX = Math.min(Math.max(targetX, sb.x + 40), sb.x + sb.w - 10)
+  }
   const kind = data?.kind ?? 'sequence'
   const pts = data?.points
   let path: string

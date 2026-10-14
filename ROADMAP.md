@@ -5,8 +5,8 @@ Stages follow SPEC §12. A stage is done only when its acceptance criteria pass.
 | Stage | Status | Acceptance |
 |---|---|---|
 | 0. Setup | ✅ | Repo + Vite app + CI deploy at flow.quaera.app; D1/D2 decided by a spike (done 2026-10-14) |
-| 1. Editor | ⏳ next | First case's reference process drawn, saved, reloaded; undo/redo |
-| 2. Interop + productivity | ⬜ | Lossless BPMN XML round-trip of every case; Bizagi file opens; our export opens in Bizagi and bpmn.io; auto layout; group into / ungroup sub-process |
+| 1. Editor | ✅ | Reference process (pools, lanes, XOR + AND, timer and message events, boundary event, data object) drawn, saved, reloaded; undo/redo (done 2026-10-14) |
+| 2. Interop + productivity | ⏳ next | Lossless BPMN XML round-trip of every case; Bizagi file opens; our export opens in Bizagi and bpmn.io; auto layout; group into / ungroup sub-process |
 | 3. Linter + Help | ⬜ | P01–P17 with tests; cases lint clean; ≥ 20 help cards; `?` everywhere |
 | 4. Trainer | ⬜ | 3 cases × levels 0–3; text cues; comparator; tour; lessons |
 | 5. Story | ⬜ | Story files, Present, token beats, in-app story editor, recording script |
@@ -15,10 +15,10 @@ Stages follow SPEC §12. A stage is done only when its acceptance criteria pass.
 
 ## Next steps (by priority)
 
-1. **Stage 1, editor.** Start from the stage 0 viewer (`src/ui/canvas/`, `src/core/bpmn/read.ts`): store with undo/redo (StrataSQL `src/ui/store.ts`), ops in `src/core/ops.ts` with tests, palette + context pad, properties panel, `*.flow.json` save/load + autosave. Decide how nodes sit in pools/lanes (React Flow `parentId` vs absolute + lane lookup by position) at the start.
-   - Small stage 0 leftovers: event label can overlap the lane header when an event sits next to it; boundary events do not move with their host yet; the bundle is 500 kB (lazy-load bpmn-moddle on Open).
+1. **Stage 2, interop + productivity.** BPMN XML writer (bpmn-moddle `toXML`, with DI; lanes' flowNodeRef, Bizagi-friendly ids) and a round-trip test per case; our export opened in bpmn.io and by the owner in Bizagi; auto layout (elkjs, lanes kept); group into / ungroup sub-process (SPEC §6) with tests. Also insert-on-flow, duplicate, align.
+   - Stage 1 leftovers: dragging an end of an existing flow onto another shape (the `reconnect` op exists, no UI yet); nested lanes cannot be created (they are read and kept); a node moved to another pool keeps a sequence flow that now crosses pools (the linter's P03 will catch it); event labels can overlap a lane header; bundle 480 kB (React + React Flow; bpmn-moddle already loads only on opening a .bpmn).
 2. Course material: received 2026-10-14 in `/private/course/` (gitignored); read its `README.md` first (course follows Dumas et al. 2013; Bizagi `.bpm` + `.bpmn` exports; findings and what is still missing). Turn it into SPEC §13 answers. Chapters 3–5 and the exercise 3.7 diagram added the same day (findings in that README, "Chapter 3–5 findings"; 3.7 solved in `exercises/exercise-3.7-solution.md`). Syllabus, practical assignment and Hammer (1990) added too: there is no separate style guide (Chapter 3 conventions rule); deliverables are Bizagi files, so Bizagi-openable BPMN export is a hard requirement. Chapters 6–8 (quantitative analysis, redesign, process mining) come later in the semester.
-3. Write the first 3 own cases in `cases/` (see `cases/README.md`), easy → hard.
+3. Write the first 3 own cases (the stage 1 acceptance test draws the planned case 3, Online shop, through the ops: reuse it) in `cases/` (see `cases/README.md`), easy → hard.
 
 ## Ideas backlog (owner, 2026-10-14)
 
@@ -43,6 +43,11 @@ Stages follow SPEC §12. A stage is done only when its acceptance criteria pass.
 - 2026-10-14 ✱ Brand icon: teal `#0d9488` mark (start event → task → gateway), SVG only for now; PNG icons for install later.
 - 2026-10-14 ✱ Own cases only in the public repo; course cases only with the professor's permission; the graded group project never before grading.
 
+- 2026-10-14 ✱ **Node placement: absolute coordinates** (as BPMN DI) and pool / lane / sub-process looked up from the shape's centre after every add or move (`place()` in `core/ops.ts`), not React Flow `parentId`. A pool move takes its lanes and nodes; a task move takes its boundary events; a sub-process move takes its content.
+- 2026-10-14 ✱ The flow kind is chosen by the editor from its ends: annotation → association, data → data association, different pools (or a pool) → message flow, else sequence flow. The student draws "a line"; the linter later explains.
+- 2026-10-14 ✱ Deleting a lane gives its room and its steps to the lane above (the one below for the first lane), so nothing on the canvas moves. Appending past a pool's end widens the pool.
+- 2026-10-14 ✱ First visit opens the Library example (from `library-loan.flow.json`); later visits reopen what was there (localStorage). New and Open are undoable.
+
 ## Sprints
 
 ### 2026-10-14 · Handoff from StrataSQL
@@ -55,4 +60,8 @@ Built with: Claude Opus 5.5 (Claude Code), effort low.
 
 ### 2026-10-14 · Stage 0: app, D1/D2 spikes, deploy
 Vite app copied from StrataSQL's setup (PWA plugin, Pages workflow, port 5174). Draft metamodel, BPMN reader on bpmn-moddle, BPMN shapes on React Flow; a read-only viewer opens a sample and any `.bpmn` (the owner's 6 Bizagi exports pass local tests). 13 tests. Pages enabled (workflow), Cloudflare CNAME `flow` (DNS only), cert approved, HTTPS enforced: live at https://flow.quaera.app. The cert stayed pending ~15 min until the custom domain was cleared and set again.
+Built with: Claude Opus 5.5 (Claude Code), effort low.
+
+### 2026-10-14 · Stage 1: editor
+Edit ops in `core/ops.ts` (add, append, boundary event, pool, lane, connect with automatic flow kind, reconnect, reverse, move with followers, resize pool / lane / shape, rename, update and convert type, default flow, delete with cascade) and `*.flow.json` read/write with reference checks. Store with undo/redo, typing coalesced, autosave (StrataSQL pattern). UI: floating draw bar with keys, context pad (append task / XOR / AND / event / end, boundary event, delete), Properties panel per element, flows routed between facing sides, connection dots, resizers, New / Open (.flow.json or .bpmn) / Save / Save as / Example. Acceptance test draws an order-fulfilment process with every stage-1 element, saves, reloads, undoes. 43 tests. Checked in the browser with Playwright (draw, connect, message flow to a pool, boundary event follows its task, undo/redo, reload, save).
 Built with: Claude Opus 5.5 (Claude Code), effort low.
