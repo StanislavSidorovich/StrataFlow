@@ -67,7 +67,7 @@ function ProcessProps({ model }: { model: FlowModel }) {
         <li>Pick a shape on the left bar (or press its key), then click on the canvas. Shift+click keeps the tool.</li>
         <li>Double-click the empty canvas: a new task.</li>
         <li>Select a shape: the pad next to it appends the next step.</li>
-        <li>Drag from the dots on a shape to another shape to connect. Between pools it becomes a message flow.</li>
+        <li>Drag from the dots on a shape to another shape to connect, or press the arrow on the pad and tap the other shape (easier with a finger). Between pools it becomes a message flow.</li>
         <li>Del deletes, Ctrl+Z undoes, Ctrl+S saves a file. The model is also kept in this browser.</li>
         <li>Check (top bar) lists what may be wrong; ? next to a field, or F1, opens the help cards.</li>
       </ul>

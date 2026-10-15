@@ -133,7 +133,7 @@ describe('connect', () => {
     expect(connect(m, a.id, d.id).kind).toBe('data')
     expect(connect(m, n.id, a.id).kind).toBe('association')
     expect(() => connect(m, a.id, b.id)).toThrow('already connected')
-    expect(() => connect(m, a.id, a.id)).toThrow(ModelError)
+    expect(() => connect(m, a.id, a.id)).toThrow('must join two different elements')
     expect(() => connect(m, a.id, 'Participant_1')).toThrow('two different pools')
   })
 

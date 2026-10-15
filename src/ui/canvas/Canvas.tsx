@@ -134,6 +134,7 @@ export function Canvas() {
   const model = useEditor((s) => s.model)
   const selection = useEditor((s) => s.selection)
   const tool = useEditor((s) => s.tool)
+  const linkFrom = useEditor((s) => s.linkFrom)
   const selected = useMemo(() => new Set(selection), [selection])
   const page = useEditor((s) => s.page)
   const checkOpen = useEditor((s) => s.checkOpen)
@@ -198,8 +199,18 @@ export function Canvas() {
   }
 
   const onConnect = (c: Connection) => {
+    // A tap on two dots of one shape (touch screens: a tap on a dot starts a connection) is not a flow.
+    if (c.source === c.target) return
     let id: string | null = null
     if (useEditor.getState().apply((m) => void (id = connect(m, c.source, c.target).id)) && id) useEditor.getState().select([id])
+  }
+
+  // Connect mode: the shape (or pool) tapped ends the flow; a tap on the empty canvas or on the start shape cancels.
+  const linkTo = (clientX: number, clientY: number) => {
+    const from = useEditor.getState().linkFrom
+    useEditor.setState({ linkFrom: null, message: null })
+    const target = elementAt(model, flow.screenToFlowPosition({ x: clientX, y: clientY }), page)
+    if (from && target && target !== from) onConnect({ source: from, target, sourceHandle: null, targetHandle: null })
   }
 
   // Dropped on a shape but not on one of its dots, or on a pool: connect to what is under the pointer.
@@ -227,7 +238,7 @@ export function Canvas() {
     <div
       // No browser menu anywhere on the canvas: ours opens instead (or nothing, on the controls).
       onContextMenu={(e) => e.preventDefault()}
-      className={`canvas-wrap${tool.id !== 'select' ? ' is-placing' : ''}`}
+      className={`canvas-wrap${tool.id !== 'select' || linkFrom ? ' is-placing' : ''}`}
       onDoubleClick={(e) => {
         // Double-click on the empty canvas adds a task there.
         if (tool.id === 'select' && (e.target as HTMLElement).classList.contains('react-flow__pane')) {
@@ -273,11 +284,13 @@ export function Canvas() {
           else setNodes(toNodes(model, selected, page, marks))
         }}
         onPaneClick={(e) => {
-          if (tool.id !== 'select') place(e.clientX, e.clientY, e.shiftKey)
+          if (linkFrom) linkTo(e.clientX, e.clientY)
+          else if (tool.id !== 'select') place(e.clientX, e.clientY, e.shiftKey)
         }}
         onNodeClick={(e) => {
+          if (linkFrom) linkTo(e.clientX, e.clientY)
           // Pools and lanes are clicked by their header: placing there still drops the element at the pointer.
-          if (tool.id !== 'select') place(e.clientX, e.clientY, e.shiftKey)
+          else if (tool.id !== 'select') place(e.clientX, e.clientY, e.shiftKey)
         }}
         onNodeDoubleClick={(_, n) => {
           // A collapsed sub-process opens its page (Bizagi: Edit Sub-Process); anything else: type its name.

@@ -289,7 +289,7 @@ export function flowKindBetween(m: FlowModel, source: string, target: string): F
 }
 
 export function connect(m: FlowModel, source: string, target: string): Flow {
-  if (source === target) throw new ModelError('A flow joins two different elements')
+  if (source === target) throw new ModelError('A flow must join two different elements')
   const kind = flowKindBetween(m, source, target)
   if (m.flows.some((f) => f.source === source && f.target === target && f.kind === kind)) throw new ModelError('These two are already connected')
   const flow: Flow = { id: nextId(m, kind === 'association' ? 'Association' : kind === 'data' ? 'DataAssociation' : kind === 'message' ? 'MessageFlow' : 'Flow'), kind, source, target, name: '' }
@@ -303,7 +303,7 @@ export function reconnect(m: FlowModel, flowId: string, end: 'source' | 'target'
   if (!f) throw new ModelError(`No flow ${flowId}`)
   const source = end === 'source' ? to : f.source
   const target = end === 'target' ? to : f.target
-  if (source === target) throw new ModelError('A flow joins two different elements')
+  if (source === target) throw new ModelError('A flow must join two different elements')
   const kind = flowKindBetween(m, source, target)
   if (kind !== 'sequence' || f.source !== source) clearDefault(m, flowId)
   Object.assign(f, { source, target, kind })

@@ -8,8 +8,10 @@ export const NARROW = 1000
 const PHONE_OK_KEY = 'strataflow.phone-ok'
 
 const isNarrow = () => window.innerWidth < NARROW
-// A phone: narrow in portrait, or low in landscape on a touch screen.
-const isPhone = () => window.innerWidth < 600 || (window.innerHeight < 500 && matchMedia('(pointer: coarse)').matches)
+// A phone: a screen whose short side is under 480 CSS px (phones are 360–440; a 10" tablet such as the
+// Huawei MatePad 10.4 is 500 and, in landscape with the browser bar, only ~430 high, so the window's
+// height cannot tell them apart), or a desktop window as narrow as a phone.
+const isPhone = () => Math.min(screen.width, screen.height) < 480 || window.innerWidth < 480
 
 const phoneOk = () => {
   try {

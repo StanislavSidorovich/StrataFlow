@@ -1,9 +1,10 @@
 // The context pad (as in bpmn.io): next to the one selected shape, append the next step, add a
-// boundary event or change the type (the wrench opens the "change type" part of the right-click menu,
-// for touch screens and for people who do not know about right-click). A new step is selected with its
-// name field focused.
+// boundary event, connect to another shape (the arrow, then a tap on it: dragging from a small dot is hard
+// with a finger) or change the type (the wrench opens the "change type" part of the right-click menu, for
+// touch screens and for people who do not know about right-click). A new step is selected with its name
+// field focused.
 import { NodeToolbar, Position } from '@xyflow/react'
-import { Trash2, Wrench } from 'lucide-react'
+import { MoveUpRight, Trash2, Wrench } from 'lucide-react'
 import type { FlowNode } from '../../core/metamodel'
 import { addBoundaryEvent, appendNode, deleteElements, type NodeSpec } from '../../core/ops'
 import { useEditor } from '../store'
@@ -19,6 +20,7 @@ const APPEND: { icon: IconName; spec: NodeSpec; title: string }[] = [
 
 export function ContextPad({ el }: { el: FlowNode }) {
   const only = useEditor((s) => s.selection.length === 1 && s.selection[0] === el.id)
+  const linking = useEditor((s) => s.linkFrom === el.id)
   if (!only) return null
   const canAppend = !(el.type === 'event' && el.position === 'end') && el.type !== 'dataObject' && el.type !== 'dataStore' && el.type !== 'annotation'
   const canCarry = el.type === 'task' || el.type === 'subProcess'
@@ -61,6 +63,19 @@ export function ContextPad({ el }: { el: FlowNode }) {
           <BpmnIcon name="boundary" />
         </button>
       )}
+      <button
+        className={`pad-btn${linking ? ' is-active' : ''}`}
+        title="Connect: then click or tap the shape (or pool) to connect to"
+        aria-pressed={linking}
+        data-testid="pad-connect"
+        onClick={() =>
+          useEditor.setState(
+            linking ? { linkFrom: null, message: null } : { linkFrom: el.id, tool: { id: 'select' }, error: null, message: 'Connect: tap the shape to connect to (the empty canvas cancels).' },
+          )
+        }
+      >
+        <MoveUpRight size={16} />
+      </button>
       {['task', 'subProcess', 'event', 'gateway'].includes(el.type) && (
         <button
           className="pad-btn"

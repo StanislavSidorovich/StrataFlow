@@ -763,7 +763,8 @@ h2.with-help {
 .pad-btn:hover {
   background: var(--accent-soft);
 }
-.palette-btn.is-active {
+.palette-btn.is-active,
+.pad-btn.is-active {
   background: var(--accent-soft);
   border-color: var(--accent);
   color: var(--accent);
@@ -1455,5 +1456,16 @@ button.link {
 @media (max-width: 599px) {
   .welcome-cols {
     grid-template-columns: 1fr;
+  }
+}
+
+/* A low screen (a tablet in landscape with the browser bar): the draw bar in two columns, so every tool fits. */
+@media (max-height: 560px) {
+  .palette {
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+  }
+  .react-flow__controls {
+    flex-direction: row;
   }
 }

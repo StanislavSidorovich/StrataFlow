@@ -39,6 +39,8 @@ interface EditorState {
   /** Ids of selected nodes, pools, lanes and flows. */
   selection: string[]
   tool: Tool
+  /** Connect mode (the pad's arrow, for touch screens): the shape a flow starts from; the next shape tapped ends it. */
+  linkFrom: string | null
   error: string | null
   /** A short note for the user (saved, opened…), cleared by the next one. */
   message: string | null
@@ -83,6 +85,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   future: [],
   selection: [],
   tool: { id: 'select' },
+  linkFrom: null,
   error: null,
   message: null,
   lastEdit: null,
@@ -142,15 +145,15 @@ export const useEditor = create<EditorState>()((set, get) => ({
     const { model: current, past, doc, backup } = get()
     // Loading is undoable too: Open by mistake loses nothing. During a trainer task, New / Open end the task:
     // Undo then brings back the user's own model, not the task's.
-    set({ model, doc: doc + 1, backup: null, past: backup ? [backup] : [...past, current].slice(-HISTORY_LIMIT), future: [], selection: [], lastEdit: null, error: null, tool: { id: 'select' }, page: null })
+    set({ model, doc: doc + 1, backup: null, past: backup ? [backup] : [...past, current].slice(-HISTORY_LIMIT), future: [], selection: [], lastEdit: null, error: null, tool: { id: 'select' }, linkFrom: null, page: null })
   },
 
-  openPage: (page) => set((s) => ({ page, selection: [], tool: { id: 'select' }, fit: s.fit + 1 })),
+  openPage: (page) => set((s) => ({ page, selection: [], tool: { id: 'select' }, linkFrom: null, fit: s.fit + 1 })),
   openHelp: (help) => set({ help }),
   setCheckOpen: (checkOpen) => set({ checkOpen }),
   openMenu: (menu) => set({ menu }),
   select: (selection) => set((s) => (same(s.selection, selection) ? s : { selection })),
-  setTool: (tool) => set({ tool }),
+  setTool: (tool) => set({ tool, linkFrom: null }),
   showError: (error) => set({ error }),
   say: (message) => set({ message }),
 }))
