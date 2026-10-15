@@ -3,9 +3,11 @@
 import { useEffect, useRef } from 'react'
 import { ArrowLeftRight, FolderOpen, Group, Plus, Trash2, Ungroup } from 'lucide-react'
 import type { EventPosition, EventTrigger, FlowModel, FlowNode, GatewayKind, TaskKind } from '../../core/metamodel'
+import { GATEWAY_KINDS, TASK_KINDS, triggerLabel } from '../choices'
 import {
   addBoundaryEvent,
   addLane,
+  canInterrupt,
   convertActivity,
   deleteElements,
   flowOf,
@@ -18,6 +20,7 @@ import {
   setDefaultFlow,
   setFlow,
   setModelName,
+  triggersFor,
   updateNode,
   type NodePatch,
 } from '../../core/ops'
@@ -25,34 +28,6 @@ import { canGroup, groupSelection, ungroupSelection } from '../actions'
 import { cardForElement } from '../../data/help'
 import { useEditor } from '../store'
 import { HelpQ } from './Help'
-
-const TASK_KINDS: [TaskKind, string][] = [
-  ['task', 'Task (no type)'],
-  ['user', 'User task (a person, with a system)'],
-  ['manual', 'Manual task (a person, no system)'],
-  ['service', 'Service task (a system, automatic)'],
-  ['send', 'Send task'],
-  ['receive', 'Receive task'],
-  ['script', 'Script task'],
-  ['businessRule', 'Business rule task'],
-]
-
-const GATEWAY_KINDS: [GatewayKind, string][] = [
-  ['exclusive', 'Exclusive (XOR): exactly one way'],
-  ['parallel', 'Parallel (AND): all ways'],
-  ['inclusive', 'Inclusive (OR): one or more ways'],
-  ['eventBased', 'Event-based: the first event to happen'],
-  ['complex', 'Complex'],
-]
-
-/** Triggers BPMN allows per event position (catching for start, intermediate catch and boundary). */
-const TRIGGERS: Record<EventPosition | 'throw', EventTrigger[]> = {
-  start: ['none', 'message', 'timer', 'signal', 'conditional'],
-  intermediate: ['none', 'message', 'timer', 'signal', 'conditional', 'link'],
-  throw: ['none', 'message', 'signal', 'escalation', 'link', 'compensation'],
-  boundary: ['message', 'timer', 'error', 'signal', 'conditional', 'escalation', 'compensation'],
-  end: ['none', 'message', 'error', 'signal', 'terminate', 'escalation', 'compensation'],
-}
 
 const label = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
@@ -212,9 +187,8 @@ function NodeProps({ model, n }: { model: FlowModel; n: FlowNode }) {
               <select
                 value={n.position}
                 onChange={(e) => {
-                  const position = e.target.value as Exclude<EventPosition, 'boundary'>
-                  const allowed = TRIGGERS[position]
-                  patch({ position, trigger: allowed.includes(n.trigger) ? n.trigger : 'none' })
+                  // A trigger not allowed in the new place falls back to none (updateNode).
+                  patch({ position: e.target.value as Exclude<EventPosition, 'boundary'> })
                 }}
                 data-testid="event-position"
               >
@@ -229,8 +203,7 @@ function NodeProps({ model, n }: { model: FlowModel; n: FlowNode }) {
               <select
                 value={n.throwing ? 'throw' : 'catch'}
                 onChange={(e) => {
-                  const throwing = e.target.value === 'throw'
-                  patch({ throwing, trigger: TRIGGERS[throwing ? 'throw' : 'intermediate'].includes(n.trigger) ? n.trigger : 'none' })
+                  patch({ throwing: e.target.value === 'throw' })
                 }}
                 data-testid="event-direction"
               >
@@ -241,17 +214,17 @@ function NodeProps({ model, n }: { model: FlowModel; n: FlowNode }) {
           )}
           <Field label="Trigger" help={cardForElement(n)}>
             <select value={n.trigger} onChange={(e) => patch({ trigger: e.target.value as EventTrigger })} data-testid="event-trigger">
-              {TRIGGERS[n.position === 'intermediate' && n.throwing ? 'throw' : n.position].map((t) => (
+              {triggersFor(n).map((t) => (
                 <option key={t} value={t}>
-                  {t === 'none' ? 'None' : label(t)}
+                  {triggerLabel(t)}
                 </option>
               ))}
             </select>
           </Field>
-          {n.position === 'boundary' && (
+          {canInterrupt(model, n.id) && (
             <label className="check">
               <input type="checkbox" checked={n.interrupting !== false} onChange={(e) => patch({ interrupting: e.target.checked })} data-testid="interrupting" />
-              Interrupting (stops the activity)
+              {n.position === 'boundary' ? 'Interrupting (stops the activity)' : 'Interrupting (stops the sub-process)'}
               <HelpQ card="boundary-event" />
             </label>
           )}

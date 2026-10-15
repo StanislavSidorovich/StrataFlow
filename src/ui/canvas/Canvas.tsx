@@ -21,6 +21,7 @@ import { addNode, addPool, connect, ModelError, moveElements, nodeOf, pageOf, wi
 import type { Severity } from '../../core/lint'
 import { useIssues } from '../panels/Check'
 import { useEditor } from '../store'
+import { ContextMenu } from './ContextMenu'
 import { BpmnEdge, EdgeMarkers, type FlowEdge } from './edges'
 import { BpmnShape, PoolShape, type PoolNode, type ShapeNode } from './nodes'
 import { Palette } from './Palette'
@@ -197,8 +198,23 @@ export function Canvas() {
     if (target && target !== state.fromNode.id) onConnect({ source: state.fromNode.id, target, sourceHandle: null, targetHandle: null })
   }
 
+  // Right-click (as in Bizagi): on a selected element the menu is for the whole selection, on another one
+  // for that one (it gets selected), on the empty canvas for the point clicked.
+  const openMenu = (e: React.MouseEvent | MouseEvent, id: string | null) => {
+    e.preventDefault()
+    const s = useEditor.getState()
+    let ids: string[] = []
+    if (id) {
+      ids = s.selection.includes(id) ? s.selection : [id]
+      if (!s.selection.includes(id)) s.select([id])
+    }
+    s.openMenu({ x: e.clientX, y: e.clientY, ids, at: flow.screenToFlowPosition({ x: e.clientX, y: e.clientY }), kind: 'full' })
+  }
+
   return (
     <div
+      // No browser menu anywhere on the canvas: ours opens instead (or nothing, on the controls).
+      onContextMenu={(e) => e.preventDefault()}
       className={`canvas-wrap${tool.id !== 'select' ? ' is-placing' : ''}`}
       onDoubleClick={(e) => {
         // Double-click on the empty canvas adds a task there.
@@ -258,6 +274,10 @@ export function Canvas() {
           else useEditor.setState({ focusName: n.id })
         }}
         onEdgeDoubleClick={(_, ed) => useEditor.setState({ selection: [ed.id], focusName: ed.id })}
+        onNodeContextMenu={(e, n) => openMenu(e, n.id)}
+        onEdgeContextMenu={(e, ed) => openMenu(e, ed.id)}
+        onPaneContextMenu={(e) => openMenu(e, null)}
+        onSelectionContextMenu={(e) => openMenu(e, useEditor.getState().selection[0] ?? null)}
         onConnect={onConnect}
         onConnectEnd={onConnectEnd}
         connectionMode={ConnectionMode.Loose}
@@ -278,6 +298,7 @@ export function Canvas() {
           <UndoRedo />
         </Controls>
       </ReactFlow>
+      <ContextMenu />
     </div>
   )
 }

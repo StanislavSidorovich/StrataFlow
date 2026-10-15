@@ -2,7 +2,7 @@
 // Same pattern as StrataSQL's store: every edit is an op from core/ops run on an immer draft.
 import { produce } from 'immer'
 import { create } from 'zustand'
-import type { FlowModel } from '../core/metamodel'
+import type { FlowModel, Point } from '../core/metamodel'
 import { ModelError, type NodeSpec } from '../core/ops'
 import { ModelFormatError, parseModel, serializeModel } from '../core/serialize'
 
@@ -12,6 +12,18 @@ const STORAGE_KEY = 'strataflow.model'
 
 /** What a click on the empty canvas does: select (and pan), or place a new element. */
 export type Tool = { id: string; spec: NodeSpec } | { id: 'pool' } | { id: 'select' }
+
+/**
+ * The open context menu: where on screen, for what (no ids = the empty canvas at `at`, model coordinates),
+ * and whether it is the whole right-click menu or only the "change type" entries (the pad's wrench).
+ */
+export interface ContextMenuState {
+  x: number
+  y: number
+  ids: string[]
+  at: Point
+  kind: 'full' | 'type'
+}
 
 interface ApplyOptions {
   /** Consecutive edits with the same key within 1 s form one undo step (typing in a field). */
@@ -47,6 +59,8 @@ interface EditorState {
   /** The Check panel under the canvas is open: issues listed and marked on the shapes. */
   checkOpen: boolean
   setCheckOpen: (open: boolean) => void
+  menu: ContextMenuState | null
+  openMenu: (menu: ContextMenuState | null) => void
 
   /** Runs an edit on a draft; on ModelError the model is untouched and the message is shown. */
   apply: (edit: (m: FlowModel) => void, opts?: ApplyOptions) => boolean
@@ -75,6 +89,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   page: null,
   help: null,
   checkOpen: false,
+  menu: null,
 
   apply(edit, opts = {}) {
     const { model, past, lastEdit } = get()
@@ -127,6 +142,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   openPage: (page) => set((s) => ({ page, selection: [], tool: { id: 'select' }, fit: s.fit + 1 })),
   openHelp: (help) => set({ help }),
   setCheckOpen: (checkOpen) => set({ checkOpen }),
+  openMenu: (menu) => set({ menu }),
   select: (selection) => set((s) => (same(s.selection, selection) ? s : { selection })),
   setTool: (tool) => set({ tool }),
   showError: (error) => set({ error }),

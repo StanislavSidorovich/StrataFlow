@@ -1,5 +1,7 @@
-// Group into / ungroup sub-process from the selection (Properties buttons, Ctrl+G and Ctrl+Shift+G).
+// Actions shared by the top bar, Properties, the context menu and the keys: group into / ungroup sub-process
+// (Ctrl+G, Ctrl+Shift+G), rename (F2), auto layout.
 import { groupIntoSubprocess, NeedsGatewaysError, nodeOf, setCollapsed, ungroupSubprocess } from '../core/ops'
+import { layoutModel } from './files'
 import { useEditor } from './store'
 
 export function groupSelection() {
@@ -45,4 +47,17 @@ export function canGroup(ids: string[]) {
     const n = nodeOf(m, id)
     return n && !['dataObject', 'dataStore', 'annotation'].includes(n.type)
   })
+}
+
+/** Selects the element and puts the cursor in its name field (Properties). */
+export function renameElement(id: string) {
+  useEditor.setState({ selection: [id], focusName: id, help: null })
+}
+
+export async function layoutNow() {
+  try {
+    useEditor.getState().say(await layoutModel())
+  } catch (e) {
+    useEditor.getState().showError(`Not laid out: ${(e as Error).message}`)
+  }
 }

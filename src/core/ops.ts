@@ -439,7 +439,30 @@ export type NodePatch = {
   collapsed?: boolean
 }
 
-/** Changes what a node is, keeping its flows: task type, gateway kind, event position and trigger. */
+/** Triggers BPMN allows per event position (start, intermediate catch and boundary catch; `throw` = intermediate throw). */
+export const TRIGGERS: Record<EventPosition | 'throw', EventTrigger[]> = {
+  start: ['none', 'message', 'timer', 'signal', 'conditional'],
+  intermediate: ['none', 'message', 'timer', 'signal', 'conditional', 'link'],
+  throw: ['none', 'message', 'signal', 'escalation', 'link', 'compensation'],
+  boundary: ['message', 'timer', 'error', 'signal', 'conditional', 'escalation', 'compensation'],
+  end: ['none', 'message', 'error', 'signal', 'terminate', 'escalation', 'compensation'],
+}
+
+/** The triggers an event may have where it is. */
+export const triggersFor = (e: { position: EventPosition; throwing: boolean }): EventTrigger[] =>
+  TRIGGERS[e.position === 'intermediate' && e.throwing ? 'throw' : e.position]
+
+/** Interrupting or not is a choice for a boundary event and for a start event inside a sub-process (an event sub-process). */
+export function canInterrupt(m: FlowModel, id: string): boolean {
+  const n = nodeOf(m, id)
+  return n?.type === 'event' && (n.position === 'boundary' || (n.position === 'start' && !!n.parentId))
+}
+
+/**
+ * Changes what a node is, keeping its flows: task type, gateway kind, event position, direction and trigger.
+ * An event moved where its trigger is not allowed gets the first allowed one ("none" except on a boundary);
+ * asking for a trigger not allowed there is refused.
+ */
 export function updateNode(m: FlowModel, id: string, patch: NodePatch): void {
   const n = nodeOrThrow(m, id)
   if (n.type === 'task' && patch.kind) n.kind = patch.kind as TaskKind
@@ -455,8 +478,15 @@ export function updateNode(m: FlowModel, id: string, patch: NodePatch): void {
       if (n.position === 'start') n.throwing = false
       if (n.position === 'end') n.throwing = true
     }
-    if (patch.trigger) n.trigger = patch.trigger
     if (patch.throwing !== undefined && n.position === 'intermediate') n.throwing = patch.throwing
+    const allowed = triggersFor(n)
+    if (patch.trigger) {
+      if (!allowed.includes(patch.trigger)) {
+        const where = n.position === 'intermediate' ? `${n.throwing ? 'a throwing' : 'a catching'} intermediate` : `a ${n.position}`
+        throw new ModelError(`${patch.trigger === 'none' ? 'An event without a trigger' : `A ${patch.trigger} trigger`} is not allowed on ${where} event`)
+      }
+      n.trigger = patch.trigger
+    } else if (!allowed.includes(n.trigger)) n.trigger = allowed[0]
     if (patch.interrupting !== undefined && n.position === 'boundary') n.interrupting = patch.interrupting
     // A start event interrupts unless marked otherwise (as BPMN XML keeps it): only "false" is stored.
     if (patch.interrupting !== undefined && n.position === 'start') n.interrupting = patch.interrupting ? undefined : false

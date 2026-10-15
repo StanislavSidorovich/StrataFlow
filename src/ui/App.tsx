@@ -29,8 +29,8 @@ import { parseModel } from '../core/serialize'
 import { applyUpdate, installApp, useUpdateReady } from '../pwa/register'
 import { Canvas } from './canvas/Canvas'
 import { TOOLS } from './canvas/Palette'
-import { groupSelection, ungroupSelection } from './actions'
-import { exportBpmn, layoutModel, openText, saveModel, saveModelAs } from './files'
+import { groupSelection, layoutNow, renameElement, ungroupSelection } from './actions'
+import { exportBpmn, openText, saveModel, saveModelAs } from './files'
 import { Menu } from './Menu'
 import { CheckPanel, issueSummary, useIssues } from './panels/Check'
 import { HelpPanel } from './panels/Help'
@@ -57,14 +57,6 @@ const exportNow = async () => {
     useEditor.getState().say(await exportBpmn())
   } catch (e) {
     useEditor.getState().showError(`Not exported: ${(e as Error).message}`)
-  }
-}
-
-const layoutNow = async () => {
-  try {
-    useEditor.getState().say(await layoutModel())
-  } catch (e) {
-    useEditor.getState().showError(`Not laid out: ${(e as Error).message}`)
   }
 }
 
@@ -122,6 +114,9 @@ export function App() {
       } else if (e.key === 'Escape') {
         s.setTool({ id: 'select' })
         s.select([])
+      } else if (e.key === 'F2' && s.selection.length === 1) {
+        e.preventDefault()
+        renameElement(s.selection[0])
       } else if (e.key === 'F1' || (e.key === '?' && !mod)) {
         e.preventDefault()
         s.openHelp(s.help ? null : 'index')

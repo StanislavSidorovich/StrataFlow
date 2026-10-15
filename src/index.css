@@ -237,6 +237,73 @@ svg.is-ok {
   border-top: 1px solid var(--panel-border);
   margin: 4px 2px;
 }
+/* context menu (right-click on the canvas, the wrench of the context pad) */
+.ctx-menu-root {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+}
+.ctx-menu {
+  position: absolute;
+  min-width: 200px;
+  max-width: 320px;
+  padding: 4px;
+  background: var(--panel-bg);
+  color: var(--text);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+  font-size: 13px;
+}
+.ctx-item {
+  position: relative;
+}
+.ctx-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  outline: none;
+}
+.ctx-menu button:hover,
+.ctx-menu button:focus-visible,
+.ctx-menu button.is-open {
+  background: var(--accent-soft);
+}
+.ctx-menu button[aria-checked='true'] .menu-icon {
+  color: var(--accent);
+}
+.ctx-menu button.is-danger {
+  color: var(--error);
+}
+.ctx-menu kbd {
+  margin-left: auto;
+  padding-left: 12px;
+  font: 11px inherit;
+  color: var(--muted);
+}
+.ctx-more {
+  margin-left: auto;
+  color: var(--muted);
+}
+.ctx-menu kbd + .ctx-more {
+  margin-left: 0;
+}
+.ctx-menu hr {
+  border: 0;
+  border-top: 1px solid var(--panel-border);
+  margin: 4px 2px;
+}
 .notice {
   display: flex;
   align-items: center;

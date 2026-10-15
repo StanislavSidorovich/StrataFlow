@@ -1,7 +1,9 @@
-// The context pad (as in bpmn.io): next to the one selected shape, append the next step or add a
-// boundary event without going to the draw bar. A new step is selected with its name field focused.
+// The context pad (as in bpmn.io): next to the one selected shape, append the next step, add a
+// boundary event or change the type (the wrench opens the "change type" part of the right-click menu,
+// for touch screens and for people who do not know about right-click). A new step is selected with its
+// name field focused.
 import { NodeToolbar, Position } from '@xyflow/react'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Wrench } from 'lucide-react'
 import type { FlowNode } from '../../core/metamodel'
 import { addBoundaryEvent, appendNode, deleteElements, type NodeSpec } from '../../core/ops'
 import { useEditor } from '../store'
@@ -57,6 +59,20 @@ export function ContextPad({ el }: { el: FlowNode }) {
           }}
         >
           <BpmnIcon name="boundary" />
+        </button>
+      )}
+      {['task', 'subProcess', 'event', 'gateway'].includes(el.type) && (
+        <button
+          className="pad-btn"
+          title="Change type (also on right-click)"
+          aria-haspopup="menu"
+          data-testid="pad-change-type"
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect()
+            useEditor.getState().openMenu({ x: r.right + 4, y: r.top, ids: [el.id], at: { x: 0, y: 0 }, kind: 'type' })
+          }}
+        >
+          <Wrench size={16} />
         </button>
       )}
       <button className="pad-btn" title="Delete (Del)" data-testid="pad-delete" onClick={() => useEditor.getState().apply((m) => deleteElements(m, [el.id]))}>
