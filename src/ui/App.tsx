@@ -282,7 +282,7 @@ function CheckButton() {
     <button
       className={`btn${open ? ' is-open' : ''}`}
       onClick={() => useEditor.getState().setCheckOpen(!open)}
-      title="Check the model: every step reachable, splits closed by matching joins, names (course rules P01–P17)"
+      title="Check the model: every step reachable, splits closed by matching joins, names (course rules P01–P18)"
       data-testid="check"
     >
       {worst ? <TriangleAlert size={15} className={`is-${worst}`} /> : <CircleCheck size={15} className="is-ok" />} Check

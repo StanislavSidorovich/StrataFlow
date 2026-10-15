@@ -10,6 +10,7 @@ import { compareWithCase } from '../src/data/trainer'
 const library = caseById('library-lend')!
 const hotel = caseById('hotel-booking')!
 const shop = caseById('shop-order')!
+const scooter = caseById('scooter-ride')!
 
 const byName = (m: FlowModel, name: string) => {
   const n = m.nodes.find((x) => x.name === name) ?? m.participants.find((x) => x.name === name) ?? m.lanes.find((x) => x.name === name)
@@ -183,6 +184,23 @@ describe('compare with the reference', () => {
     deleteElements(m, m.flows.filter((f) => f.kind === 'data' && (f.source === slip || f.target === slip)).map((f) => f.id))
     const bad = notOk(m, shop)
     expect(bad.map((i) => `${i.status} ${i.key}`)).toEqual(['different data:Packing slip'])
+  })
+
+  it('scooter: an exclusive gateway where the rider decides is "different", the event-based one is asked for', () => {
+    const m = scooter.reference()
+    const race = m.nodes.find((n) => n.type === 'gateway' && n.kind === 'eventBased')!
+    updateNode(m, race.id, { kind: 'exclusive' })
+    const bad = notOk(m, scooter)
+    expect(bad).toHaveLength(1)
+    expect(bad[0]).toMatchObject({ kind: 'decision', status: 'different' })
+    expect(bad[0].text).toMatch(/event-based/)
+  })
+
+  it('scooter: the loop back for a new photo is missing', () => {
+    const m = scooter.reference()
+    const retry = byName(m, 'Ask for new photo')
+    deleteElements(m, m.flows.filter((f) => f.kind === 'sequence' && f.source === retry).map((f) => f.id))
+    expect(notOk(m, scooter).map((i) => i.status)).toContain('missing')
   })
 
   it('the score halves for different items and counts extras', () => {

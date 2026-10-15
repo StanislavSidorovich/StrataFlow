@@ -1,4 +1,4 @@
-// The model check P01–P17 (SPEC §7): each rule fires on a small wrong model and stays quiet on the right one;
+// The model check P01–P18 (SPEC §7): each rule fires on a small wrong model and stays quiet on the right one;
 // the reference models lint clean.
 import { describe, expect, it } from 'vitest'
 import { emptyModel, type FlowModel, type FlowNode } from '../src/core/metamodel'
@@ -270,6 +270,90 @@ describe('the model check', () => {
     expect(p17[0].elements.sort()).toEqual([j.id, a.id, b.id].sort())
     // The loop is not also reported as "no path to an end" step by step.
     expect(only(m, 'P02').map((i) => i.elements[0])).not.toContain(a.id)
+  })
+
+  it('P07: the branches of an event-based gateway are closed by an exclusive join', () => {
+    const m = emptyModel()
+    const s = put(m, START, 'Offer sent')
+    const g = appendNode(m, s.id, { type: 'gateway', kind: 'eventBased' })
+    const yes = appendNode(m, g.id, { type: 'event', position: 'intermediate', trigger: 'message' }, 'Answer received')
+    const late = appendNode(m, g.id, { type: 'event', position: 'intermediate', trigger: 'timer' }, '5 days')
+    const j = appendNode(m, yes.id, XOR)
+    connect(m, late.id, j.id)
+    appendNode(m, j.id, END, 'Offer closed')
+    expect(rules(m)).toEqual([])
+    updateNode(m, j.id, { kind: 'parallel' })
+    expect(only(m, 'P07')[0].message).toContain('deadlock')
+  })
+
+  it('P18: waiting for a message the other pool sends on one branch only (exercise 3.7)', () => {
+    const m = emptyModel()
+    addPool(m, { x: 0, y: 0 }, 'Customer')
+    addPool(m, { x: 0, y: 300 }, 'Shop')
+    const need = addNode(m, START, { x: 80, y: 125 }, 'Goods needed')
+    const place = appendNode(m, need.id, { type: 'task', kind: 'send' }, 'Place order')
+    const invoiced = appendNode(m, place.id, { type: 'event', position: 'intermediate', trigger: 'message' }, 'Invoice received')
+    const pay = appendNode(m, invoiced.id, TASK, 'Pay invoice')
+    appendNode(m, pay.id, END, 'Invoice paid')
+    const order = addNode(m, { type: 'event', position: 'start', trigger: 'message' }, { x: 80, y: 425 }, 'Order received')
+    const check = appendNode(m, order.id, TASK, 'Check stock')
+    const inStock = appendNode(m, check.id, XOR, 'In stock?')
+    const rejected = appendNode(m, inStock.id, { type: 'event', position: 'end', trigger: 'message' }, 'Order rejected')
+    const invoice = appendNode(m, inStock.id, { type: 'task', kind: 'send' }, 'Send invoice')
+    appendNode(m, invoice.id, END, 'Invoice sent')
+    const [no, yes] = m.flows.filter((f) => f.source === inStock.id)
+    setFlow(m, no.id, { name: 'No' })
+    setFlow(m, yes.id, { name: 'Yes' })
+    connect(m, place.id, order.id)
+    connect(m, invoice.id, invoiced.id)
+    connect(m, rejected.id, 'Participant_1')
+    const p18 = only(m, 'P18')
+    expect(p18).toHaveLength(1)
+    expect(p18[0].elements).toEqual([invoiced.id, invoice.id, inStock.id])
+    expect(p18[0].message).toContain('"In stock?"')
+    expect(rules(m)).toEqual(['P18'])
+
+    // The repair: the customer waits for whichever message comes first.
+    m.flows = m.flows.filter((f) => !(f.source === place.id && f.target === invoiced.id))
+    const g = addNode(m, { type: 'gateway', kind: 'eventBased' }, { x: 330, y: 200 })
+    connect(m, place.id, g.id)
+    connect(m, g.id, invoiced.id)
+    const refused = addNode(m, { type: 'event', position: 'intermediate', trigger: 'message' }, { x: 420, y: 200 }, 'Rejection received')
+    connect(m, g.id, refused.id)
+    appendNode(m, refused.id, END, 'Order cancelled')
+    m.flows = m.flows.filter((f) => !(f.source === rejected.id))
+    connect(m, rejected.id, refused.id)
+    expect(rules(m)).toEqual([])
+  })
+
+  it('P18: a message sent on every path, or a wait with a deadline, is fine', () => {
+    const m = emptyModel()
+    addPool(m, { x: 0, y: 0 }, 'Customer')
+    addPool(m, { x: 0, y: 300 }, 'Shop')
+    const need = addNode(m, START, { x: 80, y: 125 }, 'Goods needed')
+    const place = appendNode(m, need.id, { type: 'task', kind: 'send' }, 'Place order')
+    const wait = appendNode(m, place.id, { type: 'task', kind: 'receive' }, 'Receive invoice')
+    appendNode(m, wait.id, END, 'Invoice received')
+    const order = addNode(m, { type: 'event', position: 'start', trigger: 'message' }, { x: 80, y: 425 }, 'Order received')
+    const invoice = appendNode(m, order.id, { type: 'task', kind: 'send' }, 'Send invoice')
+    const shipped = appendNode(m, invoice.id, END, 'Invoice sent')
+    connect(m, place.id, order.id)
+    connect(m, invoice.id, wait.id)
+    expect(rules(m)).toEqual([])
+    // Now the invoice goes out on one branch only, but a timer ends the wait.
+    m.flows = m.flows.filter((f) => !(f.source === invoice.id && f.target === shipped.id))
+    const ok = appendNode(m, invoice.id, XOR, 'Paid in advance?')
+    m.flows = m.flows.filter((f) => !(f.source === order.id))
+    connect(m, order.id, ok.id)
+    m.flows = m.flows.filter((f) => !(f.source === ok.id))
+    connect(m, ok.id, invoice.id)
+    connect(m, ok.id, shipped.id)
+    m.flows = m.flows.filter((f) => !(f.source === invoice.id && f.kind === 'sequence'))
+    connect(m, invoice.id, shipped.id)
+    expect(only(m, 'P18')).toHaveLength(1)
+    const late = addBoundaryEvent(m, wait.id, 'timer')
+    appendNode(m, late.id, END, 'No invoice')
+    expect(only(m, 'P18')).toEqual([])
   })
 
   it('sorts errors first and counts them', () => {

@@ -115,6 +115,7 @@ Each issue links to a help card and highlights elements. Severity: error = inval
 | P15 | Empty lane / pool with flow but no lanes when roles are named in the case | info |
 | P16 | Unlabeled end events when there are several (end states should be named) | info |
 | P17 | Loop without an exit (cycle with no XOR/event leaving it) | warning |
+| P18 | A pool always waits for a message the other pool sends only on some paths (course Ch. 3 racing events, exercise 3.7): needs an event-based gateway | warning |
 
 ## 8. Help cards
 

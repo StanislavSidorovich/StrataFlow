@@ -141,7 +141,7 @@ export function menuFor(m: FlowModel, ids: string[], at: Point, page: string | n
       },
       'sep',
       { id: 'layout', label: 'Auto layout', title: 'Steps left to right, each in its own lane (Undo puts everything back)', command: 'layout' },
-      { id: 'check', label: 'Check', title: 'What may be wrong in the model (course rules P01–P17)', command: 'check' },
+      { id: 'check', label: 'Check', title: 'What may be wrong in the model (course rules P01–P18)', command: 'check' },
     ]
   const del: MenuEntry = { id: 'delete', label: 'Delete', keys: 'Del', danger: true, edit: (d) => deleteElements(d, ids) }
   if (ids.length > 1) {

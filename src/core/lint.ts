@@ -1,10 +1,10 @@
-// The model check (SPEC §7): rules P01–P17. Each issue names its elements and a help card.
+// The model check (SPEC §7): rules P01–P18. Each issue names its elements and a help card.
 // A warning is a question, not a verdict: the student decides. Conventions follow the NOVA BPM
 // course (Dumas et al. 2013, Chapter 3) and the 7PMG from Chapter 4.
 import { isArtifact, type FlowModel, type FlowNode } from './metamodel'
 
 export type Severity = 'error' | 'warning' | 'info'
-export type RuleId = `P${'01' | '02' | '03' | '04' | '05' | '06' | '07' | '08' | '09' | '10' | '11' | '12' | '13' | '14' | '15' | '16' | '17'}`
+export type RuleId = `P${'01' | '02' | '03' | '04' | '05' | '06' | '07' | '08' | '09' | '10' | '11' | '12' | '13' | '14' | '15' | '16' | '17' | '18'}`
 
 export interface Issue {
   rule: RuleId
@@ -39,6 +39,7 @@ export const RULES: Record<RuleId, { severity: Severity; title: string; card: st
   P15: { severity: 'info', title: 'Lanes', card: 'lane' },
   P16: { severity: 'info', title: 'Unnamed end states', card: 'end-event' },
   P17: { severity: 'warning', title: 'Loop without an exit', card: 'loop' },
+  P18: { severity: 'warning', title: 'Waiting for a message that may never come', card: 'event-based-gateway' },
 }
 
 const SEVERITY_ORDER: Record<Severity, number> = { error: 0, warning: 1, info: 2 }
@@ -315,7 +316,8 @@ export function lintModel(m: FlowModel, opts: LintOptions = {}): Issue[] {
     if (!split) continue
     const sk = splitKind(byId.get(split)!)
     const jk = j.kind
-    if (sk === jk || jk === 'complex' || sk === 'complex' || !sk) continue
+    // The branches of an event-based gateway are closed by an exclusive join (only one of them runs).
+    if (sk === jk || jk === 'complex' || sk === 'complex' || !sk || (sk === 'eventBased' && jk === 'exclusive')) continue
     const s = byId.get(split)!
     const effect =
       sk === 'parallel' && jk === 'exclusive'
@@ -350,8 +352,69 @@ export function lintModel(m: FlowModel, opts: LintOptions = {}): Issue[] {
       if (p.processId && !m.lanes.some((l) => l.participantId === p.id) && steps.some((n) => n.participantId === p.id))
         add('P15', `The pool ${p.name.trim() ? `"${p.name.trim()}"` : ''} has no lanes, but the case names several roles: add a lane per role.`, [p.id])
 
+  // P18 (course, Ch. 3 "racing events", exercise 3.7): a pool that always waits for a message the other pool
+  // sends only on some of its paths waits forever when another path is taken.
+  for (const w of steps) {
+    if (w.parentId || !w.participantId || !waitsForMessage(w)) continue
+    // A deadline or another event on the border lets the wait end without the message.
+    if (steps.some((b) => b.type === 'event' && b.attachedTo === w.id && b.interrupting !== false)) continue
+    const senders = m.flows.filter((f) => f.kind === 'message' && f.target === w.id).map((f) => byId.get(f.source)).filter((s): s is FlowNode => !!s && !!s.participantId && s.participantId !== w.participantId)
+    if (!senders.length) continue
+    const other = senders[0].participantId!
+    if (senders.some((s) => s.participantId !== other)) continue
+    // The wait must be on every path of its own pool, and the other pool must have a path without any sender.
+    if (escapes(w.participantId, new Set([w.id]))) continue
+    if (!escapes(other, new Set(senders.map((s) => topOf(s).id)))) continue
+    const decision = decisionBefore(senders.map((s) => topOf(s).id))
+    const pool = (id: string) => m.participants.find((p) => p.id === id)?.name.trim()
+    const them = pool(other) ? `"${pool(other)}"` : 'the other pool'
+    const us = pool(w.participantId) ? `"${pool(w.participantId)}"` : 'this pool'
+    add(
+      'P18',
+      `${cap(label(w))} waits for a message that ${them} sends only on some paths${decision ? ` (after ${label(decision)})` : ''}: when another path is taken, ${us} waits forever. Wait for whichever message comes first with an event-based gateway.`,
+      [w.id, ...senders.map((s) => s.id), ...(decision ? [decision.id] : [])],
+    )
+  }
+
+  /** A step's ancestor on the top level of its pool (a step inside a sub-process runs when the sub-process does). */
+  function topOf(n: FlowNode): FlowNode {
+    let t = n
+    while (t.parentId && byId.get(t.parentId)) t = byId.get(t.parentId)!
+    return t
+  }
+
+  /** Can the pool's top level go from a start event to an end event without passing `avoid`? */
+  function escapes(poolId: string, avoid: Set<string>): boolean {
+    const top = steps.filter((n) => n.participantId === poolId && !n.parentId)
+    const starts = top.filter((n) => n.type === 'event' && n.position === 'start').map((n) => n.id)
+    if (!starts.length) return true
+    const seen = reach(
+      starts.filter((id) => !avoid.has(id)),
+      (id) => forward(id).filter((t) => !avoid.has(t)),
+    )
+    return top.some((n) => n.type === 'event' && n.position === 'end' && seen.has(n.id))
+  }
+
+  /** The nearest decision (exclusive, inclusive or event-based split) before the senders, walking back. */
+  function decisionBefore(from: string[]): FlowNode | undefined {
+    const seen = new Set<string>()
+    const queue = [...from]
+    while (queue.length) {
+      const id = queue.shift()!
+      if (seen.has(id)) continue
+      seen.add(id)
+      const n = byId.get(id)
+      if (n?.type === 'gateway' && n.kind !== 'parallel' && (g.out.get(id)?.length ?? 0) > 1 && !from.includes(id)) return n
+      queue.push(...(g.inc.get(id) ?? []))
+    }
+    return undefined
+  }
+
   return issues.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.rule.localeCompare(b.rule))
 }
+
+/** A step that stops and waits for a message: a catching intermediate message event or a receive task. */
+const waitsForMessage = (n: FlowNode) => (n.type === 'event' && n.position === 'intermediate' && n.trigger === 'message' && !n.throwing) || (n.type === 'task' && n.kind === 'receive')
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 

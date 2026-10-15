@@ -1,0 +1,552 @@
+{
+  "format": "strata-flow",
+  "version": 1,
+  "name": "Scooter ride",
+  "participants": [
+    {
+      "id": "Participant_1",
+      "name": "Scooter sharing",
+      "processId": "Process_1"
+    },
+    {
+      "id": "Participant_2",
+      "name": "Rider"
+    }
+  ],
+  "lanes": [
+    {
+      "id": "Lane_1",
+      "name": "App",
+      "participantId": "Participant_1"
+    },
+    {
+      "id": "Lane_2",
+      "name": "Support",
+      "participantId": "Participant_1"
+    },
+    {
+      "id": "Lane_3",
+      "name": "Field team",
+      "participantId": "Participant_1"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "Event_1",
+      "name": "Unlock requested",
+      "type": "event",
+      "position": "start",
+      "trigger": "message",
+      "throwing": false,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_1",
+      "name": "Check payment method",
+      "type": "task",
+      "kind": "service",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Gateway_1",
+      "name": "Payment method valid?",
+      "type": "gateway",
+      "kind": "exclusive",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1",
+      "defaultFlow": "Flow_4"
+    },
+    {
+      "id": "Event_2",
+      "name": "Unlock refused",
+      "type": "event",
+      "position": "end",
+      "trigger": "message",
+      "throwing": true,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_2",
+      "name": "Unlock scooter",
+      "type": "task",
+      "kind": "service",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Event_3",
+      "name": "Ride started",
+      "type": "event",
+      "position": "intermediate",
+      "trigger": "message",
+      "throwing": true,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Event_4",
+      "name": "Ride end requested",
+      "type": "event",
+      "position": "intermediate",
+      "trigger": "message",
+      "throwing": false,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_3",
+      "name": "Ask for parking photo",
+      "type": "task",
+      "kind": "send",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Gateway_2",
+      "name": "",
+      "type": "gateway",
+      "kind": "exclusive",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Gateway_3",
+      "name": "",
+      "type": "gateway",
+      "kind": "eventBased",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Event_5",
+      "name": "Parking photo received",
+      "type": "event",
+      "position": "intermediate",
+      "trigger": "message",
+      "throwing": false,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Event_6",
+      "name": "10 minutes",
+      "type": "event",
+      "position": "intermediate",
+      "trigger": "timer",
+      "throwing": false,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_4",
+      "name": "Check parking photo",
+      "type": "task",
+      "kind": "user",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Gateway_4",
+      "name": "Parked correctly?",
+      "type": "gateway",
+      "kind": "exclusive",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2",
+      "defaultFlow": "Flow_17"
+    },
+    {
+      "id": "Task_5",
+      "name": "Ask for new photo",
+      "type": "task",
+      "kind": "send",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Task_6",
+      "name": "Repark scooter",
+      "type": "task",
+      "kind": "manual",
+      "participantId": "Participant_1",
+      "laneId": "Lane_3"
+    },
+    {
+      "id": "Gateway_5",
+      "name": "",
+      "type": "gateway",
+      "kind": "exclusive",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_7",
+      "name": "Charge ride",
+      "type": "task",
+      "kind": "service",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Event_7",
+      "name": "Receipt sent",
+      "type": "event",
+      "position": "end",
+      "trigger": "message",
+      "throwing": true,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    }
+  ],
+  "flows": [
+    {
+      "id": "Flow_1",
+      "kind": "sequence",
+      "source": "Event_1",
+      "target": "Task_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_2",
+      "kind": "sequence",
+      "source": "Task_1",
+      "target": "Gateway_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_3",
+      "kind": "sequence",
+      "source": "Gateway_1",
+      "target": "Event_2",
+      "name": "No",
+      "condition": "no valid card or wallet"
+    },
+    {
+      "id": "Flow_4",
+      "kind": "sequence",
+      "source": "Gateway_1",
+      "target": "Task_2",
+      "name": "Yes"
+    },
+    {
+      "id": "Flow_5",
+      "kind": "sequence",
+      "source": "Task_2",
+      "target": "Event_3",
+      "name": ""
+    },
+    {
+      "id": "Flow_6",
+      "kind": "sequence",
+      "source": "Event_3",
+      "target": "Event_4",
+      "name": ""
+    },
+    {
+      "id": "Flow_7",
+      "kind": "sequence",
+      "source": "Event_4",
+      "target": "Task_3",
+      "name": ""
+    },
+    {
+      "id": "Flow_8",
+      "kind": "sequence",
+      "source": "Task_3",
+      "target": "Gateway_2",
+      "name": ""
+    },
+    {
+      "id": "Flow_9",
+      "kind": "sequence",
+      "source": "Gateway_2",
+      "target": "Gateway_3",
+      "name": ""
+    },
+    {
+      "id": "Flow_10",
+      "kind": "sequence",
+      "source": "Gateway_3",
+      "target": "Event_5",
+      "name": ""
+    },
+    {
+      "id": "Flow_11",
+      "kind": "sequence",
+      "source": "Gateway_3",
+      "target": "Event_6",
+      "name": ""
+    },
+    {
+      "id": "Flow_12",
+      "kind": "sequence",
+      "source": "Event_5",
+      "target": "Task_4",
+      "name": ""
+    },
+    {
+      "id": "Flow_13",
+      "kind": "sequence",
+      "source": "Task_4",
+      "target": "Gateway_4",
+      "name": ""
+    },
+    {
+      "id": "Flow_14",
+      "kind": "sequence",
+      "source": "Gateway_4",
+      "target": "Task_5",
+      "name": "No",
+      "condition": "the scooter is badly parked"
+    },
+    {
+      "id": "Flow_15",
+      "kind": "sequence",
+      "source": "Task_5",
+      "target": "Gateway_2",
+      "name": ""
+    },
+    {
+      "id": "Flow_16",
+      "kind": "sequence",
+      "source": "Event_6",
+      "target": "Task_6",
+      "name": ""
+    },
+    {
+      "id": "Flow_17",
+      "kind": "sequence",
+      "source": "Gateway_4",
+      "target": "Gateway_5",
+      "name": "Yes"
+    },
+    {
+      "id": "Flow_18",
+      "kind": "sequence",
+      "source": "Task_6",
+      "target": "Gateway_5",
+      "name": ""
+    },
+    {
+      "id": "Flow_19",
+      "kind": "sequence",
+      "source": "Gateway_5",
+      "target": "Task_7",
+      "name": ""
+    },
+    {
+      "id": "Flow_20",
+      "kind": "sequence",
+      "source": "Task_7",
+      "target": "Event_7",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_1",
+      "kind": "message",
+      "source": "Participant_2",
+      "target": "Event_1",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_2",
+      "kind": "message",
+      "source": "Event_2",
+      "target": "Participant_2",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_3",
+      "kind": "message",
+      "source": "Event_3",
+      "target": "Participant_2",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_4",
+      "kind": "message",
+      "source": "Participant_2",
+      "target": "Event_4",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_5",
+      "kind": "message",
+      "source": "Task_3",
+      "target": "Participant_2",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_6",
+      "kind": "message",
+      "source": "Participant_2",
+      "target": "Event_5",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_7",
+      "kind": "message",
+      "source": "Task_5",
+      "target": "Participant_2",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_8",
+      "kind": "message",
+      "source": "Event_7",
+      "target": "Participant_2",
+      "name": ""
+    }
+  ],
+  "diagram": {
+    "shapes": {
+      "Participant_1": {
+        "x": 0,
+        "y": 0,
+        "width": 1790,
+        "height": 766
+      },
+      "Lane_1": {
+        "x": 30,
+        "y": 0,
+        "width": 1760,
+        "height": 346
+      },
+      "Lane_2": {
+        "x": 30,
+        "y": 346,
+        "width": 1760,
+        "height": 270
+      },
+      "Lane_3": {
+        "x": 30,
+        "y": 616,
+        "width": 1760,
+        "height": 150
+      },
+      "Participant_2": {
+        "x": 0,
+        "y": 826,
+        "width": 1790,
+        "height": 250
+      },
+      "Event_1": {
+        "x": 132,
+        "y": 52,
+        "width": 36,
+        "height": 36
+      },
+      "Task_1": {
+        "x": 218,
+        "y": 30,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_1": {
+        "x": 368,
+        "y": 45,
+        "width": 50,
+        "height": 50
+      },
+      "Event_2": {
+        "x": 468,
+        "y": 52,
+        "width": 36,
+        "height": 36
+      },
+      "Task_2": {
+        "x": 468,
+        "y": 150,
+        "width": 100,
+        "height": 80
+      },
+      "Event_3": {
+        "x": 650,
+        "y": 172,
+        "width": 36,
+        "height": 36
+      },
+      "Event_4": {
+        "x": 775,
+        "y": 172,
+        "width": 36,
+        "height": 36
+      },
+      "Task_3": {
+        "x": 868,
+        "y": 150,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_2": {
+        "x": 1018,
+        "y": 165,
+        "width": 50,
+        "height": 50
+      },
+      "Gateway_3": {
+        "x": 1118,
+        "y": 165,
+        "width": 50,
+        "height": 50
+      },
+      "Event_5": {
+        "x": 1218,
+        "y": 270,
+        "width": 36,
+        "height": 36
+      },
+      "Event_6": {
+        "x": 1218,
+        "y": 172,
+        "width": 36,
+        "height": 36
+      },
+      "Task_4": {
+        "x": 618,
+        "y": 376,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_4": {
+        "x": 768,
+        "y": 511,
+        "width": 50,
+        "height": 50
+      },
+      "Task_5": {
+        "x": 868,
+        "y": 496,
+        "width": 100,
+        "height": 80
+      },
+      "Task_6": {
+        "x": 1304,
+        "y": 646,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_5": {
+        "x": 1454,
+        "y": 165,
+        "width": 50,
+        "height": 50
+      },
+      "Task_7": {
+        "x": 1554,
+        "y": 150,
+        "width": 100,
+        "height": 80
+      },
+      "Event_7": {
+        "x": 1704,
+        "y": 172,
+        "width": 36,
+        "height": 36
+      }
+    },
+    "edges": {}
+  }
+}
