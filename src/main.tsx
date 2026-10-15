@@ -5,6 +5,9 @@ import './index.css'
 import './trainer.css'
 import { registerServiceWorker } from './pwa/register'
 import { App } from './ui/App'
+import { installViewport } from './ui/viewport'
+
+installViewport()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

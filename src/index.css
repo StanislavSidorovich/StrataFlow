@@ -78,7 +78,9 @@ body {
 .app {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  /* The visual viewport's height (src/ui/viewport.ts): an on-screen keyboard shrinks the app, not covers it. */
+  height: var(--app-h, 100%);
+  overflow: hidden;
 }
 .topbar {
   display: flex;
@@ -314,6 +316,7 @@ svg.is-ok {
   border-bottom: 1px solid var(--panel-border);
 }
 .main {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -1136,4 +1139,170 @@ button.link {
 .bpmn-edge.is-passed {
   stroke: var(--brand);
   stroke-width: 2.5;
+}
+
+/* ------------------------------------------------------------ tablets and phones */
+
+/* The right column: in the row on a wide screen, over the canvas on a narrow one (src/ui/viewport.ts). */
+.side-wrap {
+  display: contents;
+}
+.side-wrap.is-over {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  max-width: 100%;
+  box-shadow: -4px 0 16px rgb(0 0 0 / 0.12);
+}
+.side-wrap.is-over > .side-panel {
+  width: 300px;
+  max-width: 100vw;
+  padding-top: 44px;
+}
+.side-wrap.is-over > .help-panel {
+  padding-top: 12px;
+}
+.side-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.topbar {
+  min-width: 0;
+}
+/* The left group keeps its buttons whole (the name gives way); only a phone scrolls it. */
+.topbar-left {
+  flex: 1 0 auto;
+}
+.topbar .btn,
+.topbar .brand {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* Narrow: icons only in the top bar (the title says what each does). */
+@media (max-width: 1099px) {
+  .topbar .btn-label,
+  .stage-pill {
+    display: none;
+  }
+}
+@media (max-width: 599px) {
+  .brand strong,
+  .status-left,
+  .status-right {
+    display: none;
+  }
+  .statusbar {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+  .topbar-file {
+    display: none;
+  }
+  .topbar-left {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .main .trainer-panel {
+    position: absolute;
+    inset: 0;
+    z-index: 15;
+    width: auto;
+  }
+  .side-wrap.is-over,
+  .side-wrap.is-over > .side-panel {
+    left: 0;
+    width: 100%;
+  }
+}
+
+/* Touch: bigger targets for a finger. */
+@media (pointer: coarse) {
+  .btn {
+    min-height: 36px;
+    padding: 6px 11px;
+  }
+  .btn.icon {
+    min-width: 36px;
+    justify-content: center;
+  }
+  .palette-btn,
+  .pad-btn {
+    width: 40px;
+    height: 40px;
+  }
+  .context-pad {
+    grid-template-columns: repeat(2, 40px);
+  }
+  .react-flow__handle.bpmn-handle {
+    width: 16px;
+    height: 16px;
+    border-width: 2px;
+  }
+  .react-flow__resize-control.handle.bpmn-resize-handle {
+    width: 14px;
+    height: 14px;
+  }
+  .menu-list button {
+    min-height: 40px;
+  }
+  .react-flow__controls-button {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+/* Phone notice */
+.phone-notice {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(0 0 0 / 0.35);
+}
+.phone-card {
+  max-width: 360px;
+  padding: 18px 18px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: var(--panel-bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.phone-card h2 {
+  margin: 6px 0 8px;
+  font-size: 17px;
+}
+.phone-card p {
+  margin: 0 0 8px;
+  color: var(--muted);
+}
+.phone-icon {
+  color: var(--brand);
+}
+.phone-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
 }

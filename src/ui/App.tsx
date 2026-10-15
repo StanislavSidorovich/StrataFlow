@@ -18,8 +18,10 @@ import {
   LayoutDashboard,
   Moon,
   MousePointer2,
+  PanelRight,
   Play,
   RefreshCw,
+  Smartphone,
   Timer,
   Save,
   Sun,
@@ -44,6 +46,7 @@ import { hadStoredModel, useEditor } from './store'
 import { startTour, Tour, tourOnFirstVisit } from './trainer/Tour'
 import { TrainerPane, TrainerVeil } from './trainer/TrainerPane'
 import { useTrainer } from './trainer/trainerStore'
+import { showSide, useLayout } from './viewport'
 import example from '../data/examples/library-loan.flow.json?raw'
 import expenseAsIs from '../../cases/expense-claim-as-is.flow.json?raw'
 import expenseToBe from '../../cases/expense-claim-to-be.flow.json?raw'
@@ -81,6 +84,8 @@ export function App() {
   const updateReady = useUpdateReady()
   const trainerOpen = useTrainer((s) => s.open)
   const inTask = useTrainer((s) => s.session !== null)
+  const side = useLayout((s) => s.side)
+  const narrow = useLayout((s) => s.narrow)
   const [dark, setDark] = useState(() => matchMedia('(prefers-color-scheme: dark)').matches)
   const input = useRef<HTMLInputElement>(null)
 
@@ -94,7 +99,8 @@ export function App() {
   }, [message])
 
   useEffect(() => {
-    if (!hadStoredModel) tourOnFirstVisit()
+    // On a phone the notice comes first; the tour points at a bar that does not fit there.
+    if (!hadStoredModel && !useLayout.getState().phone) tourOnFirstVisit()
   }, [])
 
   useEffect(() => {
@@ -129,6 +135,7 @@ export function App() {
         e.preventDefault()
         s.apply((m) => deleteElements(m, s.selection))
       } else if (e.key === 'Escape') {
+        if (useLayout.getState().narrow) useLayout.getState().setSide(false)
         s.setTool({ id: 'select' })
         s.select([])
       } else if (e.key === 'F2' && s.selection.length === 1) {
@@ -213,7 +220,7 @@ export function App() {
             }}
           />
           <button className="btn" onClick={() => void layoutNow()} title="Auto layout: steps left to right, each in its own lane (Undo puts everything back)" data-testid="auto-layout">
-            <LayoutDashboard size={15} /> Auto layout
+            <LayoutDashboard size={15} /> <span className="btn-label">Auto layout</span>
           </button>
           <CheckButton />
           <button
@@ -222,7 +229,7 @@ export function App() {
             title="Simulate: play a case step by step; times, costs and how busy each lane is (AS-IS vs TO-BE)"
             data-testid="simulate"
           >
-            <Timer size={15} /> Simulate
+            <Timer size={15} /> <span className="btn-label">Simulate</span>
           </button>
           <button
             className={`btn${trainerOpen ? ' is-open' : ''}`}
@@ -230,10 +237,15 @@ export function App() {
             title="Trainer: cases from easy to hard (worked example, tag the text, complete, build yourself) and lessons"
             data-testid="trainer"
           >
-            <GraduationCap size={15} /> Trainer{inTask && <span className="count is-task">task</span>}
+            <GraduationCap size={15} /> <span className="btn-label">Trainer</span>{inTask && <span className="count is-task">task</span>}
           </button>
         </div>
-        <button className="topbar-file" title="The process: click to see and rename it" onClick={() => useEditor.setState({ selection: [], help: null })} data-testid="doc-name">
+        <button className="topbar-file" title="The process: click to see and rename it" onClick={() => {
+            useEditor.setState({ selection: [], help: null })
+            showSide()
+          }}
+          data-testid="doc-name"
+        >
           {name || 'Untitled process'}
         </button>
         <div className="topbar-right">
@@ -249,7 +261,11 @@ export function App() {
             items={[
               { label: 'Help cards', icon: <BookOpen size={15} />, keys: 'F1', title: 'BPMN ideas one by one: elements, rules, typical mistakes', testid: 'help-cards', onPick: () => useEditor.getState().openHelp('index') },
               { label: 'Tour', icon: <Play size={15} />, title: 'Six stops: drawing, files, check, trainer, help', testid: 'tour-menu', onPick: startTour },
-              { label: 'How to draw', icon: <MousePointer2 size={15} />, title: 'Shortcuts and gestures (in Properties when nothing is selected)', onPick: () => useEditor.setState({ selection: [], help: null }) },
+              { label: 'How to draw', icon: <MousePointer2 size={15} />, title: 'Shortcuts and gestures (in Properties when nothing is selected)', onPick: () => {
+                  useEditor.setState({ selection: [], help: null })
+                  showSide()
+                },
+              },
               'sep',
               {
                 label: 'Install as app',
@@ -277,6 +293,15 @@ export function App() {
               },
             ]}
           />
+          <button
+            className={`btn icon${side ? ' is-open' : ''}`}
+            onClick={() => useLayout.getState().setSide(!side)}
+            title={side ? 'Hide Properties and help' : 'Show Properties and help'}
+            aria-label="Properties and help"
+            data-testid="side-toggle"
+          >
+            <PanelRight size={15} />
+          </button>
           <button className="btn icon" onClick={() => setDark((d) => !d)} title={dark ? 'Light theme' : 'Dark theme'} aria-label="Toggle theme">
             {dark ? <Sun size={15} /> : <Moon size={15} />}
           </button>
@@ -301,10 +326,52 @@ export function App() {
             {simOpen && <SimulatePanel />}
           </div>
         </ReactFlowProvider>
-        {help ? <HelpPanel id={help} /> : <Properties />}
+        {side && (
+          <div className={`side-wrap${narrow ? ' is-over' : ''}`}>
+            {narrow && !help && (
+              <button className="side-close" aria-label="Close" title="Close (Esc)" onClick={() => useLayout.getState().setSide(false)} data-testid="side-close">
+                <X size={15} />
+              </button>
+            )}
+            {help ? <HelpPanel id={help} /> : <Properties />}
+          </div>
+        )}
       </main>
       <StatusBar />
       <Tour />
+      <PhoneNotice />
+    </div>
+  )
+}
+
+/** On a phone: the app is made for a bigger screen; what works here is reading. Asked once per browser. */
+function PhoneNotice() {
+  const phone = useLayout((s) => s.phone)
+  const ok = useLayout((s) => s.phoneOk)
+  if (!phone || ok) return null
+  const go = (then?: () => void) => {
+    useLayout.getState().continueOnPhone()
+    then?.()
+  }
+  return (
+    <div className="phone-notice" role="dialog" aria-modal="true" aria-labelledby="phone-notice-title" data-testid="phone-notice">
+      <div className="phone-card">
+        <Smartphone size={28} className="phone-icon" />
+        <h2 id="phone-notice-title">Best on a laptop or a tablet</h2>
+        <p>Drawing a process needs room: pools, lanes and the tools beside them do not fit on a phone screen.</p>
+        <p>On a phone you can read the help cards and the lessons.</p>
+        <div className="phone-actions">
+          <button className="btn accent" onClick={() => go(() => useEditor.getState().openHelp('index'))} data-testid="phone-help">
+            <BookOpen size={15} /> Help cards
+          </button>
+          <button className="btn" onClick={() => go(() => useTrainer.getState().setOpen(true))} data-testid="phone-lessons">
+            <GraduationCap size={15} /> Lessons
+          </button>
+          <button className="btn" onClick={() => go()} data-testid="phone-continue">
+            Continue anyway
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -321,7 +388,7 @@ function CheckButton() {
       title="Check the model: every step reachable, splits closed by matching joins, names (course rules P01–P18)"
       data-testid="check"
     >
-      {worst ? <TriangleAlert size={15} className={`is-${worst}`} /> : <CircleCheck size={15} className="is-ok" />} Check
+      {worst ? <TriangleAlert size={15} className={`is-${worst}`} /> : <CircleCheck size={15} className="is-ok" />} <span className="btn-label">Check</span>
       {worst && <span className={`count is-${worst}`}>{c.error + c.warning}</span>}
     </button>
   )
