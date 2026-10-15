@@ -234,6 +234,8 @@ export function Canvas() {
         zoomOnDoubleClick={false}
         selectionKeyCode="Shift"
         multiSelectionKeyCode={['Control', 'Meta']}
+        // A selected expanded sub-process must stay under its steps.
+        elevateNodesOnSelect={false}
         fitView
         fitViewOptions={{ maxZoom: 1, padding: 0.08 }}
         minZoom={0.1}

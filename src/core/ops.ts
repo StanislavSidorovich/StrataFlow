@@ -425,7 +425,7 @@ export function convertActivity(m: FlowModel, id: string, to: 'task' | 'subProce
   const n = m.nodes[i]
   if (!n || (n.type !== 'task' && n.type !== 'subProcess')) throw new ModelError('Only a task or a sub-process converts')
   if (n.type === to) return
-  if (n.type === 'subProcess' && m.nodes.some((x) => x.parentId === id)) throw new ModelError('Empty the sub-process first (ungroup comes in stage 2)')
+  if (n.type === 'subProcess' && m.nodes.some((x) => x.parentId === id)) throw new ModelError('Ungroup the sub-process first, or empty it')
   const { participantId, laneId, parentId, name } = n
   m.nodes[i] = to === 'task' ? { id, name, participantId, laneId, parentId, type: 'task', kind: 'task' } : { id, name, participantId, laneId, parentId, type: 'subProcess', collapsed: true }
 }
@@ -509,4 +509,270 @@ function removeLane(m: FlowModel, id: string) {
   m.lanes = m.lanes.filter((l) => l.id !== id)
   delete m.diagram.shapes[id]
   for (const n of m.nodes) if (n.participantId === lane.participantId) place(m, n.id)
+}
+
+// ---------------------------------------------------------------- group into / ungroup sub-process
+
+/** Thrown when a selection has several ways in or out: the caller asks, then runs again with gateways. */
+export class NeedsGatewaysError extends ModelError {}
+
+const GROUP_PAD = 20
+/** Room above the content for the sub-process's name. */
+const GROUP_TOP = 20
+const GROUP_GAP = 40
+
+/**
+ * Turns the selected steps of one process level into an expanded sub-process drawn round them (SPEC §6).
+ * Flows coming in go to the sub-process and, inside, a start event leads to the step(s) they reached; flows
+ * going out leave from the sub-process and, inside, end in an end event (one per place reached outside).
+ * Several steps reached from outside need an exclusive gateway after the start event; several places reached
+ * outside, one after the sub-process (it repeats the choice made inside, with the same conditions). Without
+ * `gateways` that throws NeedsGatewaysError. What sits right of the selection moves right to make room.
+ */
+export function groupIntoSubprocess(m: FlowModel, ids: string[], opts: { gateways?: boolean; name?: string } = {}): FlowNode {
+  if (m.nodes.some((n) => ids.includes(n.id) && n.type === 'event' && n.attachedTo && !ids.includes(n.attachedTo)))
+    throw new ModelError('A boundary event goes with its activity: select the activity too')
+  const picked = m.nodes.filter((n) => ids.includes(n.id))
+  const steps = picked.filter((n) => !isArtifact(n))
+  if (!steps.length) throw new ModelError('Select the steps to group: tasks, events, gateways')
+  // Only the outermost picked nodes count: what is nested in them comes along.
+  const tops = picked.filter((n) => !picked.some((p) => p.id !== n.id && withDescendants(m, p.id).has(n.id)))
+  const level = { participantId: tops[0].participantId, parentId: tops[0].parentId }
+  if (tops.some((n) => n.participantId !== level.participantId || n.parentId !== level.parentId))
+    throw new ModelError('Group steps of one process level: same pool, same sub-process')
+  const inside = new Set(tops.flatMap((n) => [...withDescendants(m, n.id)]))
+
+  const seq = m.flows.filter((f) => f.kind === 'sequence')
+  const incoming = seq.filter((f) => !inside.has(f.source) && inside.has(f.target))
+  const outgoing = seq.filter((f) => inside.has(f.source) && !inside.has(f.target))
+  const entries = [...new Set(incoming.map((f) => f.target))]
+  const targets = [...new Set(outgoing.map((f) => f.target))]
+  const gateIn = entries.length > 1
+  const gateOut = targets.length > 1
+  if ((gateIn || gateOut) && !opts.gateways) {
+    const ways = [gateIn ? `${entries.length} ways in` : '', gateOut ? `${targets.length} ways out` : ''].filter(Boolean).join(' and ')
+    throw new NeedsGatewaysError(`The selection has ${ways}: group it with exclusive gateways?`)
+  }
+
+  // Room: the start event (and a gateway) on the left, the end events on the right, a gateway after.
+  const ev = SIZES.event.width
+  const gw = SIZES.gateway.width
+  const roomIn = entries.length ? ev + GROUP_GAP + (gateIn ? gw + GROUP_GAP : 0) : 0
+  const roomOut = targets.length ? GROUP_GAP + ev : 0
+  const outer = gateOut ? GROUP_GAP + gw : 0
+  const boxes = [...inside].map((id) => m.diagram.shapes[id]).filter(Boolean)
+  const bb = {
+    x: Math.min(...boxes.map((b) => b.x)),
+    y: Math.min(...boxes.map((b) => b.y)),
+    r: Math.max(...boxes.map((b) => b.x + b.width)),
+    b: Math.max(...boxes.map((b) => b.y + b.height)),
+  }
+  // One end event per place reached outside, level with the steps that lead there, none on another.
+  const cy = (nid: string) => centre(m.diagram.shapes[nid]).y
+  const mid = (xs: string[]) => xs.reduce((t, x) => t + cy(x), 0) / xs.length
+  const endY = targets.map((t) => mid([...new Set(outgoing.filter((f) => f.target === t).map((f) => f.source))]))
+  const order = targets.map((_, i) => i).sort((a, b) => endY[a] - endY[b])
+  order.forEach((i, k) => {
+    if (k) endY[i] = Math.max(endY[i], endY[order[k - 1]] + ev + GROUP_GAP)
+  })
+  if (endY.length) bb.b = Math.max(bb.b, ...endY.map((y) => y + ev / 2))
+  // The sub-process stays inside what holds it (it would stick out of a pool's top otherwise).
+  const holder = level.parentId ?? level.participantId
+  const ceiling = holder && m.diagram.shapes[holder] ? m.diagram.shapes[holder].y + (level.parentId ? GROUP_TOP : 0) : -Infinity
+  const top = Math.max(bb.y - GROUP_PAD - GROUP_TOP, ceiling)
+  const shift = GROUP_PAD + roomIn
+  const grow = 2 * GROUP_PAD + roomIn + roomOut + outer
+  const box: Bounds = { x: bb.x, y: top, width: bb.r - bb.x + 2 * GROUP_PAD + roomIn + roomOut, height: bb.b + GROUP_PAD - top }
+  const sameLevel = (n: FlowNode) => n.participantId === level.participantId && n.parentId === level.parentId && !inside.has(n.id) && !(n.type === 'event' && n.attachedTo)
+  const to: Record<string, Point> = {}
+  for (const n of tops) to[n.id] = { x: m.diagram.shapes[n.id].x + shift, y: m.diagram.shapes[n.id].y }
+  for (const n of m.nodes) {
+    const s = m.diagram.shapes[n.id]
+    if (s && sameLevel(n) && s.x + s.width / 2 > bb.x) to[n.id] = { x: s.x + grow, y: s.y }
+  }
+  // Widen first: a step moved past the pool's edge would leave the pool.
+  growHolders(m, level, grow, to)
+  moveElements(m, to)
+
+  // The sub-process, in the lane holding most of the selected steps.
+  const id = nextId(m, 'SubProcess')
+  const count = new Map<string | undefined, number>()
+  for (const n of steps) count.set(n.laneId, (count.get(n.laneId) ?? 0) + 1)
+  const lane = [...count].sort((a, b) => b[1] - a[1])[0][0]
+  m.nodes.push({ id, name: opts.name ?? '', type: 'subProcess', collapsed: false })
+  m.diagram.shapes[id] = box
+  place(m, id)
+  if (lane) nodeOf(m, id)!.laneId = lane
+  for (const n of m.nodes.filter((x) => inside.has(x.id))) if (n.type === 'subProcess') place(m, n.id)
+  for (const n of m.nodes.filter((x) => inside.has(x.id))) if (n.type !== 'subProcess') place(m, n.id)
+  for (const n of tops) nodeOf(m, n.id)!.parentId = id
+
+  // Way in: outer flows end at the sub-process; inside, start → (gateway →) the step(s) they reached.
+  if (entries.length) {
+    const y = mid(entries)
+    const start = addNode(m, { type: 'event', position: 'start' }, { x: box.x + GROUP_PAD + ev / 2, y })
+    let from = start.id
+    if (gateIn) {
+      from = addNode(m, { type: 'gateway', kind: 'exclusive' }, { x: box.x + GROUP_PAD + ev + GROUP_GAP + gw / 2, y }).id
+      connect(m, start.id, from)
+    }
+    for (const e of entries) connect(m, from, e)
+    for (const f of incoming) {
+      f.target = id
+      delete m.diagram.edges[f.id]
+    }
+    mergeDuplicates(m, id)
+  }
+
+  // Way out: inside, the flows end in an end event per place reached; outside, the sub-process (or a gateway after it) leads on.
+  if (targets.length) {
+    let after = id
+    if (gateOut) {
+      after = addNode(m, { type: 'gateway', kind: 'exclusive' }, { x: box.x + box.width + GROUP_GAP + gw / 2, y: centre(box).y }).id
+      connect(m, id, after)
+    }
+    targets.forEach((t, i) => {
+      const end = addNode(m, { type: 'event', position: 'end' }, { x: box.x + box.width - GROUP_PAD - ev / 2, y: endY[i] })
+      const first = outgoing.find((f) => f.target === t)!
+      const f = connect(m, after, t)
+      // The choice made inside is made again after the sub-process: each branch keeps its name and condition.
+      if (gateOut) {
+        f.name = first.name
+        if (first.condition) f.condition = first.condition
+      }
+      for (const g of outgoing.filter((x) => x.target === t)) {
+        g.target = end.id
+        delete m.diagram.edges[g.id]
+      }
+      mergeDuplicates(m, end.id)
+    })
+  }
+  return nodeOf(m, id)!
+}
+
+/**
+ * The inverse (SPEC §6): the steps come back to the parent level where they are drawn (a collapsed sub-process's
+ * content takes its place), its "none" start and end events go, and the flows that came in and went out join
+ * the steps after the start event and before the end event.
+ */
+export function ungroupSubprocess(m: FlowModel, id: string): void {
+  const sp = nodeOf(m, id)
+  if (sp?.type !== 'subProcess') throw new ModelError('Select a sub-process to ungroup')
+  if (m.nodes.some((n) => n.type === 'event' && n.attachedTo === id))
+    throw new ModelError('Delete the boundary events of the sub-process first: afterwards there is nothing to attach them to')
+  const kids = m.nodes.filter((n) => n.parentId === id)
+  const seq = m.flows.filter((f) => f.kind === 'sequence')
+  const none = (n: FlowNode, position: 'start' | 'end') => n.type === 'event' && n.position === position && n.trigger === 'none'
+  const starts = kids.filter((n) => none(n, 'start'))
+  const ends = kids.filter((n) => none(n, 'end'))
+  const startOut = seq.filter((f) => starts.some((x) => x.id === f.source))
+  const endIn = seq.filter((f) => ends.some((x) => x.id === f.target))
+  const into = seq.filter((f) => f.target === id)
+  const outOf = seq.filter((f) => f.source === id)
+  if (into.length && !startOut.length) throw new ModelError('The sub-process has no plain start event: ungrouping would not know where the flow comes in')
+  if (outOf.length && !endIn.length) throw new ModelError('The sub-process has no plain end event: ungrouping would not know where the flow goes out')
+
+  const s = m.diagram.shapes[id]
+  if (sp.collapsed && kids.length && s) {
+    // The hidden content is drawn elsewhere: bring it where the sub-process is, and make room on the right.
+    const boxes = kids.flatMap((k) => [...withDescendants(m, k.id)]).map((k) => m.diagram.shapes[k]).filter(Boolean)
+    const x0 = Math.min(...boxes.map((b) => b.x))
+    const y0 = Math.min(...boxes.map((b) => b.y))
+    const w = Math.max(...boxes.map((b) => b.x + b.width)) - x0
+    const h = Math.max(...boxes.map((b) => b.y + b.height)) - y0
+    const extra = Math.max(0, w - s.width)
+    const level = { participantId: sp.participantId, parentId: sp.parentId }
+    const to: Record<string, Point> = {}
+    for (const n of m.nodes) {
+      const b = m.diagram.shapes[n.id]
+      const peer = n.participantId === level.participantId && n.parentId === level.parentId && !(n.type === 'event' && n.attachedTo)
+      if (extra && b && n.id !== id && peer && b.x + b.width / 2 > s.x + s.width / 2) to[n.id] = { x: b.x + extra, y: b.y }
+    }
+    growHolders(m, level, extra, to)
+    if (Object.keys(to).length) moveElements(m, to)
+    const d = { x: s.x - x0, y: Math.round(s.y + s.height / 2 - h / 2) - y0 }
+    for (const k of kids)
+      for (const x of withDescendants(m, k.id)) {
+        const b = m.diagram.shapes[x]
+        if (b) Object.assign(b, { x: b.x + d.x, y: b.y + d.y })
+      }
+    for (const f of m.flows) delete m.diagram.edges[f.id]
+  }
+
+  // Each flow in reaches each step after a start event; each flow out leaves each step before an end event.
+  for (const f of into)
+    startOut.forEach((g, i) => {
+      if (i === 0) f.target = g.target
+      else m.flows.push({ ...f, id: nextId(m, 'Flow'), target: g.target })
+    })
+  for (const f of outOf) {
+    const { name, condition } = f
+    endIn.forEach((g, i) => {
+      // A flow leaving a gateway inside keeps its own name and condition; else the outer one's.
+      const joined: Flow = { ...f, source: g.source, name: g.name || name }
+      const cond = g.condition ?? condition
+      if (cond) joined.condition = cond
+      else delete joined.condition
+      if (i === 0) Object.assign(f, joined)
+      else m.flows.push({ ...joined, id: nextId(m, 'Flow') })
+      const kept = i === 0 ? f.id : m.flows[m.flows.length - 1].id
+      for (const n of m.nodes) if (n.type === 'gateway' && n.defaultFlow === g.id) n.defaultFlow = kept
+    })
+    if (!f.condition) delete f.condition
+  }
+  // Message flows, data and notes on the sub-process move to its first step in (or last step out).
+  const firstIn = startOut[0]?.target ?? kids.find((n) => !isArtifact(n) && !none(n, 'start') && !none(n, 'end'))?.id
+  const lastOut = endIn[0]?.source ?? firstIn
+  for (const f of m.flows) {
+    if (f.kind === 'sequence') continue
+    if (f.target === id && firstIn) f.target = firstIn
+    if (f.source === id && lastOut) f.source = f.kind === 'association' ? firstIn! : lastOut
+  }
+  for (const f of m.flows) if (into.includes(f) || outOf.includes(f) || [f.source, f.target].some((x) => x === firstIn || x === lastOut)) delete m.diagram.edges[f.id]
+
+  for (const k of kids) k.parentId = sp.parentId
+  m.nodes = m.nodes.filter((n) => n.id !== id)
+  delete m.diagram.shapes[id]
+  // Without a flow in (or out) the start (or end) events stay: they still start or end those steps.
+  deleteElements(m, [...(into.length ? starts : []), ...(outOf.length ? ends : [])].map((n) => n.id))
+  for (const n of m.nodes) if (n.participantId === sp.participantId) place(m, n.id)
+  // Branches with their own conditions stay apart even when they now join the same two elements.
+  for (const t of new Set(m.flows.map((f) => f.target))) mergeDuplicates(m, t, true)
+}
+
+/**
+ * Flows of the same kind between the same two elements, ending at `nodeId`, become one (with `alike`, only when
+ * their names and conditions match too); a gateway's default follows the one kept.
+ */
+function mergeDuplicates(m: FlowModel, nodeId: string, alike = false) {
+  const kept = new Map<string, Flow>()
+  const gone = new Set<string>()
+  for (const f of m.flows) {
+    if (f.target !== nodeId) continue
+    const key = `${f.kind}:${f.source}` + (alike ? `:${f.name}:${f.condition ?? ''}` : '')
+    const k = kept.get(key)
+    if (!k) {
+      kept.set(key, f)
+      continue
+    }
+    gone.add(f.id)
+    for (const n of m.nodes) if (n.type === 'gateway' && n.defaultFlow === f.id) n.defaultFlow = k.id
+  }
+  if (!gone.size) return
+  m.flows = m.flows.filter((f) => !gone.has(f.id))
+  for (const g of gone) delete m.diagram.edges[g]
+}
+
+/** Before content at one level moves right by dx (to `to`): its expanded sub-processes and its pool widen to keep it. */
+function growHolders(m: FlowModel, level: { participantId?: string; parentId?: string }, dx: number, to: Record<string, Point>) {
+  if (dx <= 0) return
+  for (let p = level.parentId ? nodeOf(m, level.parentId) : undefined; p; p = p.parentId ? nodeOf(m, p.parentId) : undefined) {
+    const s = m.diagram.shapes[p.id]
+    if (s) resizeElement(m, p.id, { ...s, width: s.width + dx })
+  }
+  const pool = level.participantId ? m.diagram.shapes[level.participantId] : undefined
+  if (!pool) return
+  const inPool = m.nodes.filter((n) => n.participantId === level.participantId && m.diagram.shapes[n.id])
+  const right = Math.max(...inPool.map((n) => (to[n.id]?.x ?? m.diagram.shapes[n.id].x) + m.diagram.shapes[n.id].width))
+  if (right + 30 > pool.x + pool.width) resizeElement(m, level.participantId!, { ...pool, width: right + 30 - pool.x })
 }

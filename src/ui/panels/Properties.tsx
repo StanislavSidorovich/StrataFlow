@@ -1,7 +1,7 @@
 // The right column: what the selected element is and what it can be changed into. Typing in a field
 // is one undo step per field (coalesced), every other change is one step.
 import { useEffect, useRef } from 'react'
-import { ArrowLeftRight, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeftRight, Group, Plus, Trash2, Ungroup } from 'lucide-react'
 import type { EventPosition, EventTrigger, FlowModel, FlowNode, GatewayKind, TaskKind } from '../../core/metamodel'
 import {
   addBoundaryEvent,
@@ -21,6 +21,7 @@ import {
   updateNode,
   type NodePatch,
 } from '../../core/ops'
+import { canGroup, groupSelection, ungroupSelection } from '../actions'
 import { useEditor } from '../store'
 
 const TASK_KINDS: [TaskKind, string][] = [
@@ -65,6 +66,7 @@ export function Properties() {
         <section>
           <h2>{ids.length} selected</h2>
           <p className="muted">Drag one of them to move them all.</p>
+          {canGroup(ids) && <GroupButton />}
           <DeleteButton ids={ids} />
         </section>
       )}
@@ -164,6 +166,7 @@ function NodeProps({ model, n }: { model: FlowModel; n: FlowNode }) {
             </button>
             <BoundaryButton id={n.id} />
           </div>
+          <GroupButton />
         </>
       )}
 
@@ -191,6 +194,12 @@ function NodeProps({ model, n }: { model: FlowModel; n: FlowNode }) {
               To task
             </button>
             <BoundaryButton id={n.id} />
+          </div>
+          <div className="row">
+            <button className="btn" onClick={ungroupSelection} title="Put its steps back in the process, without the sub-process (Ctrl+Shift+G)" data-testid="ungroup">
+              <Ungroup size={14} /> Ungroup
+            </button>
+            <GroupButton />
           </div>
         </>
       )}
@@ -354,6 +363,14 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span>{label}</span>
       {children}
     </label>
+  )
+}
+
+function GroupButton() {
+  return (
+    <button className="btn" onClick={groupSelection} title="Turn the selected steps into a sub-process (Ctrl+G). Shift+click or drag a box to select several." data-testid="group">
+      <Group size={14} /> Group into sub-process
+    </button>
   )
 }
 

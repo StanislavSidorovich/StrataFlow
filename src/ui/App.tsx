@@ -7,6 +7,7 @@ import { deleteElements } from '../core/ops'
 import { parseModel } from '../core/serialize'
 import { Canvas } from './canvas/Canvas'
 import { TOOLS } from './canvas/Palette'
+import { groupSelection, ungroupSelection } from './actions'
 import { exportBpmn, layoutModel, openText, saveModel, saveModelAs } from './files'
 import { Properties } from './panels/Properties'
 import { hadStoredModel, useEditor } from './store'
@@ -60,6 +61,10 @@ export function App() {
         e.preventDefault()
         if (e.shiftKey) s.redo()
         else s.undo()
+      } else if (mod && key === 'g') {
+        e.preventDefault()
+        if (e.shiftKey) ungroupSelection()
+        else groupSelection()
       } else if (mod && key === 'y') {
         e.preventDefault()
         s.redo()
@@ -173,7 +178,7 @@ export function App() {
         <Properties />
       </main>
       <footer className="statusbar">
-        Preview: draw, save and reopen BPMN processes; opens Bizagi .bpmn exports and exports BPMN 2.0 XML. One-click auto layout. The model check comes next. Unofficial student project.
+        Preview: draw, save and reopen BPMN processes; opens Bizagi .bpmn exports and exports BPMN 2.0 XML. one-click auto layout; group steps into a sub-process (Ctrl+G) and back. The model check comes next. Unofficial student project.
       </footer>
     </div>
   )
