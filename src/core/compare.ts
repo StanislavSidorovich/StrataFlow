@@ -6,7 +6,7 @@
 import { isArtifact, type Flow, type FlowModel, type FlowNode, type GatewayKind, type LoopKind } from './metamodel'
 
 export type ItemStatus = 'ok' | 'missing' | 'different' | 'extra'
-export type ItemKind = 'pool' | 'lane' | 'step' | 'decision' | 'link' | 'message' | 'data'
+export type ItemKind = 'pool' | 'lane' | 'step' | 'decision' | 'link' | 'message' | 'data' | 'figure'
 
 export interface CompareItem {
   /** Stable key: `pool:Name`, `lane:Name`, `step:Name`, `decision:<ref id>`, `link:A>B`, `message:A>B`, `data:Name`; `extra:<id>` for extras. */
@@ -36,6 +36,8 @@ export interface CompareOptions {
   synonyms?: Record<string, string[]>
   /** A coarser step that stands for several reference steps: name → the reference step names it covers. */
   groups?: Record<string, string[]>
+  /** Also compare the figures of the time analysis (durations, waits, costs, branch shares): the redesign level. */
+  figures?: boolean
 }
 
 // ---------------------------------------------------------------- names
@@ -358,6 +360,7 @@ export function compareModels(ref: FlowModel, mine: FlowModel, opts: CompareOpti
     g.m.nodes.filter((n) => !isArtifact(n) && (g.out.get(n.id)?.length ?? 0) > 1 && (n.type === 'gateway' || n.type === 'task' || n.type === 'subProcess' || n.type === 'event'))
   const mySplits = splitsOf(S)
   const usedSplits = new Set<string>()
+  const splitMap = new Map<string, string>() // reference split → the student's
   for (const g of splitsOf(R)) {
     if (g.type !== 'gateway') continue
     const branches = R.branches(g.id)
@@ -382,6 +385,7 @@ export function compareModels(ref: FlowModel, mine: FlowModel, opts: CompareOpti
       continue
     }
     usedSplits.add(best.n.id)
+    splitMap.set(g.id, best.n.id)
     const n = best.n
     const kindOk = n.type === 'gateway' ? n.kind === g.kind : g.kind === 'parallel'
     const allBranches = best.hits === branches.length
@@ -478,6 +482,48 @@ export function compareModels(ref: FlowModel, mine: FlowModel, opts: CompareOpti
   }
   for (const d of myData) if (!taken.has(d.id)) add({ key: `extra:${d.id}`, kind: 'data', status: 'extra', ref: [], mine: [d.id], text: `Data ${label(d)} is not in the reference.` })
 
+  // --- figures of the time analysis (redesign level): per matched activity, and the share of each branch
+  if (opts.figures) {
+    const unit = ref.sim?.unit ?? 'h'
+    for (const r of refSteps) {
+      const s = map.get(r.id)
+      const n = s ? S.byId.get(s) : undefined
+      if (!r.sim || !n || inv(n.id).length > 1) continue
+      const diffs = FIGURES.filter((k) => !near(r.sim?.[k], n.sim?.[k]))
+      add({
+        key: `figure:${r.name || r.id}`,
+        kind: 'figure',
+        ref: [r.id],
+        mine: [n.id],
+        order: ord(r.id) + 0.3,
+        status: diffs.length ? 'different' : 'ok',
+        text: diffs.length
+          ? `${label(n)}: ${diffs.map((k) => `${FIGURE_WORD[k]} should be ${fmt(r.sim?.[k], k, unit)} (yours ${fmt(n.sim?.[k], k, unit)})`).join(', ')}.`
+          : `Figures of ${label(n)}.`,
+      })
+    }
+    for (const f of ref.flows) {
+      if (f.kind !== 'sequence' || f.probability === undefined) continue
+      const g = splitMap.get(f.source)
+      const t = R.byId.get(f.target)
+      const want = t && t.type !== 'gateway' ? new Set([t.id]) : R.next(f.target)
+      const targets = mapped(want)
+      const mineFlow = g ? (S.out.get(g) ?? []).find((x) => targets.has(x.target) || [...S.next(x.target)].some((y) => targets.has(y)) || [...targets].some((y) => S.byId.get(x.target)?.type === 'gateway' && x.target === y)) : undefined
+      if (!mineFlow) continue
+      const ok = near(f.probability, mineFlow.probability)
+      const where = `${label(R.byId.get(f.source))} → ${f.name ? `${f.name}, ` : ''}${[...want].map((x) => label(R.byId.get(x))).join(' + ')}`
+      add({
+        key: `figure:${f.id}`,
+        kind: 'figure',
+        ref: [f.id],
+        mine: [mineFlow.id],
+        order: ord(f.source) + 0.4,
+        status: ok ? 'ok' : 'different',
+        text: ok ? `Share of ${where}.` : `Share of ${where} should be ${pct(f.probability)} (yours ${mineFlow.probability === undefined ? 'not set' : pct(mineFlow.probability)}).`,
+      })
+    }
+  }
+
   items.sort((x, y) => x.order - y.order)
   const total = items.filter((i) => i.status !== 'extra').length
   const earned = items.reduce((s, i) => s + (i.status === 'ok' ? 1 : i.status === 'different' ? 0.5 : 0), 0)
@@ -499,6 +545,13 @@ const LOOP_MEANING: Record<LoopKind, string> = {
   parallel: 'a parallel multi-instance marker (three vertical bars), once for each item, all at the same time',
   sequential: 'a sequential multi-instance marker (three horizontal bars), once for each item, one after another',
 }
+
+const FIGURES = ['duration', 'wait', 'cost'] as const
+const FIGURE_WORD: Record<(typeof FIGURES)[number], string> = { duration: 'the work', wait: 'the waiting time', cost: 'the cost' }
+/** Equal up to rounding (10 minutes typed as 0.17 or 0.1667 h). */
+const near = (a: number | undefined, b: number | undefined) => Math.abs((a ?? 0) - (b ?? 0)) <= 0.01 + 0.02 * Math.abs(a ?? 0)
+const fmt = (v: number | undefined, k: (typeof FIGURES)[number], unit: string) => (v === undefined ? 'not set' : `${Math.round(v * 100) / 100}${k === 'cost' ? '' : ` ${unit}`}`)
+const pct = (p: number) => `${Math.round(p * 1000) / 10} %`
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 const a = (w: string) => (/^[aeiou]/i.test(w) ? `an ${w}` : `a ${w}`)

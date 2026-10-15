@@ -125,6 +125,7 @@ TO-BE ideas (redesign heuristics): task automation (the app checks completeness)
 
 ## 7. Hints per level, synonyms
 
+- Trainer levels 0–3 work on the AS-IS (the first paragraph's phrases). Level R (Redesign) starts from the AS-IS with its figures; the goals are a cycle time of at most 40 h (a week of working hours) and a cost of at most 22.90 per claim (half of 45.83). Its score: each goal reached 30, closeness to the TO-BE (steps, flows, figures and branch shares) 40, so another design that reaches both goals passes too.
 - Start with the AS-IS: type the durations and waits from the text, then compare your cycle time with the table above. The most common mistake is to put the two days in the duration column.
 - Then press Keep as AS-IS, open the TO-BE (or redesign the AS-IS yourself) and read the changes on each figure.
 - Synonyms: Fill in expense form = Complete form, Fill in claim; Check expense form = Review form, Check form; Enter claim = Register claim, Book claim; Check receipts = Verify receipts; Pay claim = Reimburse employee, Transfer money; Submit claim in app = Submit claim.

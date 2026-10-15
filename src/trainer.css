@@ -431,3 +431,110 @@ mark.cue {
   white-space: nowrap;
   flex: none;
 }
+
+/* Walkthrough ("watch it built") */
+.walk {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--panel-bg, transparent);
+}
+.walk h3 {
+  margin: 6px 0 4px;
+}
+.walk p {
+  margin: 4px 0;
+}
+.walk-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.walk-head .score-bar {
+  flex: 1;
+}
+.walk-spans {
+  margin: 6px 0;
+  padding-left: 0;
+  list-style: none;
+}
+.walk-spans li {
+  margin-bottom: 5px;
+  font-size: 13px;
+}
+.walk-nav {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.walk-answer svg {
+  display: inline;
+  vertical-align: -2px;
+}
+.walk-answer {
+  padding: 4px 6px;
+  border-radius: 5px;
+  background: var(--accent-soft);
+}
+.walk-answer.is-wrong {
+  background: var(--warning-soft);
+}
+.case-text .span.is-quiet {
+  border-bottom-color: transparent;
+  cursor: default;
+}
+
+/* Redesign level */
+.goal-line {
+  margin: 6px 0;
+  padding: 6px 8px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: 0 5px 5px 0;
+  font-size: 13px;
+}
+.goals {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0;
+  font-size: 13px;
+}
+.goals li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+.goals .is-ok svg {
+  color: var(--tag-activity, #0d9488);
+}
+.goals .is-missing svg {
+  color: var(--error);
+}
+
+/* My task */
+.my-task .field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.my-task input,
+.my-task textarea {
+  font: inherit;
+  padding: 5px 7px;
+  border: 1px solid var(--panel-border);
+  border-radius: 5px;
+  background: var(--canvas-bg);
+  color: var(--text);
+  resize: vertical;
+}
+.my-task .case-text {
+  user-select: text;
+}
+.cue-questions {
+  padding-left: 18px;
+}

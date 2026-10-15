@@ -16,6 +16,7 @@ export interface HelpCard {
   miniModel?: string
   typicalMistake: string
   seeAlso: string[]
+  /** Cases that use the idea, besides the ones found in the reference models (`data/caseRefs.ts`). */
   caseRefs?: string[]
 }
 
@@ -422,6 +423,7 @@ export const HELP_CARDS: HelpCard[] = [
     whenToUse: ['"currently…", "today the clerk…" (AS-IS)', '"should", "proposed" (TO-BE)'],
     typicalMistake: 'Drawing the ideal process and calling it AS-IS.',
     seeAlso: ['happy-path', 'process', 'simulation'],
+    caseRefs: ['expense-claim'],
   },
   {
     id: 'simulation',
@@ -438,6 +440,7 @@ export const HELP_CARDS: HelpCard[] = [
     miniModel: 'start > task:Check claim > xor > task:Pay | Assess > xor > end',
     typicalMistake: 'Adding the times of parallel branches (only the longest counts for time), or forgetting the waiting time, which is usually most of the cycle time.',
     seeAlso: ['as-is-to-be', 'parallel-gateway', 'exclusive-gateway', 'lane'],
+    caseRefs: ['expense-claim'],
   },
 ]
 

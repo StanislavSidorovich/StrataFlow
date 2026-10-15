@@ -2,16 +2,36 @@
 // ladder; the lesson being read. The working model lives in the editor store; the user's own model waits
 // in `backup` there until the task ends (StrataSQL lesson: never lose the user's model to a task).
 import { create } from 'zustand'
+import { doItForMe } from '../../core/assist'
 import type { CompareResult } from '../../core/compare'
 import { lintModel, summarize } from '../../core/lint'
 import type { FlowModel } from '../../core/metamodel'
-import { caseById, tagFits, type Tag } from '../../data/cases'
-import { compareWithCase, levelStartModel, nextHint, recordScore, taggingScore, type Hint, type Level, type Progress } from '../../data/trainer'
+import { caseById, registerCase, tagFits, unregisterCase, type Tag, type TrainerCase } from '../../data/cases'
+import { parseCaseFile } from '../../data/caseFile'
+import { addMark, EMPTY_TASK, remapMarks, type Mark, type MyTask } from '../../data/mytask'
+import { checkGoals, compareWithCase, levelStartModel, nextHint, recordScore, redesignScore, taggingScore, viewCase, type GoalCheck, type Hint, type Level, type Progress } from '../../data/trainer'
+import { walkthroughOf, type WalkStep } from '../../data/walkthrough'
 import { loadStoredModel, TRAINER_MODEL_KEY, useEditor } from '../store'
 
 const SESSION_KEY = 'strataflow.trainer.session'
 const PROGRESS_KEY = 'strataflow.trainer.progress'
 const CUES_KEY = 'strataflow.trainer.cues'
+const FILE_CASES_KEY = 'strataflow.trainer.fileCases'
+const MY_TASK_KEY = 'strataflow.trainer.myTask'
+
+// Cases opened from files come back after a reload (before the session that may use one).
+const fileCaseTexts = new Map<string, string>()
+for (const text of readJson<string[]>(FILE_CASES_KEY, []))
+  try {
+    const c = parseCaseFile(text)
+    registerCase(c)
+    fileCaseTexts.set(c.id, text)
+  } catch {
+    // A stored case that no longer reads is dropped.
+  }
+
+/** The walkthrough steps of a case, built once. */
+export const walkSteps = walkthroughOf
 
 export interface Session {
   caseId: string
@@ -24,8 +44,10 @@ export interface Session {
   openSpan: number | null
   /** Level 1: the model is shown although not every phrase is tagged yet. */
   peek: boolean
-  /** Levels 2–3: the hint shown and how many rungs of it. */
+  /** Levels 2–4: the hint shown and how many rungs of it. */
   hint: { hint: Hint; shown: number } | null
+  /** Level 0: the walkthrough step shown and the answer to its question (null = not answered yet). */
+  walk?: { step: number; answered: number | null } | null
 }
 
 export interface Check {
@@ -34,6 +56,10 @@ export interface Check {
   warnings: number
   /** The model that was checked: an edit makes the result stale. */
   model: FlowModel
+  /** Redesign level: the figures against the goals. */
+  goals?: GoalCheck
+  /** The score of the check (the redesign's counts its goals too). */
+  score: number
 }
 
 interface TrainerState {
@@ -44,12 +70,30 @@ interface TrainerState {
   progress: Progress
   /** Text cues are highlighted in the case text. */
   cues: boolean
+  /** Bumped when a case file is added or removed (the picker lists them). */
+  fileCases: number
+  /** "My task" is open. */
+  myTask: boolean
+  setMyTask: (open: boolean) => void
+  /** The text of "My task" and its tags (kept in this browser). */
+  task: MyTask
+  setTaskText: (title: string, text: string) => void
+  markTask: (mark: Mark) => void
+  unmarkTask: (index: number) => void
   /** The lesson being read and its answers (question index → option; 0 = the guess). */
   lesson: { id: string; answers: Record<number, number> } | null
 
   setOpen: (open: boolean) => void
-  start: (caseId: string, level: Level) => void
+  start: (caseId: string, level: Level, opts?: { walk?: boolean }) => void
   exit: () => void
+  /** Level 0: start the walkthrough, go to a step (null ends it), answer the step's question. */
+  walkTo: (step: number | null) => void
+  walkAnswer: (option: number) => void
+  /** Levels 2–4: make the next item match the reference (one undo step). */
+  doIt: () => void
+  /** Adds the case of a `*.flow-case.json` file and starts its walkthrough. */
+  openCaseFile: (text: string) => TrainerCase
+  removeFileCase: (id: string) => void
   tag: (span: number, tag: Tag) => void
   showSpan: (span: number | null) => void
   setPeek: (peek: boolean) => void
@@ -85,12 +129,35 @@ export const useTrainer = create<TrainerState>()((set, get) => ({
   progress: readJson<Progress>(PROGRESS_KEY, {}),
   cues: readJson<boolean>(CUES_KEY, false),
   lesson: null,
+  fileCases: 0,
+  myTask: false,
+  task: readJson<MyTask>(MY_TASK_KEY, EMPTY_TASK),
+  setTaskText(title, text) {
+    const task = { title, text, marks: remapMarks(get().task.marks, text) }
+    writeJson(MY_TASK_KEY, task)
+    set({ task })
+  },
+  markTask(mark) {
+    const task = { ...get().task, marks: addMark(get().task.marks, mark) }
+    writeJson(MY_TASK_KEY, task)
+    set({ task })
+  },
+  unmarkTask(index) {
+    const task = { ...get().task, marks: get().task.marks.filter((_, i) => i !== index) }
+    writeJson(MY_TASK_KEY, task)
+    set({ task })
+  },
 
   setOpen: (open) => set({ open }),
+  setMyTask(myTask) {
+    if (myTask && get().session) get().exit()
+    set({ myTask, open: true, lesson: null })
+  },
 
-  start(caseId, level) {
+  start(caseId, level, opts = {}) {
     const c = caseById(caseId)
     if (!c) return
+    if (level === 4 && !c.redesign) level = 3
     const editor = useEditor.getState()
     const backup = editor.backup ?? editor.model
     useEditor.setState({
@@ -105,15 +172,72 @@ export const useTrainer = create<TrainerState>()((set, get) => ({
       message: null,
       checkOpen: false,
     })
-    const session: Session = { caseId, level, tags: {}, firstTry: {}, openSpan: null, peek: false, hint: null }
-    set({ open: true, session, check: null, lesson: null })
+    const session: Session = { caseId, level, tags: {}, firstTry: {}, openSpan: null, peek: false, hint: null, walk: null }
+    set({ open: true, session, check: null, lesson: null, myTask: false })
     if (level === 0) set({ progress: save(recordScore(get().progress, caseId, 0, 100)) })
+    if (level === 0 && opts.walk) get().walkTo(0)
+  },
+
+  walkTo(step) {
+    const s = get().session
+    const c = s && caseById(s.caseId)
+    if (!s || !c || s.level !== 0) return
+    const steps = walkSteps(c)
+    if (step === null) {
+      set({ session: { ...s, walk: null } })
+      useEditor.setState({ model: c.reference(), selection: [], page: null })
+      return
+    }
+    const i = Math.max(0, Math.min(step, steps.length - 1))
+    set({ session: { ...s, walk: { step: i, answered: null }, openSpan: null } })
+    showWalkStep(steps, i, false)
+  },
+
+  walkAnswer(option) {
+    const s = get().session
+    const c = s && caseById(s.caseId)
+    if (!s?.walk || !c || s.walk.answered !== null) return
+    set({ session: { ...s, walk: { ...s.walk, answered: option } } })
+    showWalkStep(walkSteps(c), s.walk.step, true)
+  },
+
+  doIt() {
+    const s = get().session
+    const c = s && caseById(s.caseId)
+    if (!s || !c || s.level < 2) return
+    const v = viewCase(c, s.level)
+    let said = ''
+    const ok = useEditor.getState().apply((m) => {
+      said = doItForMe(v.reference(), m, { synonyms: v.synonyms, groups: v.groups, figures: s.level === 4 })
+    })
+    if (!ok) return
+    useEditor.getState().say(`${said} Undo (Ctrl+Z) takes it back.`)
+    set({ session: { ...s, hint: null } })
+    get().runCheck()
+  },
+
+  openCaseFile(text) {
+    const c = parseCaseFile(text)
+    registerCase(c)
+    fileCaseTexts.set(c.id, text)
+    writeJson(FILE_CASES_KEY, [...fileCaseTexts.values()])
+    set({ fileCases: get().fileCases + 1 })
+    get().start(c.id, 0, { walk: true })
+    return c
+  },
+
+  removeFileCase(id) {
+    if (get().session?.caseId === id) get().exit()
+    unregisterCase(id)
+    fileCaseTexts.delete(id)
+    writeJson(FILE_CASES_KEY, [...fileCaseTexts.values()])
+    set({ fileCases: get().fileCases + 1, progress: save(Object.fromEntries(Object.entries(get().progress).filter(([k]) => !k.startsWith(`${id}:`)))) })
   },
 
   exit() {
     const editor = useEditor.getState()
     if (editor.backup) {
-      useEditor.setState({ model: editor.backup, backup: null, doc: editor.doc + 1, past: [], future: [], selection: [], page: null, error: null })
+      useEditor.setState({ model: editor.backup, backup: null, doc: editor.doc + 1, past: [], future: [], selection: [], page: null, error: null, message: null })
       try {
         localStorage.removeItem(TRAINER_MODEL_KEY)
       } catch {
@@ -159,12 +283,14 @@ export const useTrainer = create<TrainerState>()((set, get) => ({
     const c = s && caseById(s.caseId)
     if (!s || !c) return
     const model = useEditor.getState().model
-    const result = compareWithCase(c, model)
+    const result = compareWithCase(c, model, s.level)
     const lint = summarize(lintModel(model, { expectLanes: true }))
-    set({ check: { result, errors: lint.error, warnings: lint.warning, model } })
-    set({ progress: save(recordScore(get().progress, s.caseId, s.level, result.score)) })
+    const goals = s.level === 4 ? (checkGoals(c, model) ?? undefined) : undefined
+    const score = goals ? redesignScore(result, goals) : result.score
+    set({ check: { result, errors: lint.error, warnings: lint.warning, model, goals, score } })
+    set({ progress: save(recordScore(get().progress, s.caseId, s.level, score)) })
     // A new check keeps the hint when it is still about the same item, else starts a fresh ladder.
-    const h = nextHint(c, result)
+    const h = nextHint(viewCase(c, s.level), result)
     const kept = s.hint && h && s.hint.hint.key === h.key ? s.hint.shown : 0
     set({ session: { ...s, hint: h && kept ? { hint: h, shown: kept } : null } })
   },
@@ -174,7 +300,7 @@ export const useTrainer = create<TrainerState>()((set, get) => ({
     const c = s && caseById(s.caseId)
     if (!s || !c) return
     const model = useEditor.getState().model
-    const h = nextHint(c, compareWithCase(c, model))
+    const h = nextHint(viewCase(c, s.level), compareWithCase(c, model, s.level))
     if (!h) {
       set({ session: { ...s, hint: null } })
       return
@@ -197,6 +323,14 @@ export const useTrainer = create<TrainerState>()((set, get) => ({
 export const allTagged = (s: Session) => {
   const c = caseById(s.caseId)
   return !!c && c.spans.every((sp, i) => s.tags[i] && tagFits(sp, s.tags[i]))
+}
+
+/** Shows a walkthrough step on the canvas: before its question is answered, the step before it. */
+function showWalkStep(steps: WalkStep[], i: number, answered: boolean) {
+  const step = steps[i]
+  const shown = step.question && !answered ? steps[Math.max(0, i - 1)] : step
+  const page = step.page
+  useEditor.setState({ model: shown.model, selection: shown === step ? step.focus.filter((id) => shown.model.nodes.some((n) => n.id === id) || shown.model.participants.some((p) => p.id === id) || shown.model.lanes.some((l) => l.id === id)) : [], page, past: [], future: [] })
 }
 
 function save(p: Progress): Progress {

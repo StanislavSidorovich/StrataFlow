@@ -2,8 +2,10 @@
 // or a shape opens the card for it; "Back" returns to Properties.
 import { useMemo, useState } from 'react'
 import { ArrowLeft, Search, X } from 'lucide-react'
+import { caseRefs } from '../../data/caseRefs'
 import { cardById, HELP_CARDS, type HelpCard } from '../../data/help'
 import { useEditor } from '../store'
+import { useTrainer } from '../trainer/trainerStore'
 
 /** A small "?" that opens a help card. */
 export function HelpQ({ card, label }: { card: string; label?: string }) {
@@ -76,6 +78,7 @@ function CardIndex() {
 }
 
 function CardView({ card }: { card: HelpCard }) {
+  const refs = useMemo(() => caseRefs(card.id), [card.id])
   return (
     <article className="help-card" data-testid="help-card">
       <h2>{card.title}</h2>
@@ -100,6 +103,28 @@ function CardView({ card }: { card: HelpCard }) {
           </button>
         ))}
       </div>
+      {refs.length > 0 && (
+        <>
+          <h3>In the cases</h3>
+          <div className="help-chips" data-testid="case-refs">
+            {refs.map((r) => (
+              <button
+                key={r.caseId}
+                className="chip"
+                title="Watch the case built, from the step where this appears"
+                onClick={() => {
+                  if (useEditor.getState().backup && !useTrainer.getState().session) return
+                  useTrainer.getState().start(r.caseId, 0, { walk: true })
+                  useTrainer.getState().walkTo(r.step)
+                }}
+                data-testid={`case-ref:${r.caseId}`}
+              >
+                {r.title}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </article>
   )
 }

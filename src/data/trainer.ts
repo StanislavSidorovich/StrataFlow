@@ -1,22 +1,37 @@
 // Trainer tasks (SPEC §9): the model each level starts from, the progress record and the hint ladder.
+import { analyseModel } from '../core/analysis'
+import { nextTodo } from '../core/assist'
 import { compareModels, type CompareItem, type CompareResult } from '../core/compare'
 import { emptyModel, type FlowModel } from '../core/metamodel'
 import { spanRanges, type TagSpan, type TrainerCase } from './cases'
 
-export type Level = 0 | 1 | 2 | 3
+/** 0–3 for every case; 4 = Redesign, only for an AS-IS → TO-BE case. */
+export type Level = 0 | 1 | 2 | 3 | 4
 
 export const LEVELS: { level: Level; title: string; task: string }[] = [
   { level: 0, title: 'Worked example', task: 'Read the text next to the finished model. Click a highlighted phrase to see the element it became and why.' },
   { level: 1, title: 'Tag the text', task: 'Click each underlined phrase and say what it becomes in the model. The model stays veiled until every phrase is tagged.' },
   { level: 2, title: 'Complete the process', task: 'The pools, lanes and tasks are given. Add the events, gateways and flows, then press Check. Stuck? Next hint.' },
   { level: 3, title: 'Build it yourself', task: 'Draw the whole process from the text, then press Check. Stuck? Next hint shows what to add next.' },
+  { level: 4, title: 'Redesign', task: 'The AS-IS is drawn with its figures. Redesign it as the proposal says (second paragraph) until the cycle time and the cost reach the goals, then press Check. Type figures in Simulate → Times and costs.' },
 ]
+
+/** The levels a case offers. */
+export const levelsOf = (c: TrainerCase) => LEVELS.filter((l) => l.level < 4 || c.redesign)
+
+/** The case as the level sees it: the redesign level works on the proposal's phrases and the TO-BE reference. */
+export function viewCase(c: TrainerCase, level: Level): TrainerCase {
+  const r = c.redesign
+  if (level !== 4 || !r) return c
+  return { ...c, spans: r.spans, synonyms: r.synonyms, groups: undefined, decisions: r.decisions, reference: r.reference, redesign: undefined }
+}
 
 /** Level 0–1: the reference. Level 2: pools, lanes and activities only. Level 3: an empty canvas. */
 export function levelStartModel(c: TrainerCase, level: Level): FlowModel {
   const ref = c.reference()
   if (level < 2) return ref
   if (level === 3) return emptyModel(`${c.title}: my model`)
+  if (level === 4) return { ...ref, name: `${c.title}: my redesign` }
   const keep = new Set(ref.nodes.filter((n) => n.type === 'task' || n.type === 'subProcess').map((n) => n.id))
   for (const p of ref.participants) keep.add(p.id)
   for (const l of ref.lanes) keep.add(l.id)
@@ -29,8 +44,31 @@ export function levelStartModel(c: TrainerCase, level: Level): FlowModel {
   }
 }
 
-export function compareWithCase(c: TrainerCase, mine: FlowModel): CompareResult {
-  return compareModels(c.reference(), mine, { synonyms: c.synonyms, groups: c.groups })
+export function compareWithCase(c: TrainerCase, mine: FlowModel, level: Level = 3): CompareResult {
+  const v = viewCase(c, level)
+  return compareModels(v.reference(), mine, { synonyms: v.synonyms, groups: v.groups, figures: level === 4 })
+}
+
+/** The redesign's figures against its goals (the pool with steps; undefined when a loop never ends). */
+export interface GoalCheck {
+  cycleTime?: number
+  cost?: number
+  timeOk: boolean
+  costOk: boolean
+}
+
+export function checkGoals(c: TrainerCase, mine: FlowModel): GoalCheck | null {
+  const goals = c.redesign?.goals
+  if (!goals) return null
+  const a = analyseModel(mine).find((x) => x.steps.length) ?? analyseModel(mine)[0]
+  const cycleTime = a?.cycleTime
+  const cost = a?.cost
+  return { cycleTime, cost, timeOk: cycleTime !== undefined && cycleTime <= goals.cycleTime, costOk: cost !== undefined && cost <= goals.cost }
+}
+
+/** Redesign score: each goal reached 30, closeness to the proposal (structure and figures) 40. */
+export function redesignScore(result: CompareResult, goals: GoalCheck): number {
+  return Math.round(0.4 * result.score + (goals.timeOk ? 30 : 0) + (goals.costOk ? 30 : 0))
 }
 
 /** Best score per `caseId:level`, 0–100 (level 0: 100 once read). */
@@ -67,11 +105,11 @@ export interface Hint {
  * then the steps along the flow), extras last.
  */
 export function nextHint(c: TrainerCase, result: CompareResult): Hint | null {
-  const todo = result.items.filter((i) => i.status === 'missing' || i.status === 'different')
-  const item = todo[0] ?? result.items.find((i) => i.status === 'extra')
+  const item = nextTodo(result)
   if (!item) return null
   const ref = c.reference()
-  const names = item.ref.map((id) => ref.nodes.find((n) => n.id === id)?.name || ref.participants.find((p) => p.id === id)?.name || ref.lanes.find((l) => l.id === id)?.name).filter((x): x is string => !!x)
+  const refFlow = item.kind === 'figure' ? ref.flows.find((f) => f.id === item.ref[0]) : undefined
+  const names = (refFlow ? [refFlow.target] : item.ref).map((id) => ref.nodes.find((n) => n.id === id)?.name || ref.participants.find((p) => p.id === id)?.name || ref.lanes.find((l) => l.id === id)?.name).filter((x): x is string => !!x)
   // For a flow, the phrase of where it goes; else the phrase of the element itself.
   const look = item.kind === 'link' ? names.slice(-1) : names
   const span = c.spans.findIndex((s) => s.target.some((t) => look.includes(t)))
@@ -92,6 +130,7 @@ function what(item: CompareItem, ref: FlowModel): string {
     link: 'a sequence flow (what comes next)',
     message: 'a message flow between pools',
     data: 'a data object',
+    figure: 'a figure (work, waiting time, cost or the share of a branch)',
   }
   const n = item.kind === 'step' ? ref.nodes.find((x) => x.id === item.ref[0]) : undefined
   const it = n ? (n.type === 'event' ? `${n.position === 'boundary' ? 'a boundary' : n.position === 'intermediate' ? 'an intermediate' : `a${n.position === 'end' ? 'n' : ''} ${n.position}`} event` : 'a task') : thing[item.kind]

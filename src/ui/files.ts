@@ -2,8 +2,10 @@
 // export BPMN 2.0 XML for Bizagi Modeler and bpmn.io.
 // Same pattern as StrataSQL's fileSave.ts: "Save as" picks the folder and name (Chrome, Edge), after which
 // "Save" writes to that file until another document is loaded; other browsers download the file.
+import { isCaseFile } from '../data/caseFile'
 import { parseModel, serializeModel, FILE_EXTENSION } from '../core/serialize'
 import { useEditor } from './store'
+import { useTrainer } from './trainer/trainerStore'
 
 interface WritableFile {
   name: string
@@ -91,6 +93,10 @@ export async function openText(text: string, fileName: string): Promise<void> {
       if (!model.name) model.name = fileName.replace(/\.(bpmn|xml)$/i, '')
       load(model)
       say(warnings.length ? `Opened ${fileName}. Not shown yet: ${warnings.slice(0, 3).join('; ')}${warnings.length > 3 ? '…' : ''}` : `Opened ${fileName}`)
+    } else if (isCaseFile(text)) {
+      // A case file joins the trainer and starts its walkthrough; the user's own model waits meanwhile.
+      const c = useTrainer.getState().openCaseFile(text)
+      say(`Opened the case “${c.title}”: watch it built, then try its levels. Leave task brings your own process back.`)
     } else {
       load(parseModel(text))
       say(`Opened ${fileName}`)

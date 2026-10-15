@@ -1,26 +1,29 @@
 // The trainer column (left of the canvas, so Properties stays on the right): the case picker with
 // progress and lessons; a task (case text, tagging, Check with the comparison, the hint ladder); a lesson.
 import { useEffect, type ReactNode } from 'react'
-import { ArrowLeft, CircleCheck, Eye, EyeOff, GraduationCap, Lightbulb, ListChecks, Play, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CircleCheck, CircleX, Clapperboard, Eye, EyeOff, FileText, GraduationCap, Lightbulb, ListChecks, NotebookPen, Play, Square, Trash2, Wand2, X } from 'lucide-react'
 import type { CompareItem } from '../../core/compare'
-import { CASES, caseById, TAGS, tagFits, type TrainerCase } from '../../data/cases'
+import { UNIT_NAMES } from '../../core/analysis'
+import { CASES, caseById, FILE_CASES, TAGS, tagFits, type TrainerCase } from '../../data/cases'
 import { LESSONS, lessonById, type Lesson, type Question } from '../../data/lessons'
 import { findCues } from '../../data/textcues'
-import { DONE_AT, LEVELS, paragraphParts, progressKey, type Level } from '../../data/trainer'
+import { DONE_AT, LEVELS, levelsOf, paragraphParts, progressKey, viewCase, type GoalCheck, type Level } from '../../data/trainer'
 import { HelpQ } from '../panels/Help'
 import { useEditor } from '../store'
+import { MyTaskView } from './MyTask'
 import { startTour } from './Tour'
-import { allTagged, useTrainer, type Session } from './trainerStore'
+import { allTagged, useTrainer, walkSteps, type Session } from './trainerStore'
 
 export function TrainerPane() {
   const session = useTrainer((s) => s.session)
   const lesson = useTrainer((s) => s.lesson)
+  const myTask = useTrainer((s) => s.myTask)
   const l = lesson && lessonById(lesson.id)
   return (
     <aside className="side-panel trainer-panel" aria-label="Trainer" data-testid="trainer-panel">
       <div className="help-nav">
-        {l || session ? (
-          <button className="btn" onClick={() => (l ? useTrainer.getState().openLesson(null) : useTrainer.getState().exit())} title={session && !l ? 'Leave the task: your own process comes back' : 'Back to the cases'} data-testid="trainer-back">
+        {l || session || myTask ? (
+          <button className="btn" onClick={() => (l ? useTrainer.getState().openLesson(null) : session ? useTrainer.getState().exit() : useTrainer.getState().setMyTask(false))} title={session && !l ? 'Leave the task: your own process comes back' : 'Back to the cases'} data-testid="trainer-back">
             <ArrowLeft size={14} /> {session && !l ? 'Leave task' : 'Cases'}
           </button>
         ) : (
@@ -32,7 +35,7 @@ export function TrainerPane() {
           <X size={14} />
         </button>
       </div>
-      {l ? <LessonView lesson={l} /> : session ? <TaskView session={session} /> : <Picker />}
+      {l ? <LessonView lesson={l} /> : session ? <TaskView session={session} /> : myTask ? <MyTaskView /> : <Picker />}
     </aside>
   )
 }
@@ -41,32 +44,56 @@ export function TrainerPane() {
 
 function Picker() {
   const progress = useTrainer((s) => s.progress)
+  useTrainer((s) => s.fileCases)
+  const caseRow = (c: TrainerCase, file = false) => (
+    <div key={c.id} className="trainer-case" data-testid={`case:${c.id}`}>
+      <div className="trainer-case-head">
+        <strong>{c.title}</strong>
+        <span className="stars" title={`Difficulty ${c.difficulty} of 3`}>{'★'.repeat(c.difficulty)}</span>
+        <button className="btn icon" onClick={() => useTrainer.getState().start(c.id, 0, { walk: true })} title="Watch it built: the model step by step, with the words of the text" aria-label={`Watch ${c.title} built`} data-testid={`watch:${c.id}`}>
+          <Clapperboard size={14} />
+        </button>
+        {file && (
+          <button className="btn icon" onClick={() => confirm(`Remove “${c.title}” from the trainer? The file itself stays where it is.`) && useTrainer.getState().removeFileCase(c.id)} title="Remove this case file from the trainer" aria-label={`Remove ${c.title}`}>
+            <Trash2 size={14} />
+          </button>
+        )}
+      </div>
+      <div className="muted small">{c.concepts.join(' · ')}</div>
+      <div className="level-row">
+        {levelsOf(c).map(({ level, title }) => {
+          const best = progress[progressKey(c.id, level)]
+          const done = best !== undefined && best >= (level === 0 ? 100 : DONE_AT)
+          return (
+            <button key={level} className={`level-btn${done ? ' is-done' : ''}`} title={`${title}${best !== undefined ? ` · best ${best} %` : ''}`} onClick={() => useTrainer.getState().start(c.id, level)} data-testid={`start:${c.id}:${level}`}>
+              {done ? <CircleCheck size={12} /> : null} {level === 4 ? 'R' : level}
+              <span>{title}</span>
+              {best !== undefined && level > 0 && <em>{best} %</em>}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
   return (
     <div className="trainer-picker">
-      <p className="muted">Learn to turn a text into a process: read a worked example, tag the text, complete a process, then build one yourself. Your own process waits and comes back when you leave a task.</p>
+      <p className="muted">Learn to turn a text into a process: watch one built, read a worked example, tag the text, complete a process, then build one yourself. Your own process waits and comes back when you leave a task.</p>
       <h3>Cases</h3>
-      {CASES.map((c) => (
-        <div key={c.id} className="trainer-case" data-testid={`case:${c.id}`}>
-          <div className="trainer-case-head">
-            <strong>{c.title}</strong>
-            <span className="stars" title={`Difficulty ${c.difficulty} of 3`}>{'★'.repeat(c.difficulty)}</span>
-          </div>
-          <div className="muted small">{c.concepts.join(' · ')}</div>
-          <div className="level-row">
-            {LEVELS.map(({ level, title }) => {
-              const best = progress[progressKey(c.id, level)]
-              const done = best !== undefined && best >= (level === 0 ? 100 : DONE_AT)
-              return (
-                <button key={level} className={`level-btn${done ? ' is-done' : ''}`} title={`${title}${best !== undefined ? ` · best ${best} %` : ''}`} onClick={() => useTrainer.getState().start(c.id, level)} data-testid={`start:${c.id}:${level}`}>
-                  {done ? <CircleCheck size={12} /> : null} {level}
-                  <span>{title}</span>
-                  {best !== undefined && level > 0 && <em>{best} %</em>}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      ))}
+      {CASES.map((c) => caseRow(c))}
+      {FILE_CASES.length > 0 && (
+        <>
+          <h3>Case files</h3>
+          {FILE_CASES.map((c) => caseRow(c, true))}
+        </>
+      )}
+      <p className="small muted">
+        <FileText size={13} className="inline-icon" /> A case file (<code>.flow-case.json</code>: a text, its phrases and a reference model) opens with File → Open and joins this list.
+      </p>
+      <h3>My task</h3>
+      <button className="btn" onClick={() => useTrainer.getState().setMyTask(true)} data-testid="my-task">
+        <NotebookPen size={14} /> Your own text
+      </button>
+      <p className="small muted">Paste the text of your assignment, tag its phrases and see which of them your process does not show yet. No reference, no score: questions to ask yourself.</p>
       <h3>Lessons</h3>
       <ul className="help-list">
         {LESSONS.map((l, i) => (
@@ -105,22 +132,28 @@ function TaskView({ session }: { session: Session }) {
     <div className="trainer-task" data-testid="trainer-task">
       <h2>{c.title}</h2>
       <div className="level-tabs" role="tablist">
-        {LEVELS.map((l) => (
+        {levelsOf(c).map((l) => (
           <button key={l.level} role="tab" aria-selected={l.level === level} className={l.level === level ? 'is-active' : ''} onClick={() => switchTo(l.level)} title={l.title} data-testid={`level:${l.level}`}>
-            {l.level} · {l.title}
+            {l.level === 4 ? 'R' : l.level} · {l.title}
           </button>
         ))}
       </div>
-      <p className="task-line">{LEVELS[level].task}</p>
+      {session.walk ? <Walkthrough c={c} session={session} /> : <p className="task-line">{LEVELS[level].task}</p>}
+      {level === 0 && !session.walk && (
+        <button className="btn" onClick={() => useTrainer.getState().walkTo(0)} data-testid="walk-start">
+          <Clapperboard size={14} /> Watch it built
+        </button>
+      )}
+      {level === 4 && c.redesign && <p className="goal-line" data-testid="goals"><strong>Goals.</strong> {c.redesign.goals.text}</p>}
       {level > 0 && (
         <label className="check small" title="Mark words that hint at an element (if, while, sends…). A cue is a hint, not the answer.">
           <input type="checkbox" checked={cues} onChange={(e) => useTrainer.getState().setCues(e.target.checked)} data-testid="cues" /> Show cue words
         </label>
       )}
-      <CaseText c={c} session={session} cues={cues && level > 0} />
-      {level === 0 && <SpanNote c={c} session={session} />}
+      <CaseText c={viewCase(c, level)} session={session} cues={cues && level > 0} />
+      {level === 0 && !session.walk && <SpanNote c={c} session={session} />}
       {level === 1 && <Tagging c={c} session={session} />}
-      {level === 0 && (
+      {level === 0 && !session.walk && (
         <>
           <h3>Key decisions</h3>
           <ul className="decisions">
@@ -135,9 +168,102 @@ function TaskView({ session }: { session: Session }) {
   )
 }
 
+/** Level 0: the reference built step by step; some steps ask first. Keys ← → step. */
+function Walkthrough({ c, session }: { c: TrainerCase; session: Session }) {
+  const steps = walkSteps(c)
+  const w = session.walk!
+  const step = steps[w.step]
+  const asking = !!step.question && w.answered === null
+  const last = w.step === steps.length - 1
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLElement && (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName) || e.target.isContentEditable)) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      if (e.key === 'ArrowRight' && !asking && !last) (e.preventDefault(), useTrainer.getState().walkTo(w.step + 1))
+      if (e.key === 'ArrowLeft' && w.step > 0) (e.preventDefault(), useTrainer.getState().walkTo(w.step - 1))
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [w.step, asking, last])
+  return (
+    <div className="walk" data-testid="walk">
+      <div className="walk-head">
+        <span className="small muted" data-testid="walk-count">
+          Step {w.step + 1} of {steps.length}
+        </span>
+        <div className="score-bar">
+          <span style={{ width: `${(100 * (w.step + 1)) / steps.length}%` }} />
+        </div>
+      </div>
+      <h3 data-testid="walk-title">
+        {step.title} {step.help && <HelpQ card={step.help} />}
+      </h3>
+      {asking ? (
+        <div className="ask" data-testid="walk-question">
+          <p>{step.question!.prompt}</p>
+          <div className="ask-options">
+            {step.question!.options.map((o, i) => (
+              <button key={o} onClick={() => useTrainer.getState().walkAnswer(i)} data-testid={`walk-option:${i}`}>
+                {o}
+              </button>
+            ))}
+          </div>
+          <button className="link small" onClick={() => useTrainer.getState().walkAnswer(-1)}>
+            Just show me
+          </button>
+        </div>
+      ) : (
+        <>
+          {step.question && w.answered !== null && w.answered >= 0 && (
+            <p className={`small walk-answer ${w.answered === step.question.right ? 'is-right' : 'is-wrong'}`} data-testid="walk-feedback">
+              {w.answered === step.question.right ? <CircleCheck size={14} className="inline-icon" /> : <CircleX size={14} className="inline-icon" />}{' '}
+              {w.answered === step.question.right ? 'Right.' : `Not quite: ${step.question.options[step.question.right]}.`}{' '}
+              {step.spans.some((k) => c.spans[k].why === step.question!.why) ? '' : step.question.why}
+            </p>
+          )}
+          {step.text.map((t) => (
+            <p key={t}>{md(t)}</p>
+          ))}
+          {step.spans.length > 0 && (
+            <ul className="walk-spans">
+              {step.spans.map((k) => {
+                const s = c.spans[k]
+                return (
+                  <li key={k}>
+                    <span className={`tag-pill is-${s.tag}`}>{TAGS.find((t) => t.id === s.tag)!.label}</span> “{s.phrase}”: {s.why}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </>
+      )}
+      <div className="row walk-nav">
+        <button className="btn" disabled={w.step === 0} onClick={() => useTrainer.getState().walkTo(w.step - 1)} title="Back (←)" data-testid="walk-back">
+          <ArrowLeft size={14} /> Back
+        </button>
+        {last ? (
+          <button className="btn accent" onClick={() => useTrainer.getState().walkTo(null)} data-testid="walk-done">
+            <CircleCheck size={14} /> Done
+          </button>
+        ) : (
+          <button className="btn accent" disabled={asking} onClick={() => useTrainer.getState().walkTo(w.step + 1)} title="Next (→)" data-testid="walk-next">
+            Next <ArrowRight size={14} />
+          </button>
+        )}
+        <button className="btn" onClick={() => useTrainer.getState().walkTo(null)} title="Stop: the finished model and the worked example" data-testid="walk-stop">
+          <Square size={13} /> Stop
+        </button>
+      </div>
+    </div>
+  )
+}
+
 /** The case text: spans (levels 0–1, and the hint's phrase), cue words on request. */
 function CaseText({ c, session, cues }: { c: TrainerCase; session: Session; cues: boolean }) {
   const hintSpan = session.hint && session.hint.shown >= 2 ? session.hint.hint.span : undefined
+  const walkSpans = session.walk ? walkSteps(c)[session.walk.step]?.spans ?? [] : []
+  const walkAsking = !!session.walk && !!walkSteps(c)[session.walk.step]?.question && session.walk.answered === null
   return (
     <div className="case-text" data-testid="case-text">
       {c.text.map((_, p) => {
@@ -159,14 +285,26 @@ function CaseText({ c, session, cues }: { c: TrainerCase; session: Session; cues
                 )
               const tag = session.tags[k]
               const cls =
-                session.level === 0 ? `span is-${s.tag}` : tag ? (tagFits(s, tag) ? `span is-${tag} is-right` : 'span is-wrong') : 'span is-open'
+                session.walk
+                  ? walkSpans.includes(k)
+                    ? walkAsking
+                      ? 'span span-hint'
+                      : `span is-${s.tag} is-focus`
+                    : 'span is-quiet'
+                  : session.level === 0
+                    ? `span is-${s.tag}`
+                    : tag
+                      ? tagFits(s, tag)
+                        ? `span is-${tag} is-right`
+                        : 'span is-wrong'
+                      : 'span is-open'
               return (
                 // A span, not a button: a button is an inline block and breaks the lines of the text.
                 <span
                   key={i}
                   role="button"
                   tabIndex={0}
-                  className={`${cls}${session.openSpan === k ? ' is-focus' : ''}`}
+                  className={`${cls}${session.openSpan === k && !session.walk ? ' is-focus' : ''}`}
                   onClick={() => useTrainer.getState().showSpan(k)}
                   onKeyDown={(e) => {
                     if (e.key !== 'Enter' && e.key !== ' ') return
@@ -299,6 +437,9 @@ function CheckBox({ c, session }: { c: TrainerCase; session: Session }) {
         <button className="btn" onClick={() => useTrainer.getState().moreHint()} title="What to add next: what → where in the text → why → the answer" data-testid="next-hint">
           <Lightbulb size={15} /> {h && h.shown < h.hint.steps.length ? 'More of this hint' : 'Next hint'}
         </button>
+        <button className="btn" onClick={() => useTrainer.getState().doIt()} title="Do the next item for me (Ctrl+Z takes it back). Use it when stuck, then go on yourself." data-testid="do-it">
+          <Wand2 size={15} /> Do it for me
+        </button>
       </div>
       {h && (
         <ol className="hint-ladder" data-testid="hint">
@@ -313,12 +454,13 @@ function CheckBox({ c, session }: { c: TrainerCase; session: Session }) {
             <div className="score-bar">
               <span style={{ width: `${check.result.score}%` }} />
             </div>
-            <strong data-testid="score">{check.result.score} %</strong>
+            <strong data-testid="score">{check.score} %</strong>
           </div>
+          {check.goals && c.redesign && <Goals goals={check.goals} c={c} closeness={check.result.score} />}
           {stale && <p className="small muted">You changed the model since: press Check again.</p>}
           {!todo.length && !extra.length ? (
             <p className="check-clean">
-              <CircleCheck size={15} className="is-ok" /> Same process as the reference.{' '}
+              <CircleCheck size={15} className="is-ok" /> {session.level === 4 ? 'Same process and figures as the proposal.' : 'Same process as the reference.'}{' '}
               {check.errors + check.warnings ? `The model check still has ${check.errors + check.warnings} remark(s): see Check in the top bar.` : 'The model check is clean too.'}
             </p>
           ) : (
@@ -343,9 +485,39 @@ function CheckBox({ c, session }: { c: TrainerCase; session: Session }) {
           )}
         </div>
       )}
-      {!check && <p className="small muted">{session.level === 2 ? 'Tip: start with the start and end events, then the gateways, then connect.' : 'Tip: pools and lanes first, then the happy path left to right, then the other branches.'}</p>}
-      <p className="small muted">{c.title}: the comparison matches steps by name (other words are fine) and by place; layout does not matter.</p>
+      {!check && (
+        <p className="small muted">
+          {session.level === 2
+            ? 'Tip: start with the start and end events, then the gateways, then connect.'
+            : session.level === 4
+              ? 'Tip: read the proposal phrase by phrase; each one is a redesign idea. Open Simulate to see the cycle time and the cost change as you go.'
+              : 'Tip: pools and lanes first, then the happy path left to right, then the other branches.'}
+        </p>
+      )}
+      <p className="small muted">
+        {session.level === 4
+          ? 'Score: each goal reached 30, closeness to the proposal (steps, flows and figures) 40. Another design that reaches the goals counts too.'
+          : `${c.title}: the comparison matches steps by name (other words are fine) and by place; layout does not matter.`}
+      </p>
     </div>
+  )
+}
+
+/** Redesign level: the figures of the student's model against the goals. */
+function Goals({ goals, c, closeness }: { goals: GoalCheck; c: TrainerCase; closeness: number }) {
+  const g = c.redesign!.goals
+  const unit = UNIT_NAMES[useEditor.getState().model.sim?.unit ?? 'h']
+  const f = (v: number | undefined, u = '') => (v === undefined ? 'no number (a loop never ends?)' : `${Math.round(v * 100) / 100}${u}`)
+  return (
+    <ul className="goals" data-testid="goal-check">
+      <li className={goals.timeOk ? 'is-ok' : 'is-missing'}>
+        {goals.timeOk ? <CircleCheck size={14} /> : <CircleX size={14} />} Cycle time {f(goals.cycleTime, ` ${unit}`)} (goal at most {g.cycleTime} {unit})
+      </li>
+      <li className={goals.costOk ? 'is-ok' : 'is-missing'}>
+        {goals.costOk ? <CircleCheck size={14} /> : <CircleX size={14} />} Cost per case {f(goals.cost)} (goal at most {g.cost})
+      </li>
+      <li className="muted">Closeness to the proposal: {closeness} %</li>
+    </ul>
   )
 }
 

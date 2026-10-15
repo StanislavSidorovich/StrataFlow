@@ -9,6 +9,8 @@ import shopOrder from '../../cases/shop-order.flow.json?raw'
 import scooterRide from '../../cases/scooter-ride.flow.json?raw'
 import hospitalAdmission from '../../cases/hospital-admission.flow.json?raw'
 import footballMatch from '../../cases/football-match.flow.json?raw'
+import expenseAsIs from '../../cases/expense-claim-as-is.flow.json?raw'
+import expenseToBe from '../../cases/expense-claim-to-be.flow.json?raw'
 
 export type Tag = 'participant' | 'role' | 'activity' | 'event' | 'decision' | 'parallel' | 'message' | 'data'
 
@@ -51,6 +53,19 @@ export interface TrainerCase {
   /** A coarser step accepted for several reference steps. */
   groups?: Record<string, string[]>
   reference: () => FlowModel
+  /** An AS-IS → TO-BE case: the redesign level starts from the reference (the AS-IS) and aims at this TO-BE. */
+  redesign?: Redesign
+}
+
+/** The redesign level (case 7): the proposal's text phrases, the TO-BE reference and the goals in figures. */
+export interface Redesign {
+  reference: () => FlowModel
+  /** Phrases of the proposal (they name TO-BE elements). */
+  spans: TagSpan[]
+  synonyms: Record<string, string[]>
+  decisions: string[]
+  /** The targets of the redesign, in the model's time unit and its cost. */
+  goals: { cycleTime: number; cost: number; text: string }
 }
 
 const model = (text: string) => () => parseModel(text)
@@ -445,9 +460,107 @@ export const CASES: TrainerCase[] = [
     },
     reference: model(footballMatch),
   },
+  {
+    id: 'expense-claim',
+    title: 'Expense claim: AS-IS → TO-BE',
+    difficulty: 3,
+    concepts: ['durations, waits and costs', 'a rework loop', 'cycle time and cost per case', 'redesign: reach the TO-BE figures'],
+    text: [
+      "Employees of a consulting company pay travel costs themselves and claim them back. Today the employee fills in a paper expense form and staples the receipts to it (about 20 minutes), then leaves it in the manager's tray. The form lies there for about two working days before the manager checks it (10 minutes). In one case out of four something is missing: the manager sends the form back, and the employee completes it (15 minutes) about a working day later and puts it back in the tray, where it waits again. A complete form goes to Finance by internal mail, which takes a working day. A finance clerk enters the claim into the accounting system (15 minutes) and checks the receipts against the travel policy (10 minutes). The money is paid with the monthly payment run: on average the claim waits ten working days for it, and preparing the payment takes 5 minutes. An hour costs 30 EUR for an employee, 60 EUR for a manager and 40 EUR for a finance clerk.",
+      'The company wants claims paid within a week and at half the cost. Proposal: employees submit the claim in an expense app with photos of the receipts (10 minutes). The app checks at once that every field and photo is there; only 5 % of claims come back, and the employee completes them within two hours (6 minutes). The manager approves only claims above 200 EUR (three in ten), within half a day (5 minutes), while Finance checks the receipts at the same time, also within half a day. Payments go out weekly: a claim waits two and a half working days on average, and paying takes 3 minutes.',
+    ],
+    spans: [
+      { p: 0, phrase: 'consulting company', tag: 'participant', target: ['Company'], why: 'One organisation: one pool. The case is about time inside the company, so the employee is a lane, not an outside pool.' },
+      { p: 0, phrase: 'pay travel costs themselves and claim them back', tag: 'event', target: ['Expenses incurred'], why: 'What starts the process: the costs were paid, now they are claimed. A start event.' },
+      { p: 0, phrase: 'the employee', tag: 'role', target: ['Employee'], why: 'A role that does work: a lane.' },
+      { p: 0, phrase: 'fills in a paper expense form and staples the receipts to it', tag: 'activity', target: ['Fill in expense form'], why: 'One task: stapling the receipts is part of filling in the form. Its figures: 20 minutes of work (0.33 h), cost 0.33 h × 30 EUR = 10 EUR.' },
+      { p: 0, phrase: "the manager", tag: 'role', target: ['Manager'], why: 'A second role: a lane. The form travels from the employee to the manager (a hand-over, and a wait).' },
+      { p: 0, phrase: 'checks it', tag: 'activity', target: ['Check expense form'], why: 'A task. The two days in the tray are waiting time before it (16 h), not work: the work is 10 minutes.' },
+      { p: 0, phrase: 'In one case out of four something is missing', tag: 'decision', target: ['Form complete?'], why: 'One of two ways: an exclusive gateway, with the share of each branch (No 25 %).' },
+      { p: 0, phrase: 'the employee completes it', tag: 'activity', target: ['Complete expense form'], why: 'A task back in the employee lane; then the form goes through the check again (a rework loop through a merging gateway before the check).' },
+      { p: 0, phrase: 'Finance', tag: 'role', target: ['Finance'], why: 'A third role: a lane. The internal mail is a wait (8 h) on the first Finance task.' },
+      { p: 0, phrase: 'enters the claim into the accounting system', tag: 'activity', target: ['Enter claim'], why: 'A task (it types in again what the employee already wrote: a TO-BE idea).' },
+      { p: 0, phrase: 'checks the receipts against the travel policy', tag: 'activity', target: ['Check receipts'], why: 'A task.' },
+      { p: 0, phrase: 'The money is paid', tag: 'event', target: ['Claim paid'], why: 'The outcome: an end event.' },
+      { p: 0, phrase: 'preparing the payment takes 5 minutes', tag: 'activity', target: ['Pay claim'], why: 'A task with a long wait before it: the monthly payment run (ten working days, 80 h).' },
+    ],
+    decisions: [
+      'One pool (Company) with three lanes: the case is about time inside the company.',
+      'The rework loop goes back through a merging exclusive gateway in front of the check, so the loop is visible and the split has a matching join.',
+      'Waits are typed on the task that waits (the tray, the mail, the payment run): Simulate → Times and costs, the waiting column.',
+      'Cost of a task = its hourly rate × its work: the analysis multiplies by how often the task runs (the check runs 1.33 times per claim).',
+      'The AS-IS takes 113.1 h (about 14 working days) and costs 45.83 per claim: almost all of it is waiting.',
+    ],
+    synonyms: {
+      Company: ['Consulting company'],
+      'Expenses incurred': ['Expenses paid', 'Travel costs paid', 'Claim started'],
+      'Fill in expense form': ['Fill in form', 'Fill in claim', 'Fill out expense form'],
+      'Check expense form': ['Review form', 'Check form', 'Review expense form'],
+      'Form complete?': ['Complete?', 'Form OK?', 'Anything missing?'],
+      'Complete expense form': ['Complete form', 'Fix form', 'Add missing items'],
+      'Enter claim': ['Register claim', 'Book claim', 'Enter claim in system'],
+      'Check receipts': ['Verify receipts', 'Check against policy'],
+      'Pay claim': ['Reimburse employee', 'Transfer money', 'Pay expenses'],
+      'Claim paid': ['Money paid', 'Expenses reimbursed'],
+    },
+    reference: model(expenseAsIs),
+    redesign: {
+      reference: model(expenseToBe),
+      spans: [
+        { p: 1, phrase: 'submit the claim in an expense app with photos of the receipts', tag: 'activity', target: ['Submit claim in app'], why: 'A user task: the paper form and the internal mail disappear (task elimination). 10 minutes, 0.17 h × 30 = 5.' },
+        { p: 1, phrase: 'The app', tag: 'role', target: ['Expense app'], why: 'A system that does work: a lane of its own (automation).' },
+        { p: 1, phrase: 'checks at once that every field and photo is there', tag: 'activity', target: ['Check completeness'], why: 'A service task: no waiting, almost no cost (0.2).' },
+        { p: 1, phrase: 'only 5 % of claims come back', tag: 'decision', target: ['Claim complete?'], why: 'The loop stays but is rarely taken: No 5 %.' },
+        { p: 1, phrase: 'the employee completes them within two hours (6 minutes)', tag: 'activity', target: ['Complete claim'], why: 'A user task: wait 2 h, work 0.1 h, cost 3.' },
+        { p: 1, phrase: 'The manager', tag: 'role', target: ['Manager'], why: 'The manager lane stays, but sees only some claims.' },
+        { p: 1, phrase: 'approves only claims above 200 EUR (three in ten)', tag: 'decision', accept: ['activity'], target: ['Above 200 EUR?', 'Approve claim'], why: 'Triage: an exclusive gateway Above 200 EUR? (Yes 30 %) before the task Approve claim (wait 4 h, work 0.08 h, cost 5); No goes straight on.' },
+        { p: 1, phrase: 'Finance checks the receipts', tag: 'activity', target: ['Check receipts'], why: 'The same task as before, now waiting only half a day (4 h).' },
+        { p: 1, phrase: 'at the same time', tag: 'parallel', target: ['Above 200 EUR?', 'Check receipts'], why: 'Parallelism: a parallel split before the approval branch and the receipts check, a parallel join after them. The longer branch sets the time.' },
+        { p: 1, phrase: 'Payments go out weekly', tag: 'activity', target: ['Pay claim'], why: 'Shorter batches: the claim waits 2.5 working days (20 h) instead of ten; paying takes 3 minutes (0.05 h, cost 2).' },
+      ],
+      synonyms: {
+        'Expense app': ['App', 'System', 'Expense system'],
+        'Submit claim in app': ['Submit claim', 'Submit expense claim', 'Enter claim in app'],
+        'Check completeness': ['Check claim', 'Automatic check', 'Check fields and photos'],
+        'Claim complete?': ['Complete?', 'Anything missing?', 'Form complete?'],
+        'Complete claim': ['Complete expense form', 'Fix claim', 'Add missing items'],
+        'Above 200 EUR?': ['Over 200 EUR?', 'More than 200 EUR?', 'Amount above 200 EUR?'],
+        'Approve claim': ['Approve expenses', 'Approve'],
+        'Check receipts': ['Verify receipts', 'Check against policy'],
+        'Pay claim': ['Reimburse employee', 'Transfer money', 'Pay expenses'],
+        'Claim paid': ['Money paid', 'Expenses reimbursed'],
+        'Expenses incurred': ['Expenses paid', 'Travel costs paid', 'Claim started'],
+        Company: ['Consulting company'],
+      },
+      decisions: [
+        'Task automation: the app checks completeness (a service task in a system lane).',
+        'Task elimination: no internal mail, no typing in Finance.',
+        'Triage: the manager approves only claims above 200 EUR.',
+        'Parallelism: approval and the receipts check at the same time (parallel split and join).',
+        'Shorter batches: a weekly payment run instead of a monthly one.',
+        'The TO-BE takes 24.5 h (about 3 working days) and costs 15.67 per claim.',
+      ],
+      goals: { cycleTime: 40, cost: 22.9, text: 'Paid within a week (at most 40 working hours) and at half the cost (at most 22.90 per claim; the AS-IS costs 45.83).' },
+    },
+  },
 ]
 
-export const caseById = (id: string) => CASES.find((c) => c.id === id)
+/** Cases opened from `*.flow-case.json` files in this browser (kept by the trainer store). */
+export const FILE_CASES: TrainerCase[] = []
+
+/** Adds a file case, replacing one with the same id. */
+export function registerCase(c: TrainerCase) {
+  const i = FILE_CASES.findIndex((x) => x.id === c.id)
+  if (i >= 0) FILE_CASES[i] = c
+  else FILE_CASES.push(c)
+}
+
+export function unregisterCase(id: string) {
+  const i = FILE_CASES.findIndex((x) => x.id === id)
+  if (i >= 0) FILE_CASES.splice(i, 1)
+}
+
+export const caseById = (id: string) => CASES.find((c) => c.id === id) ?? FILE_CASES.find((c) => c.id === id)
 
 /** Where each span sits in its paragraph: [start, end) character offsets (spans are found in order). */
 export function spanRanges(c: TrainerCase): { start: number; end: number }[] {

@@ -123,7 +123,7 @@ Each issue links to a help card and highlights elements. Severity: error = inval
 
 ## 8. Help cards
 
-Fields: `id, title, oneLiner, whenToUse (text signals), miniModel (tiny flow JSON rendered as diagram), typicalMistake, seeAlso[], caseRefs[]`.
+Fields: `id, title, oneLiner, whenToUse (text signals), miniModel (tiny flow JSON rendered as diagram), typicalMistake, seeAlso[], caseRefs[]`. The cases a card shows ("In the cases") are found from the reference models (every case whose model uses the idea, opened at the walkthrough step where it appears); `caseRefs` adds cases by hand (AS-IS vs TO-BE, simulation).
 
 Initial set: process, pool, lane, task (and types), sub-process, call activity, start / end / intermediate events, timer, message, error, boundary event (interrupting vs not), exclusive / parallel / inclusive / event-based gateway, split vs join, default flow, sequence vs message flow, data object / store, annotation, loop and multi-instance, AS-IS vs TO-BE, happy path vs exceptions, black-box pool.
 
@@ -137,7 +137,12 @@ Pedagogy as in StrataSQL: worked example → completion → faded scaffolding �
 | 1 — Text tagging | Click words, tag as role (lane), activity, event, decision (XOR), parallel (AND), data, message, rule | Immediate per tag; model veiled until all tagged (Peek) |
 | 2 — Complete the process | Lanes and tasks given; add gateways, events, flows | Hint ladder: what → where (phrase marked) → why → answer |
 | 3 — From scratch | Build the whole process | Comparison with the reference + linter |
-| 4 — Own task | "My task": own text, self-tagging, coverage check | Cue questions |
+| R — Redesign (AS-IS → TO-BE cases) | Start from the AS-IS with its figures, redesign as the proposal says | Goals in figures (cycle time, cost) + closeness to the TO-BE (steps, flows, figures) |
+| Own task | "My task": own text, self-tagging, coverage check (not tied to a case) | Cue questions, a checklist |
+
+**Walkthrough** ("Watch it built", every case and case file): the reference model shown step by step, pools and lanes first, then the steps along the flow (a sub-process's content on its page right after it, data with the first step that uses it); each step names the phrases of the text it turns into the model; before a split gateway or an event with a trigger it asks which one first. Every step is a subset of the reference and the last one equals it (tested for every case).
+
+**Do it for me** (levels 2, 3, R): makes the next item of the comparison match the reference with the editor's own operations (one undo step): a missing element is added next to a neighbour the student already has, in the reference's lane, with its flows; a missing flow is drawn along the reference's path with its gateways; a "different" item is changed in place; an extra is removed. Following it from an empty canvas reaches the reference in every case (tested).
 
 **Text cues** (highlighted on request): `if / otherwise / in case / depending on / either…or` → XOR; `at the same time / meanwhile / in parallel / both / while` → AND; `one or more / any of` → OR; `every Monday / after 2 days / by Friday / deadline` → timer; `sends / notifies / e-mails` → message throw; `receives / waits for` → message catch; `until / again / repeat / resubmit` → loop; role nouns (`the clerk`, `the manager`) → lanes; verb + object → task.
 
@@ -149,7 +154,25 @@ Cases live in `cases/<id>.md` (human source) and `src/data/examples/<id>.ts` (ma
 
 Claude can generate files the app opens with File → Open:
 - `*.flow.json`: a model (`format: "strata-flow"`).
-- `*.flow-case.json`: a case with text, tagged phrases and reference (opens its walkthrough).
+- `*.flow-case.json`: a case with text, tagged phrases and reference (opens its walkthrough). The trainer keeps it in the browser under "Case files"; My task → Save as case file writes one from an own text, its tags and the current model.
+
+```json
+{
+  "format": "flow-case", "version": 1,
+  "case": {
+    "id": "library-lend", "title": "Library: lend a book", "difficulty": 1, "concepts": ["tasks", "XOR"],
+    "text": ["A member comes to the front desk … The book is now lent."],
+    "spans": [{ "p": 0, "phrase": "checks the member's library card", "tag": "activity", "target": ["Check library card"], "why": "Work someone does: a task." }],
+    "decisions": ["One pool with two lanes …"],
+    "synonyms": { "Check library card": ["Check card"] },
+    "groups": { "Lend book": ["Record loan", "Stamp due date", "Hand over book"] }
+  },
+  "model": { "name": "…", "participants": [], "lanes": [], "nodes": [], "flows": [], "diagram": { "shapes": {}, "edges": {} } },
+  "redesign": { "model": { "…": "the TO-BE" }, "spans": [], "synonyms": {}, "decisions": [], "goals": { "cycleTime": 40, "cost": 22.9, "text": "…" } }
+}
+```
+
+Tags: `participant` (pool), `role` (lane), `activity`, `event`, `decision` (XOR / OR), `parallel` (AND), `message`, `data`; `accept` lists other right tags. A phrase is found in its paragraph after the previous phrase of that paragraph; `target` names elements of the model (or, in `redesign.spans`, of the TO-BE). The file is refused with a message naming the phrase or element when a check fails.
 - `*.flow-story.json`: a story (§10.1).
 
 ### 10.1 Story files (`*.flow-story.json`)
