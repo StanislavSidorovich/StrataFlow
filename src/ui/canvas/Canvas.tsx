@@ -14,10 +14,10 @@ import {
   type FinalConnectionState,
   type NodeChange,
 } from '@xyflow/react'
-import { Redo2, Undo2 } from 'lucide-react'
+import { ArrowLeft, Redo2, Undo2 } from 'lucide-react'
 import type { FlowModel, Point } from '../../core/metamodel'
 import { POOL_HEADER } from '../../core/metamodel'
-import { addNode, addPool, connect, moveElements, withDescendants } from '../../core/ops'
+import { addNode, addPool, connect, ModelError, moveElements, nodeOf, pageOf, withDescendants } from '../../core/ops'
 import { useEditor } from '../store'
 import { BpmnEdge, EdgeMarkers, type FlowEdge } from './edges'
 import { BpmnShape, PoolShape, type PoolNode, type ShapeNode } from './nodes'
@@ -28,22 +28,24 @@ type AnyNode = ShapeNode | PoolNode
 const nodeTypes = { shape: BpmnShape, pool: PoolShape }
 const edgeTypes = { flow: BpmnEdge }
 
-/** Content of a collapsed sub-process is not drawn (it is still in the model). */
-function hiddenIn(model: FlowModel): Set<string> {
+/** What is drawn on a page: the main process (page null) or a collapsed sub-process's steps, as in Bizagi. */
+function shownOn(model: FlowModel, page: string | null): Set<string> {
   const out = new Set<string>()
-  for (const n of model.nodes) if (n.type === 'subProcess' && n.collapsed) for (const d of withDescendants(model, n.id)) if (d !== n.id && !(nodeOfAttached(model, d) === n.id)) out.add(d)
+  for (const n of model.nodes) {
+    // A boundary event is drawn with its host.
+    const at = n.type === 'event' && n.attachedTo ? pageOf(model, n.attachedTo) : pageOf(model, n.id)
+    if ((at ?? null) === page) out.add(n.id)
+  }
+  if (!page) for (const x of [...model.participants, ...model.lanes]) out.add(x.id)
   return out
 }
-const nodeOfAttached = (model: FlowModel, id: string) => {
-  const n = model.nodes.find((x) => x.id === id)
-  return n?.type === 'event' ? n.attachedTo : undefined
-}
 
-function toNodes(model: FlowModel, selected: Set<string>): AnyNode[] {
+function toNodes(model: FlowModel, selected: Set<string>, page: string | null): AnyNode[] {
   const { shapes } = model.diagram
-  const hidden = hiddenIn(model)
+  const shown = shownOn(model, page)
   const out: AnyNode[] = []
   for (const p of model.participants) {
+    if (!shown.has(p.id)) continue
     const s = shapes[p.id]
     if (!s) continue
     const lanes = model.lanes.filter((l) => l.participantId === p.id && !l.parentLaneId && shapes[l.id])
@@ -52,12 +54,12 @@ function toNodes(model: FlowModel, selected: Set<string>): AnyNode[] {
   }
   for (const l of model.lanes) {
     const s = shapes[l.id]
-    if (!s) continue
+    if (!s || !shown.has(l.id)) continue
     out.push({ id: l.id, type: 'pool', position: { x: s.x, y: s.y }, width: s.width, height: s.height, data: { name: l.name, header: POOL_HEADER, lane: true }, draggable: false, selected: selected.has(l.id), className: 'pool-node', zIndex: 0 })
   }
   for (const el of model.nodes) {
     const s = shapes[el.id]
-    if (!s || hidden.has(el.id)) continue
+    if (!s || !shown.has(el.id)) continue
     // An expanded sub-process sits under its content.
     const z = el.type === 'event' && el.position === 'boundary' ? 4 : el.type === 'subProcess' && !el.collapsed ? 1 : 2
     out.push({ id: el.id, type: 'shape', position: { x: s.x, y: s.y }, width: s.width, height: s.height, data: { el }, selected: selected.has(el.id), zIndex: z })
@@ -65,10 +67,10 @@ function toNodes(model: FlowModel, selected: Set<string>): AnyNode[] {
   return out
 }
 
-function toEdges(model: FlowModel, selected: Set<string>): FlowEdge[] {
+function toEdges(model: FlowModel, selected: Set<string>, page: string | null): FlowEdge[] {
   const byId = new Map(model.nodes.map((n) => [n.id, n]))
-  const hidden = hiddenIn(model)
-  return model.flows.filter((f) => !hidden.has(f.source) && !hidden.has(f.target)).map((f) => {
+  const shown = shownOn(model, page)
+  return model.flows.filter((f) => shown.has(f.source) && shown.has(f.target)).map((f) => {
     const src = byId.get(f.source)
     return {
       id: f.id,
@@ -96,9 +98,10 @@ function followersOf(model: FlowModel, id: string): string[] {
 }
 
 /** The element under a point: the smallest shape, then a pool (a message flow can end on a pool). */
-function elementAt(model: FlowModel, p: Point): string | undefined {
+function elementAt(model: FlowModel, p: Point, page: string | null): string | undefined {
+  const shown = shownOn(model, page)
   const hit = (id: string) => {
-    const s = model.diagram.shapes[id]
+    const s = shown.has(id) && model.diagram.shapes[id]
     return s && p.x >= s.x && p.x <= s.x + s.width && p.y >= s.y && p.y <= s.y + s.height
   }
   const area = (id: string) => model.diagram.shapes[id].width * model.diagram.shapes[id].height
@@ -111,9 +114,10 @@ export function Canvas() {
   const selection = useEditor((s) => s.selection)
   const tool = useEditor((s) => s.tool)
   const selected = useMemo(() => new Set(selection), [selection])
-  const [nodes, setNodes] = useState<AnyNode[]>(() => toNodes(model, selected))
-  useEffect(() => setNodes(toNodes(model, selected)), [model, selected])
-  const edges = useMemo(() => toEdges(model, selected), [model, selected])
+  const page = useEditor((s) => s.page)
+  const [nodes, setNodes] = useState<AnyNode[]>(() => toNodes(model, selected, page))
+  useEffect(() => setNodes(toNodes(model, selected, page)), [model, selected, page])
+  const edges = useMemo(() => toEdges(model, selected, page), [model, selected, page])
   const flow = useReactFlow()
   const fit = useEditor((s) => s.fit)
   useEffect(() => {
@@ -152,8 +156,10 @@ export function Canvas() {
     const { apply } = useEditor.getState()
     let id: string | null = null
     const ok = apply((m) => {
-      if (tool.id === 'pool') id = addPool(m, { x: at.x - POOL_HEADER / 2, y: at.y - 20 }).id
-      else if ('spec' in tool) id = addNode(m, tool.spec, at).id
+      if (tool.id === 'pool') {
+        if (page) throw new ModelError('A sub-process has no pools: go back to the process to add one')
+        id = addPool(m, { x: at.x - POOL_HEADER / 2, y: at.y - 20 }).id
+      } else if ('spec' in tool) id = addNode(m, tool.spec, at, '', page ?? undefined).id
     })
     if (ok && id) useEditor.setState({ selection: [id], focusName: id, ...(keep ? {} : { tool: { id: 'select' } }) })
   }
@@ -167,7 +173,7 @@ export function Canvas() {
   const onConnectEnd = (e: MouseEvent | TouchEvent, state: FinalConnectionState) => {
     if (state.isValid || !state.fromNode) return
     const pt = 'changedTouches' in e ? e.changedTouches[0] : e
-    const target = elementAt(model, flow.screenToFlowPosition({ x: pt.clientX, y: pt.clientY }))
+    const target = elementAt(model, flow.screenToFlowPosition({ x: pt.clientX, y: pt.clientY }), page)
     if (target && target !== state.fromNode.id) onConnect({ source: state.fromNode.id, target, sourceHandle: null, targetHandle: null })
   }
 
@@ -179,12 +185,13 @@ export function Canvas() {
         if (tool.id === 'select' && (e.target as HTMLElement).classList.contains('react-flow__pane')) {
           const at = flow.screenToFlowPosition({ x: e.clientX, y: e.clientY })
           let id: string | null = null
-          if (useEditor.getState().apply((m) => void (id = addNode(m, { type: 'task' }, at).id)) && id) useEditor.setState({ selection: [id], focusName: id })
+          if (useEditor.getState().apply((m) => void (id = addNode(m, { type: 'task' }, at, '', page ?? undefined).id)) && id) useEditor.setState({ selection: [id], focusName: id })
         }
       }}
     >
       <EdgeMarkers />
       <Palette />
+      {page && <PagePath model={model} page={page} />}
       {model.nodes.length === 0 && model.participants.length === 0 && (
         <div className="canvas-hint">Pick a shape on the left (or press its key), then click here. Double-click adds a task. Or open an example.</div>
       )}
@@ -215,7 +222,7 @@ export function Canvas() {
             if (from && (from.x !== d.position.x || from.y !== d.position.y)) to[d.id] = d.position
           }
           if (Object.keys(to).length) useEditor.getState().apply((m) => moveElements(m, to))
-          else setNodes(toNodes(model, selected))
+          else setNodes(toNodes(model, selected, page))
         }}
         onPaneClick={(e) => {
           if (tool.id !== 'select') place(e.clientX, e.clientY, e.shiftKey)
@@ -224,7 +231,12 @@ export function Canvas() {
           // Pools and lanes are clicked by their header: placing there still drops the element at the pointer.
           if (tool.id !== 'select') place(e.clientX, e.clientY, e.shiftKey)
         }}
-        onNodeDoubleClick={(_, n) => useEditor.setState({ focusName: n.id })}
+        onNodeDoubleClick={(_, n) => {
+          // A collapsed sub-process opens its page (Bizagi: Edit Sub-Process); anything else: type its name.
+          const el = nodeOf(model, n.id)
+          if (el?.type === 'subProcess' && el.collapsed) useEditor.getState().openPage(el.id)
+          else useEditor.setState({ focusName: n.id })
+        }}
         onEdgeDoubleClick={(_, ed) => useEditor.setState({ selection: [ed.id], focusName: ed.id })}
         onConnect={onConnect}
         onConnectEnd={onConnectEnd}
@@ -262,5 +274,27 @@ function UndoRedo() {
         <Redo2 size={14} />
       </ControlButton>
     </>
+  )
+}
+
+/** Where the page sits: the process, then each collapsed sub-process down to this one (Bizagi shows tabs). */
+function PagePath({ model, page }: { model: FlowModel; page: string }) {
+  const chain: string[] = []
+  for (let p: string | undefined = page; p; p = pageOf(model, p)) chain.unshift(p)
+  const open = useEditor((s) => s.openPage)
+  return (
+    <nav className="page-path" aria-label="Sub-process pages" data-testid="page-path">
+      <button className="btn" onClick={() => open(null)} title="Back to the process">
+        <ArrowLeft size={14} /> {model.name || 'Process'}
+      </button>
+      {chain.map((id) => (
+        <span key={id}>
+          <span className="muted"> › </span>
+          <button className="btn" onClick={() => open(id)} disabled={id === page}>
+            {nodeOf(model, id)?.name || 'Sub-process'}
+          </button>
+        </span>
+      ))}
+    </nav>
   )
 }

@@ -1,5 +1,5 @@
 // Group into / ungroup sub-process from the selection (Properties buttons, Ctrl+G and Ctrl+Shift+G).
-import { groupIntoSubprocess, NeedsGatewaysError, nodeOf, ungroupSubprocess } from '../core/ops'
+import { groupIntoSubprocess, NeedsGatewaysError, nodeOf, setCollapsed, ungroupSubprocess } from '../core/ops'
 import { useEditor } from './store'
 
 export function groupSelection() {
@@ -11,16 +11,23 @@ export function groupSelection() {
   } catch (e) {
     if (e instanceof NeedsGatewaysError) {
       if (!confirm(`${e.message}\n\nOK adds exclusive gateways (change them to parallel if the paths run at the same time). Cancel leaves the process as it is.`)) return
-      if (apply((m) => void (id = groupIntoSubprocess(m, selection, { gateways: true }).id)) && id) done(id)
+      if (apply((m) => void (id = group(m, selection, true))) && id) done(id)
       return
     }
   }
-  if (apply((m) => void (id = groupIntoSubprocess(m, selection).id)) && id) done(id)
+  if (apply((m) => void (id = group(m, selection, false))) && id) done(id)
+}
+
+/** As in Bizagi: the new sub-process is collapsed, its steps on a page of their own (double-click opens it). */
+function group(m: Parameters<typeof groupIntoSubprocess>[0], ids: string[], gateways: boolean): string {
+  const id = groupIntoSubprocess(m, ids, { gateways }).id
+  setCollapsed(m, id, true)
+  return id
 }
 
 function done(id: string) {
   useEditor.setState({ selection: [id], focusName: id })
-  useEditor.getState().say('Grouped into a sub-process: name it. Ungroup (Ctrl+Shift+G) or Undo puts the steps back.')
+  useEditor.getState().say('Grouped into a sub-process: name it. Double-click it to see its steps; Ungroup (Ctrl+Shift+G) or Undo puts them back.')
 }
 
 export function ungroupSelection() {

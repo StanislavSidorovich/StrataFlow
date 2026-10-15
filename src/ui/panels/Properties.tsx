@@ -1,7 +1,7 @@
 // The right column: what the selected element is and what it can be changed into. Typing in a field
 // is one undo step per field (coalesced), every other change is one step.
 import { useEffect, useRef } from 'react'
-import { ArrowLeftRight, Group, Plus, Trash2, Ungroup } from 'lucide-react'
+import { ArrowLeftRight, FolderOpen, Group, Plus, Trash2, Ungroup } from 'lucide-react'
 import type { EventPosition, EventTrigger, FlowModel, FlowNode, GatewayKind, TaskKind } from '../../core/metamodel'
 import {
   addBoundaryEvent,
@@ -13,7 +13,7 @@ import {
   nodeOf,
   poolOf,
   rename,
-  resizeElement,
+  setCollapsed,
   reverseFlow,
   setDefaultFlow,
   setFlow,
@@ -176,19 +176,16 @@ function NodeProps({ model, n }: { model: FlowModel; n: FlowNode }) {
             <input
               type="checkbox"
               checked={!n.collapsed}
-              onChange={(e) =>
-                apply((m) => {
-                  updateNode(m, n.id, { collapsed: !e.target.checked })
-                  const s = m.diagram.shapes[n.id]
-                  // Expanded, it needs room for its steps; collapsed, it is a task-sized box again.
-                  if (e.target.checked && s.width < 300) resizeElement(m, n.id, { ...s, width: 350, height: 200 })
-                  if (!e.target.checked) resizeElement(m, n.id, { ...s, width: 100, height: 80 })
-                })
-              }
+              onChange={(e) => apply((m) => setCollapsed(m, n.id, !e.target.checked))}
               data-testid="expanded"
             />
             Expanded (shows its steps inside)
           </label>
+          {n.collapsed && (
+            <button className="btn" onClick={() => useEditor.getState().openPage(n.id)} title="Show its steps on a page of their own (double-click it does the same)" data-testid="open-page">
+              <FolderOpen size={14} /> Open sub-process
+            </button>
+          )}
           <div className="row">
             <button className="btn" onClick={() => apply((m) => convertActivity(m, n.id, 'task'))}>
               To task

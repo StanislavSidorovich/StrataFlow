@@ -37,6 +37,10 @@ interface EditorState {
   savedAt: number
   /** Goes up when the whole drawing moved (auto layout): the canvas fits the view again. */
   fit: number
+  /** The collapsed sub-process whose page the canvas shows (null = the main process). */
+  page: string | null
+  /** Shows a collapsed sub-process's page (null = back to the main process). */
+  openPage: (id: string | null) => void
 
   /** Runs an edit on a draft; on ModelError the model is untouched and the message is shown. */
   apply: (edit: (m: FlowModel) => void, opts?: ApplyOptions) => boolean
@@ -62,6 +66,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   doc: 0,
   savedAt: 0,
   fit: 0,
+  page: null,
 
   apply(edit, opts = {}) {
     const { model, past, lastEdit } = get()
@@ -108,9 +113,10 @@ export const useEditor = create<EditorState>()((set, get) => ({
   load(model) {
     const { model: current, past, doc } = get()
     // Loading is undoable too: Open by mistake loses nothing.
-    set({ model, doc: doc + 1, past: [...past, current].slice(-HISTORY_LIMIT), future: [], selection: [], lastEdit: null, error: null, tool: { id: 'select' } })
+    set({ model, doc: doc + 1, past: [...past, current].slice(-HISTORY_LIMIT), future: [], selection: [], lastEdit: null, error: null, tool: { id: 'select' }, page: null })
   },
 
+  openPage: (page) => set((s) => ({ page, selection: [], tool: { id: 'select' }, fit: s.fit + 1 })),
   select: (selection) => set((s) => (same(s.selection, selection) ? s : { selection })),
   setTool: (tool) => set({ tool }),
   showError: (error) => set({ error }),
@@ -148,6 +154,11 @@ function saveNow() {
     // Storage full or unavailable: saving to a file still works.
   }
 }
+// A page whose sub-process is gone or expanded (an undo, a delete) is left for the main process.
+useEditor.subscribe((state) => {
+  const p = state.page
+  if (p && !state.model.nodes.some((n) => n.id === p && n.type === 'subProcess' && n.collapsed)) useEditor.setState({ page: null })
+})
 useEditor.subscribe((state, prev) => {
   if (state.model === prev.model || typeof localStorage === 'undefined') return
   clearTimeout(saveTimer)

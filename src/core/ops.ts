@@ -76,6 +76,29 @@ export function withDescendants(m: FlowModel, id: string): Set<string> {
   return out
 }
 
+/** The collapsed sub-process that hides a node (the outermost one), if any: its content is drawn on a page of its own. */
+export function hiddenBy(m: FlowModel, id: string): string | undefined {
+  let found: string | undefined
+  const seen = new Set<string>()
+  for (let p = nodeOf(m, id)?.parentId; p && !seen.has(p); p = nodeOf(m, p)?.parentId) {
+    seen.add(p)
+    const h = nodeOf(m, p)
+    if (h?.type === 'subProcess' && h.collapsed) found = p
+  }
+  return found
+}
+
+/** The page a node is drawn on: the collapsed sub-process that holds it directly or through expanded ones (undefined = the main canvas). */
+export function pageOf(m: FlowModel, id: string): string | undefined {
+  const seen = new Set<string>()
+  for (let p = nodeOf(m, id)?.parentId; p && !seen.has(p); p = nodeOf(m, p)?.parentId) {
+    seen.add(p)
+    const h = nodeOf(m, p)
+    if (h?.type === 'subProcess' && h.collapsed) return p
+  }
+  return undefined
+}
+
 /** Sets a node's pool, lane and enclosing sub-process from where its centre sits. */
 export function place(m: FlowModel, id: string): void {
   const n = nodeOrThrow(m, id)
@@ -99,6 +122,13 @@ export function place(m: FlowModel, id: string): void {
       .sort((a, b) => area(m.diagram.shapes[a.id]) - area(m.diagram.shapes[b.id]))[0]
 
   const parent = smallest(m.nodes.filter((x) => x.type === 'subProcess' && !x.collapsed && !own.has(x.id)))
+  // Inside a sub-process that is itself in a collapsed one, the drawing is not on the main canvas: pool and lane come from it.
+  if (parent && hiddenBy(m, parent.id)) {
+    n.parentId = parent.id
+    n.participantId = parent.participantId
+    n.laneId = parent.laneId
+    return
+  }
   const pool = smallest(m.participants)
   n.parentId = parent?.id
   n.participantId = pool?.id
@@ -135,14 +165,25 @@ function makeNode(id: string, spec: NodeSpec, name: string): FlowNode {
   }
 }
 
-/** Adds a node centred on `at`. */
-export function addNode(m: FlowModel, spec: NodeSpec, at: Point, name = ''): FlowNode {
+/** Adds a node centred on `at`; `page` = the collapsed sub-process whose page it is drawn on (pool and lane come from it). */
+export function addNode(m: FlowModel, spec: NodeSpec, at: Point, name = '', page?: string): FlowNode {
   const id = nextId(m, PREFIX[spec.type])
   const node = makeNode(id, spec, name)
   m.nodes.push(node)
   const { width, height } = SIZES[spec.type]
   m.diagram.shapes[id] = { x: Math.round(at.x - width / 2), y: Math.round(at.y - height / 2), width, height }
-  place(m, id)
+  const holder = page ? nodeOf(m, page) : undefined
+  if (holder) {
+    if (holder.type !== 'subProcess' || !holder.collapsed) throw new ModelError(`${page} is not a collapsed sub-process`)
+    // On that page, an expanded sub-process may hold it.
+    const c = centre(m.diagram.shapes[id])
+    const inner = m.nodes
+      .filter((x) => x.type === 'subProcess' && !x.collapsed && pageOf(m, x.id) === page && inside(c, m.diagram.shapes[x.id]))
+      .sort((p, q) => area(m.diagram.shapes[p.id]) - area(m.diagram.shapes[q.id]))[0]
+    node.parentId = inner?.id ?? holder.id
+    node.participantId = holder.participantId
+    node.laneId = holder.laneId
+  } else place(m, id)
   return nodeOf(m, id)!
 }
 
@@ -156,14 +197,18 @@ export function appendNode(m: FlowModel, fromId: string, spec: NodeSpec, name = 
   // The sub-processes holding the step are its room, not obstacles.
   const holders = new Set<string>()
   for (let p = nodeOf(m, fromId)?.parentId; p && !holders.has(p); p = nodeOf(m, p)?.parentId) holders.add(p)
+  // Only what is drawn on the same page is in the way.
+  const page = pageOf(m, fromId)
   const busy = (cy: number) =>
-    Object.entries(m.diagram.shapes).some(([id, s]) => nodeOf(m, id) && !holders.has(id) && Math.abs(s.x + s.width / 2 - x) < (s.width + width) / 2 + 10 && Math.abs(s.y + s.height / 2 - cy) < (s.height + height) / 2 + 10)
+    Object.entries(m.diagram.shapes).some(
+      ([id, s]) => nodeOf(m, id) && !holders.has(id) && pageOf(m, id) === page && Math.abs(s.x + s.width / 2 - x) < (s.width + width) / 2 + 10 && Math.abs(s.y + s.height / 2 - cy) < (s.height + height) / 2 + 10,
+    )
   for (let i = 0; i < 20 && busy(y); i++) y += height + 30
   // Appending past the end of the pool widens the pool, so the new step stays in the process.
   const pool = nodeOf(m, fromId)?.participantId
   const ps = pool && m.diagram.shapes[pool]
-  if (ps && inside(centre(from), ps) && x + width / 2 + 30 > ps.x + ps.width) resizeElement(m, pool, { ...ps, width: x + width / 2 + 30 - ps.x })
-  const node = addNode(m, spec, { x, y }, name)
+  if (!page && ps && inside(centre(from), ps) && x + width / 2 + 30 > ps.x + ps.width) resizeElement(m, pool, { ...ps, width: x + width / 2 + 30 - ps.x })
+  const node = addNode(m, spec, { x, y }, name, page)
   connect(m, fromId, node.id)
   return node
 }
@@ -541,6 +586,17 @@ export function groupIntoSubprocess(m: FlowModel, ids: string[], opts: { gateway
   if (tops.some((n) => n.participantId !== level.participantId || n.parentId !== level.parentId))
     throw new ModelError('Group steps of one process level: same pool, same sub-process')
   const inside = new Set(tops.flatMap((n) => [...withDescendants(m, n.id)]))
+  // Data and notes linked only to the selected steps go with them.
+  for (const a of m.nodes) {
+    if (!isArtifact(a) || inside.has(a.id) || a.parentId !== level.parentId) continue
+    const linked = m.flows.flatMap((f) => (f.source === a.id ? [f.target] : f.target === a.id ? [f.source] : []))
+    if (linked.length && linked.every((x) => inside.has(x))) {
+      inside.add(a.id)
+      tops.push(a)
+    }
+  }
+  // Selected steps on a collapsed sub-process's page: the new one is drawn there too.
+  const page = pageOf(m, tops[0].id)
 
   const seq = m.flows.filter((f) => f.kind === 'sequence')
   const incoming = seq.filter((f) => !inside.has(f.source) && inside.has(f.target))
@@ -578,7 +634,7 @@ export function groupIntoSubprocess(m: FlowModel, ids: string[], opts: { gateway
   if (endY.length) bb.b = Math.max(bb.b, ...endY.map((y) => y + ev / 2))
   // The sub-process stays inside what holds it (it would stick out of a pool's top otherwise).
   const holder = level.parentId ?? level.participantId
-  const ceiling = holder && m.diagram.shapes[holder] ? m.diagram.shapes[holder].y + (level.parentId ? GROUP_TOP : 0) : -Infinity
+  const ceiling = holder && m.diagram.shapes[holder] && (!page || level.parentId !== page) ? m.diagram.shapes[holder].y + (level.parentId ? GROUP_TOP : 0) : -Infinity
   const top = Math.max(bb.y - GROUP_PAD - GROUP_TOP, ceiling)
   const shift = GROUP_PAD + roomIn
   const grow = 2 * GROUP_PAD + roomIn + roomOut + outer
@@ -601,7 +657,8 @@ export function groupIntoSubprocess(m: FlowModel, ids: string[], opts: { gateway
   const lane = [...count].sort((a, b) => b[1] - a[1])[0][0]
   m.nodes.push({ id, name: opts.name ?? '', type: 'subProcess', collapsed: false })
   m.diagram.shapes[id] = box
-  place(m, id)
+  if (page) Object.assign(nodeOf(m, id)!, { parentId: level.parentId, participantId: level.participantId })
+  else place(m, id)
   if (lane) nodeOf(m, id)!.laneId = lane
   for (const n of m.nodes.filter((x) => inside.has(x.id))) if (n.type === 'subProcess') place(m, n.id)
   for (const n of m.nodes.filter((x) => inside.has(x.id))) if (n.type !== 'subProcess') place(m, n.id)
@@ -610,10 +667,10 @@ export function groupIntoSubprocess(m: FlowModel, ids: string[], opts: { gateway
   // Way in: outer flows end at the sub-process; inside, start → (gateway →) the step(s) they reached.
   if (entries.length) {
     const y = mid(entries)
-    const start = addNode(m, { type: 'event', position: 'start' }, { x: box.x + GROUP_PAD + ev / 2, y })
+    const start = addNode(m, { type: 'event', position: 'start' }, { x: box.x + GROUP_PAD + ev / 2, y }, '', page)
     let from = start.id
     if (gateIn) {
-      from = addNode(m, { type: 'gateway', kind: 'exclusive' }, { x: box.x + GROUP_PAD + ev + GROUP_GAP + gw / 2, y }).id
+      from = addNode(m, { type: 'gateway', kind: 'exclusive' }, { x: box.x + GROUP_PAD + ev + GROUP_GAP + gw / 2, y }, '', page).id
       connect(m, start.id, from)
     }
     for (const e of entries) connect(m, from, e)
@@ -628,11 +685,11 @@ export function groupIntoSubprocess(m: FlowModel, ids: string[], opts: { gateway
   if (targets.length) {
     let after = id
     if (gateOut) {
-      after = addNode(m, { type: 'gateway', kind: 'exclusive' }, { x: box.x + box.width + GROUP_GAP + gw / 2, y: centre(box).y }).id
+      after = addNode(m, { type: 'gateway', kind: 'exclusive' }, { x: box.x + box.width + GROUP_GAP + gw / 2, y: centre(box).y }, '', page).id
       connect(m, id, after)
     }
     targets.forEach((t, i) => {
-      const end = addNode(m, { type: 'event', position: 'end' }, { x: box.x + box.width - GROUP_PAD - ev / 2, y: endY[i] })
+      const end = addNode(m, { type: 'event', position: 'end' }, { x: box.x + box.width - GROUP_PAD - ev / 2, y: endY[i] }, '', page)
       const first = outgoing.find((f) => f.target === t)!
       const f = connect(m, after, t)
       // The choice made inside is made again after the sub-process: each branch keeps its name and condition.
@@ -767,6 +824,8 @@ function mergeDuplicates(m: FlowModel, nodeId: string, alike = false) {
 function growHolders(m: FlowModel, level: { participantId?: string; parentId?: string }, dx: number, to: Record<string, Point>) {
   if (dx <= 0) return
   for (let p = level.parentId ? nodeOf(m, level.parentId) : undefined; p; p = p.parentId ? nodeOf(m, p.parentId) : undefined) {
+    // A page has no edge to widen: the collapsed sub-process keeps its size, and nothing outside it moves.
+    if (p.type === 'subProcess' && p.collapsed) return
     const s = m.diagram.shapes[p.id]
     if (s) resizeElement(m, p.id, { ...s, width: s.width + dx })
   }
@@ -775,4 +834,76 @@ function growHolders(m: FlowModel, level: { participantId?: string; parentId?: s
   const inPool = m.nodes.filter((n) => n.participantId === level.participantId && m.diagram.shapes[n.id])
   const right = Math.max(...inPool.map((n) => (to[n.id]?.x ?? m.diagram.shapes[n.id].x) + m.diagram.shapes[n.id].width))
   if (right + 30 > pool.x + pool.width) resizeElement(m, level.participantId!, { ...pool, width: right + 30 - pool.x })
+}
+
+/**
+ * Collapses a sub-process to a task-sized box (its steps go on a page of their own, as in Bizagi) or expands
+ * it round its steps. What sits right of it moves left or right by the width it gave up or needs.
+ */
+export function setCollapsed(m: FlowModel, id: string, collapsed: boolean): void {
+  const n = nodeOrThrow(m, id)
+  if (n.type !== 'subProcess') throw new ModelError('Only a sub-process collapses')
+  if (n.collapsed === collapsed) return
+  const s = m.diagram.shapes[id]
+  const level = { participantId: n.participantId, parentId: n.parentId }
+  const own = withDescendants(m, id)
+  const cy = s.y + s.height / 2
+  const peersRight = (from: number) =>
+    m.nodes.filter((x) => {
+      const b = m.diagram.shapes[x.id]
+      return b && !own.has(x.id) && x.participantId === level.participantId && x.parentId === level.parentId && !(x.type === 'event' && x.attachedTo) && b.x + b.width / 2 > from
+    })
+  const ring = m.nodes.filter((x) => x.type === 'event' && x.attachedTo === id)
+  const old = { ...s }
+  let next: Bounds
+  if (collapsed) {
+    n.collapsed = true
+    next = { x: s.x, y: Math.round(cy - SIZES.subProcess.height / 2), ...SIZES.subProcess }
+    const freed = s.width - next.width
+    const to: Record<string, Point> = {}
+    if (freed > 0) for (const x of peersRight(s.x + s.width)) to[x.id] = { x: m.diagram.shapes[x.id].x - freed, y: m.diagram.shapes[x.id].y }
+    Object.assign(s, next)
+    if (Object.keys(to).length) moveElements(m, to)
+  } else {
+    const kids = [...own].filter((k) => k !== id && !ring.some((r) => r.id === k)).map((k) => m.diagram.shapes[k]).filter(Boolean)
+    if (kids.length) {
+      const x0 = Math.min(...kids.map((b) => b.x))
+      const y0 = Math.min(...kids.map((b) => b.y))
+      const w = Math.max(...kids.map((b) => b.x + b.width)) - x0
+      const h = Math.max(...kids.map((b) => b.y + b.height)) - y0
+      next = { x: s.x, y: Math.round(cy - (h + 2 * GROUP_PAD + GROUP_TOP) / 2), width: w + 2 * GROUP_PAD, height: h + 2 * GROUP_PAD + GROUP_TOP }
+    } else next = { x: s.x, y: Math.round(cy - 100), width: 350, height: 200 }
+    // Not above what holds it.
+    const holder = level.parentId ?? level.participantId
+    const hs = holder ? m.diagram.shapes[holder] : undefined
+    if (hs && !pageOf(m, id) && next.y < hs.y + (level.parentId ? GROUP_TOP : 0)) next.y = hs.y + (level.parentId ? GROUP_TOP : 0)
+    const grow = next.width - s.width
+    const to: Record<string, Point> = {}
+    if (grow > 0) for (const x of peersRight(s.x + s.width / 2)) to[x.id] = { x: m.diagram.shapes[x.id].x + grow, y: m.diagram.shapes[x.id].y }
+    growHolders(m, level, grow, to)
+    if (Object.keys(to).length) moveElements(m, to)
+    // The steps come to where the sub-process is now (their page may have been anywhere).
+    if (kids.length) {
+      const x0 = Math.min(...kids.map((b) => b.x))
+      const y0 = Math.min(...kids.map((b) => b.y))
+      const d = { x: next.x + GROUP_PAD - x0, y: next.y + GROUP_TOP + GROUP_PAD - y0 }
+      for (const k of own) {
+        if (k === id || ring.some((r) => r.id === k)) continue
+        const b = m.diagram.shapes[k]
+        if (b) Object.assign(b, { x: b.x + d.x, y: b.y + d.y })
+      }
+      for (const f of m.flows) if (own.has(f.source) && own.has(f.target) && m.diagram.edges[f.id]) m.diagram.edges[f.id] = m.diagram.edges[f.id].map((p) => ({ x: p.x + d.x, y: p.y + d.y }))
+    }
+    n.collapsed = false
+    Object.assign(s, next)
+    for (const x of m.nodes) if (own.has(x.id) && x.id !== id && x.parentId === id) place(m, x.id)
+  }
+  // Boundary events stay on the lower border, as far along as they were (or at its end).
+  for (const e of ring) {
+    const b = m.diagram.shapes[e.id]
+    if (!b) continue
+    b.x = Math.round(s.x + Math.min(Math.max(b.x - old.x, 0), s.width - b.width))
+    b.y = Math.round(s.y + s.height - b.height / 2)
+  }
+  for (const f of m.flows) if (own.has(f.source) !== own.has(f.target) || f.source === id || f.target === id) delete m.diagram.edges[f.id]
 }

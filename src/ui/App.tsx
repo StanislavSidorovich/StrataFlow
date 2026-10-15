@@ -178,7 +178,7 @@ export function App() {
         <Properties />
       </main>
       <footer className="statusbar">
-        Preview: draw, save and reopen BPMN processes; opens Bizagi .bpmn exports and exports BPMN 2.0 XML. one-click auto layout; group steps into a sub-process (Ctrl+G) and back. The model check comes next. Unofficial student project.
+        Preview: draw, save and reopen BPMN processes; opens Bizagi .bpmn exports and exports BPMN 2.0 XML. One-click auto layout; group steps into a sub-process (Ctrl+G), double-click it to open its page. The model check comes next. Unofficial student project.
       </footer>
     </div>
   )
