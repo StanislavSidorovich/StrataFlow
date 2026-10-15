@@ -2,12 +2,13 @@
 // gateways and data sit under the shape, as in Bizagi and bpmn.io. Dots on the four sides start a
 // connection; the editor decides the flow kind. Resizing ends in one undoable edit.
 import { Handle, NodeResizer, NodeResizeControl, Position, type Node, type NodeProps } from '@xyflow/react'
+import type { Severity } from '../../core/lint'
 import type { FlowNode } from '../../core/metamodel'
 import { resizeElement, resizeLane } from '../../core/ops'
 import { useEditor } from '../store'
 import { ContextPad } from './ContextPad'
 
-export type ShapeData = { el: FlowNode }
+export type ShapeData = { el: FlowNode; issue?: Severity }
 export type PoolData = { name: string; header: number; lane?: boolean }
 export type ShapeNode = Node<ShapeData, 'shape'>
 export type PoolNode = Node<PoolData, 'pool'>
@@ -58,6 +59,11 @@ export function BpmnShape({ data, width = 0, height = 0, selected }: NodeProps<S
         <NodeResizer isVisible={selected} minWidth={40} minHeight={30} lineClassName="bpmn-resize-line" handleClassName="bpmn-resize-handle" onResizeEnd={resized(el.id)} />
       )}
       <ContextPad el={el} />
+      {data.issue && (
+        <span className={`issue-mark is-${data.issue}`} title={`The check found ${data.issue === 'info' ? 'a hint' : `an ${data.issue}`} here: see the Check panel`} data-testid={`mark:${el.name}`}>
+          {data.issue === 'info' ? 'i' : '!'}
+        </span>
+      )}
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} overflow="visible">
         <Figure el={el} w={width} h={height} />
       </svg>

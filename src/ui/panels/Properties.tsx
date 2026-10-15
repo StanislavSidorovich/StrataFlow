@@ -22,7 +22,9 @@ import {
   type NodePatch,
 } from '../../core/ops'
 import { canGroup, groupSelection, ungroupSelection } from '../actions'
+import { cardForElement } from '../../data/help'
 import { useEditor } from '../store'
+import { HelpQ } from './Help'
 
 const TASK_KINDS: [TaskKind, string][] = [
   ['task', 'Task (no type)'],
@@ -78,8 +80,8 @@ function ProcessProps({ model }: { model: FlowModel }) {
   const apply = useEditor((s) => s.apply)
   return (
     <section>
-      <h2>Process</h2>
-      <Field label="Name">
+      <Title text="Process" card="process" />
+      <Field label="Name" help="naming">
         <input value={model.name} onChange={(e) => apply((m) => setModelName(m, e.target.value), { coalesce: 'model-name' })} data-testid="model-name" />
       </Field>
       <p className="muted">
@@ -92,6 +94,7 @@ function ProcessProps({ model }: { model: FlowModel }) {
         <li>Select a shape: the pad next to it appends the next step.</li>
         <li>Drag from the dots on a shape to another shape to connect. Between pools it becomes a message flow.</li>
         <li>Del deletes, Ctrl+Z undoes, Ctrl+S saves a file. The model is also kept in this browser.</li>
+        <li>Check (top bar) lists what may be wrong; ? next to a field, or F1, opens the help cards.</li>
       </ul>
     </section>
   )
@@ -104,7 +107,7 @@ function ElementProps({ model, id }: { model: FlowModel; id: string }) {
   if (pool)
     return (
       <section>
-        <h2>Pool</h2>
+        <Title text="Pool" card={pool.processId ? 'pool' : 'black-box-pool'} />
         <NameField id={id} value={pool.name} />
         <p className="muted">{pool.processId ? 'Holds a process: put its steps inside.' : 'Black box: its process is not shown; message flows go to its border.'}</p>
         <button className="btn" data-testid="add-lane" onClick={() => addLaneTo(id)}>
@@ -117,7 +120,7 @@ function ElementProps({ model, id }: { model: FlowModel; id: string }) {
   if (lane)
     return (
       <section>
-        <h2>Lane</h2>
+        <Title text="Lane" card="lane" />
         <NameField id={id} value={lane.name} placeholder="A role, e.g. Clerk" />
         <p className="muted">Drag the line under a selected lane to change its height.</p>
         {lane.participantId && (
@@ -145,13 +148,13 @@ function NodeProps({ model, n }: { model: FlowModel; n: FlowNode }) {
   const where = [n.participantId && poolOf(model, n.participantId)?.name, n.laneId && laneOf(model, n.laneId)?.name].filter(Boolean).join(' · ')
   return (
     <section>
-      <h2>{title}</h2>
+      <Title text={title} card={cardForElement(n)} />
       {where && <p className="muted">In {where}</p>}
       <NameField id={n.id} value={n.name} multiline placeholder={n.type === 'task' ? 'Verb + object, e.g. Check invoice' : n.type === 'gateway' ? 'A question, e.g. Invoice OK?' : undefined} />
 
       {n.type === 'task' && (
         <>
-          <Field label="Type">
+          <Field label="Type" help="task-types">
             <select value={n.kind} onChange={(e) => patch({ kind: e.target.value as TaskKind })} data-testid="task-kind">
               {TASK_KINDS.map(([k, l]) => (
                 <option key={k} value={k}>
@@ -180,6 +183,7 @@ function NodeProps({ model, n }: { model: FlowModel; n: FlowNode }) {
               data-testid="expanded"
             />
             Expanded (shows its steps inside)
+            <HelpQ card="sub-process" />
           </label>
           {n.collapsed && (
             <button className="btn" onClick={() => useEditor.getState().openPage(n.id)} title="Show its steps on a page of their own (double-click it does the same)" data-testid="open-page">
@@ -204,7 +208,7 @@ function NodeProps({ model, n }: { model: FlowModel; n: FlowNode }) {
       {n.type === 'event' && (
         <>
           {n.position !== 'boundary' && (
-            <Field label="Position">
+            <Field label="Position" help={n.position === 'start' ? 'start-event' : n.position === 'end' ? 'end-event' : 'intermediate-event'}>
               <select
                 value={n.position}
                 onChange={(e) => {
@@ -221,7 +225,7 @@ function NodeProps({ model, n }: { model: FlowModel; n: FlowNode }) {
             </Field>
           )}
           {n.position === 'intermediate' && (
-            <Field label="Direction">
+            <Field label="Direction" help="intermediate-event">
               <select
                 value={n.throwing ? 'throw' : 'catch'}
                 onChange={(e) => {
@@ -235,7 +239,7 @@ function NodeProps({ model, n }: { model: FlowModel; n: FlowNode }) {
               </select>
             </Field>
           )}
-          <Field label="Trigger">
+          <Field label="Trigger" help={cardForElement(n)}>
             <select value={n.trigger} onChange={(e) => patch({ trigger: e.target.value as EventTrigger })} data-testid="event-trigger">
               {TRIGGERS[n.position === 'intermediate' && n.throwing ? 'throw' : n.position].map((t) => (
                 <option key={t} value={t}>
@@ -248,13 +252,14 @@ function NodeProps({ model, n }: { model: FlowModel; n: FlowNode }) {
             <label className="check">
               <input type="checkbox" checked={n.interrupting !== false} onChange={(e) => patch({ interrupting: e.target.checked })} data-testid="interrupting" />
               Interrupting (stops the activity)
+              <HelpQ card="boundary-event" />
             </label>
           )}
         </>
       )}
 
       {n.type === 'gateway' && (
-        <Field label="Kind">
+        <Field label="Kind" help={cardForElement(n)}>
           <select value={n.kind} onChange={(e) => patch({ kind: e.target.value as GatewayKind })} data-testid="gateway-kind">
             {GATEWAY_KINDS.map(([k, l]) => (
               <option key={k} value={k}>
@@ -266,7 +271,7 @@ function NodeProps({ model, n }: { model: FlowModel; n: FlowNode }) {
       )}
 
       {n.type === 'dataObject' && (
-        <Field label="State">
+        <Field label="State" help="data-object">
           <input value={n.state ?? ''} placeholder="e.g. approved" onChange={(e) => apply((m) => updateNode(m, n.id, { state: e.target.value }), { coalesce: `state:${n.id}` })} />
         </Field>
       )}
@@ -301,19 +306,20 @@ function FlowProps({ model, id }: { model: FlowModel; id: string }) {
   const title = { sequence: 'Sequence flow', message: 'Message flow', association: 'Association', data: 'Data association' }[f.kind]
   return (
     <section>
-      <h2>{title}</h2>
+      <Title text={title} card={cardForElement({ type: f.kind })} />
       <p className="muted">
         {name(f.source)} → {name(f.target)}
       </p>
       {f.kind !== 'association' && f.kind !== 'data' && <NameField id={id} value={f.name} placeholder={decides ? 'The answer, e.g. Yes' : f.kind === 'message' ? 'What is sent, e.g. Invoice' : undefined} />}
       {decides && (
         <>
-          <Field label="Condition">
+          <Field label="Condition" help="exclusive-gateway">
             <input value={f.condition ?? ''} disabled={isDefault} placeholder={isDefault ? 'Default: taken when no other holds' : 'e.g. amount > 1000'} onChange={(e) => apply((m) => setFlow(m, id, { condition: e.target.value }), { coalesce: `cond:${id}` })} />
           </Field>
           <label className="check">
             <input type="checkbox" checked={isDefault} onChange={(e) => apply((m) => setDefaultFlow(m, id, e.target.checked))} data-testid="default-flow" />
             Default flow (taken when no condition holds)
+            <HelpQ card="default-flow" />
           </label>
         </>
       )}
@@ -327,7 +333,7 @@ function FlowProps({ model, id }: { model: FlowModel; id: string }) {
   )
 }
 
-function NameField({ id, value, multiline, placeholder }: { id: string; value: string; multiline?: boolean; placeholder?: string }) {
+function NameField({ id, value, multiline, placeholder, help = 'naming' }: { id: string; value: string; multiline?: boolean; placeholder?: string; help?: string }) {
   const apply = useEditor((s) => s.apply)
   const focus = useEditor((s) => s.focusName === id)
   const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null)
@@ -351,15 +357,32 @@ function NameField({ id, value, multiline, placeholder }: { id: string; value: s
       }
     },
   }
-  return <Field label="Name">{multiline ? <textarea rows={2} {...props} /> : <input {...props} />}</Field>
+  return (
+    <Field label="Name" help={help}>
+      {multiline ? <textarea rows={2} {...props} /> : <input {...props} />}
+    </Field>
+  )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, help, children }: { label: string; help?: string; children: React.ReactNode }) {
   return (
     <label className="field">
-      <span>{label}</span>
+      <span>
+        {label}
+        {help && <HelpQ card={help} label={label} />}
+      </span>
       {children}
     </label>
+  )
+}
+
+/** A panel title with the help card for what is selected. */
+function Title({ text, card }: { text: string; card: string }) {
+  return (
+    <h2 className="with-help">
+      {text}
+      <HelpQ card={card} />
+    </h2>
   )
 }
 

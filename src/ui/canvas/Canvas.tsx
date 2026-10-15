@@ -18,6 +18,8 @@ import { ArrowLeft, Redo2, Undo2 } from 'lucide-react'
 import type { FlowModel, Point } from '../../core/metamodel'
 import { POOL_HEADER } from '../../core/metamodel'
 import { addNode, addPool, connect, ModelError, moveElements, nodeOf, pageOf, withDescendants } from '../../core/ops'
+import type { Severity } from '../../core/lint'
+import { useIssues } from '../panels/Check'
 import { useEditor } from '../store'
 import { BpmnEdge, EdgeMarkers, type FlowEdge } from './edges'
 import { BpmnShape, PoolShape, type PoolNode, type ShapeNode } from './nodes'
@@ -40,10 +42,19 @@ function shownOn(model: FlowModel, page: string | null): Set<string> {
   return out
 }
 
-function toNodes(model: FlowModel, selected: Set<string>, page: string | null): AnyNode[] {
+const RANK: Record<Severity, number> = { error: 0, warning: 1, info: 2 }
+
+function toNodes(model: FlowModel, selected: Set<string>, page: string | null, marks: Map<string, Severity> = new Map()): AnyNode[] {
   const { shapes } = model.diagram
   const shown = shownOn(model, page)
   const out: AnyNode[] = []
+  // An issue inside a collapsed sub-process marks the sub-process on this page.
+  const mark = new Map<string, Severity>()
+  for (const [id, sev] of marks) {
+    let at: string | undefined = id
+    while (at && !shown.has(at)) at = pageOf(model, at)
+    if (at && (!mark.has(at) || RANK[sev] < RANK[mark.get(at)!])) mark.set(at, sev)
+  }
   for (const p of model.participants) {
     if (!shown.has(p.id)) continue
     const s = shapes[p.id]
@@ -62,7 +73,7 @@ function toNodes(model: FlowModel, selected: Set<string>, page: string | null): 
     if (!s || !shown.has(el.id)) continue
     // An expanded sub-process sits under its content.
     const z = el.type === 'event' && el.position === 'boundary' ? 4 : el.type === 'subProcess' && !el.collapsed ? 1 : 2
-    out.push({ id: el.id, type: 'shape', position: { x: s.x, y: s.y }, width: s.width, height: s.height, data: { el }, selected: selected.has(el.id), zIndex: z })
+    out.push({ id: el.id, type: 'shape', position: { x: s.x, y: s.y }, width: s.width, height: s.height, data: { el, issue: mark.get(el.id) }, selected: selected.has(el.id), zIndex: z })
   }
   return out
 }
@@ -115,8 +126,17 @@ export function Canvas() {
   const tool = useEditor((s) => s.tool)
   const selected = useMemo(() => new Set(selection), [selection])
   const page = useEditor((s) => s.page)
-  const [nodes, setNodes] = useState<AnyNode[]>(() => toNodes(model, selected, page))
-  useEffect(() => setNodes(toNodes(model, selected, page)), [model, selected, page])
+  const checkOpen = useEditor((s) => s.checkOpen)
+  const issues = useIssues()
+  // With the Check panel open, shapes with an issue carry a mark (worst severity first).
+  const marks = useMemo(() => {
+    const out = new Map<string, Severity>()
+    if (checkOpen)
+      for (const i of issues) for (const id of i.elements) if (!out.has(id) || RANK[i.severity] < RANK[out.get(id)!]) out.set(id, i.severity)
+    return out
+  }, [checkOpen, issues])
+  const [nodes, setNodes] = useState<AnyNode[]>(() => toNodes(model, selected, page, marks))
+  useEffect(() => setNodes(toNodes(model, selected, page, marks)), [model, selected, page, marks])
   const edges = useMemo(() => toEdges(model, selected, page), [model, selected, page])
   const flow = useReactFlow()
   const fit = useEditor((s) => s.fit)
@@ -222,7 +242,7 @@ export function Canvas() {
             if (from && (from.x !== d.position.x || from.y !== d.position.y)) to[d.id] = d.position
           }
           if (Object.keys(to).length) useEditor.getState().apply((m) => moveElements(m, to))
-          else setNodes(toNodes(model, selected, page))
+          else setNodes(toNodes(model, selected, page, marks))
         }}
         onPaneClick={(e) => {
           if (tool.id !== 'select') place(e.clientX, e.clientY, e.shiftKey)

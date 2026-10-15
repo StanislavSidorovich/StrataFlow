@@ -41,6 +41,12 @@ interface EditorState {
   page: string | null
   /** Shows a collapsed sub-process's page (null = back to the main process). */
   openPage: (id: string | null) => void
+  /** The help card shown in the right column ('index' = the list of cards, null = Properties). */
+  help: string | null
+  openHelp: (id: string | null) => void
+  /** The Check panel under the canvas is open: issues listed and marked on the shapes. */
+  checkOpen: boolean
+  setCheckOpen: (open: boolean) => void
 
   /** Runs an edit on a draft; on ModelError the model is untouched and the message is shown. */
   apply: (edit: (m: FlowModel) => void, opts?: ApplyOptions) => boolean
@@ -67,6 +73,8 @@ export const useEditor = create<EditorState>()((set, get) => ({
   savedAt: 0,
   fit: 0,
   page: null,
+  help: null,
+  checkOpen: false,
 
   apply(edit, opts = {}) {
     const { model, past, lastEdit } = get()
@@ -117,6 +125,8 @@ export const useEditor = create<EditorState>()((set, get) => ({
   },
 
   openPage: (page) => set((s) => ({ page, selection: [], tool: { id: 'select' }, fit: s.fit + 1 })),
+  openHelp: (help) => set({ help }),
+  setCheckOpen: (checkOpen) => set({ checkOpen }),
   select: (selection) => set((s) => (same(s.selection, selection) ? s : { selection })),
   setTool: (tool) => set({ tool }),
   showError: (error) => set({ error }),

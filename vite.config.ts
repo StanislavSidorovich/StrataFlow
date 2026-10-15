@@ -31,8 +31,11 @@ function pwaPlugin(): Plugin {
   }
 }
 
+const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
+
 export default defineConfig({
   base: './',
+  define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   plugins: [react(), tailwindcss(), pwaPlugin()],
   // elkjs (auto layout) is one 1.4 MB chunk, loaded on the first Auto layout click only.
   build: { chunkSizeWarningLimit: 1500 },
