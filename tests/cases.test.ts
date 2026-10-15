@@ -20,7 +20,10 @@ describe('own cases', () => {
         const text = serializeModel(m)
         const file = `cases/${c.id}.flow.json`
         if (process.env.UPDATE_CASES || !existsSync(file)) writeFileSync(file, text)
-        expect(readFileSync(file, 'utf8')).toBe(text)
+        // A Windows checkout may turn LF into CRLF.
+        expect(readFileSync(file, 'utf8').replace(/
+/g, '
+')).toBe(text)
       })
 
       it('the case file has the 7 sections and names every step of the model', () => {
