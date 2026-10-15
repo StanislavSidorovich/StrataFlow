@@ -21,7 +21,7 @@ export const TOOLS: { tool: Tool; icon: IconName | 'select'; label: string; key:
 export function Palette() {
   const active = useEditor((s) => s.tool.id)
   return (
-    <div className="palette" role="toolbar" aria-label="Draw">
+    <div className="palette" data-testid="palette" role="toolbar" aria-label="Draw">
       {TOOLS.map((t) => (
         <button
           key={t.tool.id}

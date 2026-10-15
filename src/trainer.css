@@ -1,0 +1,433 @@
+/* Trainer column, case text, tags, check result, lessons and the tour. Tokens per theme as in index.css. */
+
+:root {
+  --tag-participant: #475569;
+  --tag-role: #0e7490;
+  --tag-activity: #1d4ed8;
+  --tag-event: #15803d;
+  --tag-decision: #b45309;
+  --tag-parallel: #7c3aed;
+  --tag-message: #be185d;
+  --tag-data: #4d7c0f;
+  --ok: #15803d;
+  --ok-soft: #e7f6ec;
+}
+:root.dark {
+  --tag-participant: #a8b3c7;
+  --tag-role: #5fd0e6;
+  --tag-activity: #8fb0ff;
+  --tag-event: #6ee7a0;
+  --tag-decision: #fbbf6a;
+  --tag-parallel: #c4a5ff;
+  --tag-message: #f79cc6;
+  --tag-data: #b5df6a;
+  --ok: #6ee7a0;
+  --ok-soft: #173326;
+}
+.trainer-panel {
+  width: 340px;
+  border-left: 0;
+  border-right: 1px solid var(--panel-border);
+}
+.inline-icon {
+  vertical-align: -2px;
+}
+.small {
+  font-size: 12px;
+}
+.trainer-case {
+  padding: 8px;
+  margin-bottom: 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+}
+.trainer-case-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+.stars {
+  color: var(--warning);
+}
+.level-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin-top: 6px;
+}
+.level-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 4px 2px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.level-btn span {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.15;
+}
+.level-btn em {
+  font-size: 10px;
+  font-style: normal;
+  color: var(--muted);
+}
+.level-btn:hover {
+  border-color: var(--accent);
+}
+.level-btn.is-done {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.level-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin: 6px 0;
+}
+.level-tabs button {
+  padding: 3px 6px;
+  border: 1px solid var(--panel-border);
+  border-radius: 5px;
+  background: var(--panel-bg);
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.level-tabs button.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.task-line {
+  font-size: 12px;
+  color: var(--muted);
+}
+.case-text {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--canvas-bg);
+  color: var(--text);
+  line-height: 1.65;
+}
+.case-text p {
+  margin: 0 0 8px;
+}
+.case-text p:last-child {
+  margin: 0;
+}
+.case-text .span {
+  border-bottom: 2px solid var(--tag, var(--muted));
+  border-radius: 2px;
+  cursor: pointer;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.case-text .span.is-open {
+  border-bottom: 2px dotted var(--muted);
+}
+.case-text .span.is-wrong {
+  border-bottom: 2px wavy var(--error);
+}
+.case-text .span.is-focus {
+  background: var(--accent-soft);
+}
+.case-text .span.is-right::after {
+  content: ' \2713';
+  font-size: 10px;
+  color: var(--tag);
+}
+.span-hint {
+  background: var(--warning-soft);
+  border-bottom: 2px solid var(--warning);
+}
+.is-participant {
+  --tag: var(--tag-participant);
+}
+.is-role {
+  --tag: var(--tag-role);
+}
+.is-activity {
+  --tag: var(--tag-activity);
+}
+.is-event {
+  --tag: var(--tag-event);
+}
+.is-decision {
+  --tag: var(--tag-decision);
+}
+.is-parallel {
+  --tag: var(--tag-parallel);
+}
+.is-message {
+  --tag: var(--tag-message);
+}
+.is-data {
+  --tag: var(--tag-data);
+}
+mark.cue {
+  background: none;
+  color: var(--tag);
+  font-weight: 600;
+}
+.tag-pill {
+  display: inline-block;
+  padding: 0 6px;
+  border: 1px solid var(--tag);
+  border-radius: 999px;
+  color: var(--tag);
+  font-size: 11px;
+  font-weight: 600;
+}
+.tag-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin: 6px 0;
+}
+.tag-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 5px;
+  border: 1px solid var(--tag);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  color: var(--tag);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tag-btn kbd {
+  font-size: 10px;
+  color: var(--muted);
+}
+.tag-btn.is-picked {
+  outline: 2px solid var(--tag);
+}
+.span-note {
+  margin: 6px 0;
+  padding: 6px 8px;
+  border-left: 3px solid var(--ok);
+  background: var(--ok-soft);
+  color: var(--text);
+  border-radius: 0 5px 5px 0;
+}
+.span-note.is-wrong {
+  border-left-color: var(--warning);
+  background: var(--warning-soft);
+}
+.span-note p {
+  margin: 4px 0 0;
+}
+.decisions {
+  padding-left: 18px;
+  margin: 4px 0;
+}
+.decisions li {
+  margin-bottom: 4px;
+}
+.small-btn {
+  font-size: 12px;
+}
+.trainer-check .row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.hint-ladder {
+  margin: 8px 0;
+  padding: 6px 8px 6px 26px;
+  border-left: 3px solid var(--warning);
+  background: var(--warning-soft);
+  color: var(--text);
+  border-radius: 0 5px 5px 0;
+}
+.hint-ladder li {
+  margin-bottom: 3px;
+}
+.check-result.is-stale {
+  opacity: 0.6;
+}
+.score {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+.score-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--panel-border);
+  overflow: hidden;
+}
+.score-bar span {
+  display: block;
+  height: 100%;
+  background: var(--ok);
+}
+.result-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.result-list button {
+  position: relative;
+  width: 100%;
+  padding: 4px 6px 4px 18px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.result-list button:disabled {
+  cursor: default;
+}
+.result-list button:not(:disabled):hover {
+  background: var(--accent-soft);
+}
+.result-list button::before {
+  position: absolute;
+  left: 4px;
+  font-weight: 700;
+}
+.result-list .is-missing button::before {
+  content: '\25CB';
+  color: var(--muted);
+}
+.result-list .is-different button::before {
+  content: '\25D0';
+  color: var(--warning);
+}
+.result-list .is-extra button::before {
+  content: '+';
+  color: var(--warning);
+}
+.result-list .is-ok button::before {
+  content: '\2713';
+  color: var(--ok);
+}
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.count.is-task {
+  background: var(--brand);
+}
+.workspace {
+  position: relative;
+}
+.trainer-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  backdrop-filter: blur(9px);
+  background: color-mix(in srgb, var(--canvas-bg) 55%, transparent);
+  color: var(--text);
+  text-align: center;
+}
+.lesson p {
+  line-height: 1.5;
+}
+.ask {
+  margin: 8px 0;
+  padding: 6px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+}
+.ask p {
+  margin: 2px 0 6px;
+}
+.ask-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ask-options button {
+  padding: 4px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ask-options button:disabled {
+  cursor: default;
+}
+.ask-options button.is-right {
+  border-color: var(--ok);
+  background: var(--ok-soft);
+}
+.ask-options button.is-wrong {
+  border-color: var(--warning);
+  background: var(--warning-soft);
+}
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgb(0 0 0 / 0.25);
+}
+.tour-ring {
+  position: fixed;
+  border: 2px solid var(--brand);
+  border-radius: 8px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 30%, transparent);
+  pointer-events: none;
+}
+.tour-card {
+  position: fixed;
+  padding: 10px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--panel-bg);
+  color: var(--text);
+  box-shadow: 0 8px 30px rgb(0 0 0 / 0.25);
+}
+.tour-card p {
+  margin: 4px 0 10px;
+  line-height: 1.45;
+}
+.tour-card .row {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+/* The top bar buttons keep one line; the process name gives way first. */
+.topbar .btn,
+.brand {
+  white-space: nowrap;
+  flex: none;
+}

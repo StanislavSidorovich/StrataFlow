@@ -9,6 +9,8 @@ import { ModelFormatError, parseModel, serializeModel } from '../core/serialize'
 const HISTORY_LIMIT = 200
 const COALESCE_MS = 1000
 const STORAGE_KEY = 'strataflow.model'
+/** The trainer's working model; the user's own model stays under STORAGE_KEY meanwhile. */
+export const TRAINER_MODEL_KEY = 'strataflow.trainer.model'
 
 /** What a click on the empty canvas does: select (and pan), or place a new element. */
 export type Tool = { id: string; spec: NodeSpec } | { id: 'pool' } | { id: 'select' }
@@ -60,6 +62,8 @@ interface EditorState {
   checkOpen: boolean
   setCheckOpen: (open: boolean) => void
   menu: ContextMenuState | null
+  /** The user's own model while a trainer task runs on the canvas (null = no task). */
+  backup: FlowModel | null
   openMenu: (menu: ContextMenuState | null) => void
 
   /** Runs an edit on a draft; on ModelError the model is untouched and the message is shown. */
@@ -90,6 +94,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   help: null,
   checkOpen: false,
   menu: null,
+  backup: null,
 
   apply(edit, opts = {}) {
     const { model, past, lastEdit } = get()
@@ -134,9 +139,10 @@ export const useEditor = create<EditorState>()((set, get) => ({
   },
 
   load(model) {
-    const { model: current, past, doc } = get()
-    // Loading is undoable too: Open by mistake loses nothing.
-    set({ model, doc: doc + 1, past: [...past, current].slice(-HISTORY_LIMIT), future: [], selection: [], lastEdit: null, error: null, tool: { id: 'select' }, page: null })
+    const { model: current, past, doc, backup } = get()
+    // Loading is undoable too: Open by mistake loses nothing. During a trainer task, New / Open end the task:
+    // Undo then brings back the user's own model, not the task's.
+    set({ model, doc: doc + 1, backup: null, past: backup ? [backup] : [...past, current].slice(-HISTORY_LIMIT), future: [], selection: [], lastEdit: null, error: null, tool: { id: 'select' }, page: null })
   },
 
   openPage: (page) => set((s) => ({ page, selection: [], tool: { id: 'select' }, fit: s.fit + 1 })),
@@ -159,9 +165,9 @@ function validSelection(m: FlowModel, ids: string[]): string[] {
 
 // ---------------------------------------------------------------- autosave (localStorage)
 
-export function loadStoredModel(): FlowModel | null {
+export function loadStoredModel(key = STORAGE_KEY): FlowModel | null {
   try {
-    const text = globalThis.localStorage?.getItem(STORAGE_KEY)
+    const text = globalThis.localStorage?.getItem(key)
     return text ? parseModel(text) : null
   } catch (e) {
     if (e instanceof ModelFormatError) console.warn('Ignoring stored model:', e.message)
@@ -174,7 +180,8 @@ function saveNow() {
   clearTimeout(saveTimer)
   saveTimer = undefined
   try {
-    localStorage.setItem(STORAGE_KEY, serializeModel(useEditor.getState().model))
+    const { model, backup } = useEditor.getState()
+    localStorage.setItem(backup ? TRAINER_MODEL_KEY : STORAGE_KEY, serializeModel(model))
     useEditor.setState({ savedAt: Date.now() })
   } catch {
     // Storage full or unavailable: saving to a file still works.

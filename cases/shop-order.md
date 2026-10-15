@@ -12,6 +12,8 @@
 ## 2. Case text
 
 > When an order from a customer arrives, a sales clerk checks in the system whether every item is in stock. If an item is missing, the order is rejected and the customer is told so. Otherwise two things happen at the same time: the warehouse packs the goods and prints a packing slip, while sales sends the invoice to the customer. When both are done, sales waits for the customer's payment. If no payment has come 14 days after that, sales sends the customer a reminder, and goes on waiting. Once the payment has arrived, the warehouse ships the order. The order is now shipped.
+>
+> We model the online shop's process. The customer is outside it: we only see what the customer sends to the shop and receives from it.
 
 ## 3. Text → model mapping
 
