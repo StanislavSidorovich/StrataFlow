@@ -19,8 +19,8 @@ describe('stage 1: draw, save, reload, undo', () => {
     const kinds = m.nodes.filter((n) => n.type === 'gateway').map((n) => n.type === 'gateway' && n.kind)
     expect(kinds).toEqual(['exclusive', 'parallel', 'parallel'])
     expect(m.nodes.find((n) => n.id === r.late.id)).toMatchObject({ position: 'boundary', trigger: 'timer', interrupting: false })
-    expect(m.nodes.filter((n) => n.type === 'event' && n.trigger === 'message')).toHaveLength(2)
-    expect(m.flows.filter((f) => f.kind === 'message')).toHaveLength(2)
+    expect(m.nodes.filter((n) => n.type === 'event' && n.trigger === 'message')).toHaveLength(3)
+    expect(m.flows.filter((f) => f.kind === 'message')).toHaveLength(5)
     expect(m.flows.filter((f) => f.kind === 'data')).toHaveLength(1)
     // Every flow node sits in the shop's pool; the pack task landed in the warehouse lane.
     expect(m.nodes.every((n) => n.participantId === 'Participant_1')).toBe(true)

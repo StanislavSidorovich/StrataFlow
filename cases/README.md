@@ -14,6 +14,8 @@ Own cases, written by Claude on classic business domains (not copied from textbo
 | 6 | Football: match day | ★★★ | several pools, exceptions (error/escalation), multi-instance |
 | 7 | AS-IS → TO-BE (own, generic office process) | ★★★ | redesign, KPIs, simulation |
 
+Written: 1 `library-lend`, 2 `hotel-booking`, 3 `shop-order`. Each has `<id>.md` and the reference model `<id>.flow.json` (File → Open in the app), drawn by `tests/fixtures/cases.ts`; `UPDATE_CASES=1 npx vitest run tests/cases.test.ts` rewrites the `.flow.json` after a change there.
+
 ## Case file sections (`<id>.md`)
 
 1. Meta: id, title, difficulty, concepts trained

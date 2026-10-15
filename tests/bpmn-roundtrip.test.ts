@@ -11,6 +11,7 @@ import { route, writeBpmn } from '../src/core/bpmn/write'
 import { parseModel } from '../src/core/serialize'
 import { drawOrderFulfilment } from './fixtures/order-fulfilment'
 import { kitchenSink, pools } from './fixtures/models'
+import { CASES } from './fixtures/cases'
 
 /** JSON drops undefined keys, as a saved file does. List order is not compared: BPMN groups elements by
  *  container and kind, so pools, lanes, nodes and flows come back sorted by id. */
@@ -66,6 +67,11 @@ describe('BPMN round-trip', () => {
   it('the bundled example (.flow.json) is lossless', async () => {
     await expectLossless(parseModel(readFileSync('src/data/examples/library-loan.flow.json', 'utf8')))
   })
+
+  for (const c of CASES)
+    it(`the case reference model ${c.id}.flow.json is lossless`, async () => {
+      await expectLossless(parseModel(readFileSync(`cases/${c.id}.flow.json`, 'utf8')))
+    })
 
   it('the Bizagi-shaped sample, once read, is lossless', async () => {
     const { model } = await readBpmn(readFileSync('src/data/examples/library-loan.bpmn', 'utf8'))

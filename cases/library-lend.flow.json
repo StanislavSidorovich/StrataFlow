@@ -1,0 +1,241 @@
+{
+  "format": "strata-flow",
+  "version": 1,
+  "name": "Lend a book",
+  "participants": [
+    {
+      "id": "Participant_1",
+      "name": "City library",
+      "processId": "Process_1"
+    }
+  ],
+  "lanes": [
+    {
+      "id": "Lane_1",
+      "name": "Front desk",
+      "participantId": "Participant_1"
+    },
+    {
+      "id": "Lane_2",
+      "name": "Stacks",
+      "participantId": "Participant_1"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "Event_1",
+      "name": "Loan requested",
+      "type": "event",
+      "position": "start",
+      "trigger": "none",
+      "throwing": false,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_1",
+      "name": "Check library card",
+      "type": "task",
+      "kind": "task",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Gateway_1",
+      "name": "Card valid?",
+      "type": "gateway",
+      "kind": "exclusive",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1",
+      "defaultFlow": "Flow_4"
+    },
+    {
+      "id": "Event_2",
+      "name": "Loan refused",
+      "type": "event",
+      "position": "end",
+      "trigger": "none",
+      "throwing": true,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_2",
+      "name": "Fetch book",
+      "type": "task",
+      "kind": "task",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Task_3",
+      "name": "Record loan",
+      "type": "task",
+      "kind": "task",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_4",
+      "name": "Stamp due date",
+      "type": "task",
+      "kind": "task",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_5",
+      "name": "Hand over book",
+      "type": "task",
+      "kind": "task",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Event_3",
+      "name": "Book lent",
+      "type": "event",
+      "position": "end",
+      "trigger": "none",
+      "throwing": true,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    }
+  ],
+  "flows": [
+    {
+      "id": "Flow_1",
+      "kind": "sequence",
+      "source": "Event_1",
+      "target": "Task_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_2",
+      "kind": "sequence",
+      "source": "Task_1",
+      "target": "Gateway_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_3",
+      "kind": "sequence",
+      "source": "Gateway_1",
+      "target": "Event_2",
+      "name": "No",
+      "condition": "the card is missing or expired"
+    },
+    {
+      "id": "Flow_4",
+      "kind": "sequence",
+      "source": "Gateway_1",
+      "target": "Task_2",
+      "name": "Yes"
+    },
+    {
+      "id": "Flow_5",
+      "kind": "sequence",
+      "source": "Task_2",
+      "target": "Task_3",
+      "name": ""
+    },
+    {
+      "id": "Flow_6",
+      "kind": "sequence",
+      "source": "Task_3",
+      "target": "Task_4",
+      "name": ""
+    },
+    {
+      "id": "Flow_7",
+      "kind": "sequence",
+      "source": "Task_4",
+      "target": "Task_5",
+      "name": ""
+    },
+    {
+      "id": "Flow_8",
+      "kind": "sequence",
+      "source": "Task_5",
+      "target": "Event_3",
+      "name": ""
+    }
+  ],
+  "diagram": {
+    "shapes": {
+      "Participant_1": {
+        "x": 0,
+        "y": 0,
+        "width": 1154,
+        "height": 376
+      },
+      "Lane_1": {
+        "x": 30,
+        "y": 0,
+        "width": 1124,
+        "height": 226
+      },
+      "Lane_2": {
+        "x": 30,
+        "y": 226,
+        "width": 1124,
+        "height": 150
+      },
+      "Event_1": {
+        "x": 132,
+        "y": 128,
+        "width": 36,
+        "height": 36
+      },
+      "Task_1": {
+        "x": 218,
+        "y": 106,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_1": {
+        "x": 368,
+        "y": 121,
+        "width": 50,
+        "height": 50
+      },
+      "Event_2": {
+        "x": 468,
+        "y": 30,
+        "width": 36,
+        "height": 36
+      },
+      "Task_2": {
+        "x": 468,
+        "y": 256,
+        "width": 100,
+        "height": 80
+      },
+      "Task_3": {
+        "x": 618,
+        "y": 106,
+        "width": 100,
+        "height": 80
+      },
+      "Task_4": {
+        "x": 768,
+        "y": 106,
+        "width": 100,
+        "height": 80
+      },
+      "Task_5": {
+        "x": 918,
+        "y": 106,
+        "width": 100,
+        "height": 80
+      },
+      "Event_3": {
+        "x": 1068,
+        "y": 128,
+        "width": 36,
+        "height": 36
+      }
+    },
+    "edges": {}
+  }
+}

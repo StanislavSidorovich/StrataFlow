@@ -1,0 +1,302 @@
+{
+  "format": "strata-flow",
+  "version": 1,
+  "name": "Hotel booking and check-in",
+  "participants": [
+    {
+      "id": "Participant_1",
+      "name": "Hotel",
+      "processId": "Process_1"
+    },
+    {
+      "id": "Participant_2",
+      "name": "Guest"
+    }
+  ],
+  "lanes": [
+    {
+      "id": "Lane_1",
+      "name": "Reservations",
+      "participantId": "Participant_1"
+    },
+    {
+      "id": "Lane_2",
+      "name": "Reception",
+      "participantId": "Participant_1"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "Event_1",
+      "name": "Booking request received",
+      "type": "event",
+      "position": "start",
+      "trigger": "message",
+      "throwing": false,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_1",
+      "name": "Check room availability",
+      "type": "task",
+      "kind": "task",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Gateway_1",
+      "name": "Room available?",
+      "type": "gateway",
+      "kind": "exclusive",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1",
+      "defaultFlow": "Flow_4"
+    },
+    {
+      "id": "Event_2",
+      "name": "Request declined",
+      "type": "event",
+      "position": "end",
+      "trigger": "message",
+      "throwing": true,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_2",
+      "name": "Reserve room",
+      "type": "task",
+      "kind": "task",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_3",
+      "name": "Send confirmation",
+      "type": "task",
+      "kind": "send",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Event_3",
+      "name": "Guest arrived",
+      "type": "event",
+      "position": "intermediate",
+      "trigger": "message",
+      "throwing": false,
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Task_4",
+      "name": "Check guest ID",
+      "type": "task",
+      "kind": "task",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Task_5",
+      "name": "Hand over key card",
+      "type": "task",
+      "kind": "task",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Event_4",
+      "name": "Guest checked in",
+      "type": "event",
+      "position": "end",
+      "trigger": "none",
+      "throwing": true,
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    }
+  ],
+  "flows": [
+    {
+      "id": "Flow_1",
+      "kind": "sequence",
+      "source": "Event_1",
+      "target": "Task_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_2",
+      "kind": "sequence",
+      "source": "Task_1",
+      "target": "Gateway_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_3",
+      "kind": "sequence",
+      "source": "Gateway_1",
+      "target": "Event_2",
+      "name": "No",
+      "condition": "no room of that type is free on those dates"
+    },
+    {
+      "id": "Flow_4",
+      "kind": "sequence",
+      "source": "Gateway_1",
+      "target": "Task_2",
+      "name": "Yes"
+    },
+    {
+      "id": "Flow_5",
+      "kind": "sequence",
+      "source": "Task_2",
+      "target": "Task_3",
+      "name": ""
+    },
+    {
+      "id": "Flow_6",
+      "kind": "sequence",
+      "source": "Task_3",
+      "target": "Event_3",
+      "name": ""
+    },
+    {
+      "id": "Flow_7",
+      "kind": "sequence",
+      "source": "Event_3",
+      "target": "Task_4",
+      "name": ""
+    },
+    {
+      "id": "Flow_8",
+      "kind": "sequence",
+      "source": "Task_4",
+      "target": "Task_5",
+      "name": ""
+    },
+    {
+      "id": "Flow_9",
+      "kind": "sequence",
+      "source": "Task_5",
+      "target": "Event_4",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_1",
+      "kind": "message",
+      "source": "Participant_2",
+      "target": "Event_1",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_2",
+      "kind": "message",
+      "source": "Event_2",
+      "target": "Participant_2",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_3",
+      "kind": "message",
+      "source": "Task_3",
+      "target": "Participant_2",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_4",
+      "kind": "message",
+      "source": "Participant_2",
+      "target": "Event_3",
+      "name": ""
+    }
+  ],
+  "diagram": {
+    "shapes": {
+      "Participant_1": {
+        "x": 0,
+        "y": 0,
+        "width": 1240,
+        "height": 376
+      },
+      "Lane_1": {
+        "x": 30,
+        "y": 0,
+        "width": 1210,
+        "height": 226
+      },
+      "Lane_2": {
+        "x": 30,
+        "y": 226,
+        "width": 1210,
+        "height": 150
+      },
+      "Participant_2": {
+        "x": 0,
+        "y": 436,
+        "width": 1240,
+        "height": 250
+      },
+      "Event_1": {
+        "x": 132,
+        "y": 128,
+        "width": 36,
+        "height": 36
+      },
+      "Task_1": {
+        "x": 218,
+        "y": 106,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_1": {
+        "x": 368,
+        "y": 121,
+        "width": 50,
+        "height": 50
+      },
+      "Event_2": {
+        "x": 468,
+        "y": 30,
+        "width": 36,
+        "height": 36
+      },
+      "Task_2": {
+        "x": 468,
+        "y": 106,
+        "width": 100,
+        "height": 80
+      },
+      "Task_3": {
+        "x": 618,
+        "y": 106,
+        "width": 100,
+        "height": 80
+      },
+      "Event_3": {
+        "x": 768,
+        "y": 278,
+        "width": 36,
+        "height": 36
+      },
+      "Task_4": {
+        "x": 854,
+        "y": 256,
+        "width": 100,
+        "height": 80
+      },
+      "Task_5": {
+        "x": 1004,
+        "y": 256,
+        "width": 100,
+        "height": 80
+      },
+      "Event_4": {
+        "x": 1154,
+        "y": 278,
+        "width": 36,
+        "height": 36
+      }
+    },
+    "edges": {}
+  }
+}

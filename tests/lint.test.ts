@@ -7,6 +7,8 @@ import { addBoundaryEvent, addLane, addNode, addPool, appendNode, connect, setDe
 import { parseModel } from '../src/core/serialize'
 import { drawOrderFulfilment } from './fixtures/order-fulfilment'
 import example from '../src/data/examples/library-loan.flow.json?raw'
+import { CASES } from './fixtures/cases'
+import { readFileSync } from 'node:fs'
 
 const START: NodeSpec = { type: 'event', position: 'start' }
 const END: NodeSpec = { type: 'event', position: 'end' }
@@ -59,6 +61,8 @@ describe('the model check', () => {
     drawOrderFulfilment(shop)
     expect(lintModel(shop)).toEqual([])
     expect(lintModel(parseModel(example))).toEqual([])
+    // The own cases name their roles, so lanes are expected.
+    for (const c of CASES) expect(lintModel(parseModel(readFileSync(`cases/${c.id}.flow.json`, 'utf8')), { expectLanes: true }), c.id).toEqual([])
   })
 
   it('P01: a pool process without start or end event', () => {

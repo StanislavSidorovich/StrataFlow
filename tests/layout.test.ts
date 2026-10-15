@@ -84,7 +84,7 @@ describe('auto layout', () => {
     const pack = m.nodes.find((n) => n.name === 'Pack goods')!
     expect(s[slip.id].y).toBeGreaterThan(s[pack.id].y + s[pack.id].height)
     expect(Math.abs(s[slip.id].x + s[slip.id].width / 2 - (s[pack.id].x + s[pack.id].width / 2))).toBeLessThan(1)
-    expect(m.nodes.find((n) => n.id === late.id)?.laneId).toBe(m.nodes.find((n) => n.name === 'Send invoice')?.laneId)
+    expect(m.nodes.find((n) => n.id === late.id)?.laneId).toBe(m.nodes.find((n) => n.name === 'Receive payment')?.laneId)
     // Both pools are as wide as each other; the black box keeps its place below.
     expect(s.Participant_1.width).toBe(s.Participant_2.width)
     expect(s.Participant_2.y).toBeGreaterThan(s.Participant_1.y + s.Participant_1.height)

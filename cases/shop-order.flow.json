@@ -1,0 +1,396 @@
+{
+  "format": "strata-flow",
+  "version": 1,
+  "name": "Order fulfilment",
+  "participants": [
+    {
+      "id": "Participant_1",
+      "name": "Online shop",
+      "processId": "Process_1"
+    },
+    {
+      "id": "Participant_2",
+      "name": "Customer"
+    }
+  ],
+  "lanes": [
+    {
+      "id": "Lane_1",
+      "name": "Sales",
+      "participantId": "Participant_1"
+    },
+    {
+      "id": "Lane_2",
+      "name": "Warehouse",
+      "participantId": "Participant_1"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "Event_1",
+      "name": "Order received",
+      "type": "event",
+      "position": "start",
+      "trigger": "message",
+      "throwing": false,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_1",
+      "name": "Check stock",
+      "type": "task",
+      "kind": "user",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Gateway_1",
+      "name": "In stock?",
+      "type": "gateway",
+      "kind": "exclusive",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1",
+      "defaultFlow": "Flow_4"
+    },
+    {
+      "id": "Event_2",
+      "name": "Order rejected",
+      "type": "event",
+      "position": "end",
+      "trigger": "message",
+      "throwing": true,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Gateway_2",
+      "name": "",
+      "type": "gateway",
+      "kind": "parallel",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_2",
+      "name": "Pack goods",
+      "type": "task",
+      "kind": "manual",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Task_3",
+      "name": "Send invoice",
+      "type": "task",
+      "kind": "send",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Gateway_3",
+      "name": "",
+      "type": "gateway",
+      "kind": "parallel",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Task_4",
+      "name": "Receive payment",
+      "type": "task",
+      "kind": "receive",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_5",
+      "name": "Ship order",
+      "type": "task",
+      "kind": "manual",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Event_3",
+      "name": "Order shipped",
+      "type": "event",
+      "position": "end",
+      "trigger": "none",
+      "throwing": true,
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Event_4",
+      "name": "14 days",
+      "type": "event",
+      "position": "boundary",
+      "trigger": "timer",
+      "throwing": false,
+      "interrupting": false,
+      "attachedTo": "Task_4",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Event_5",
+      "name": "Reminder sent",
+      "type": "event",
+      "position": "end",
+      "trigger": "message",
+      "throwing": true,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "DataObject_1",
+      "name": "Packing slip",
+      "type": "dataObject",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    }
+  ],
+  "flows": [
+    {
+      "id": "Flow_1",
+      "kind": "sequence",
+      "source": "Event_1",
+      "target": "Task_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_2",
+      "kind": "sequence",
+      "source": "Task_1",
+      "target": "Gateway_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_3",
+      "kind": "sequence",
+      "source": "Gateway_1",
+      "target": "Event_2",
+      "name": "No",
+      "condition": "an item is missing"
+    },
+    {
+      "id": "Flow_4",
+      "kind": "sequence",
+      "source": "Gateway_1",
+      "target": "Gateway_2",
+      "name": "Yes"
+    },
+    {
+      "id": "Flow_5",
+      "kind": "sequence",
+      "source": "Gateway_2",
+      "target": "Task_2",
+      "name": ""
+    },
+    {
+      "id": "Flow_6",
+      "kind": "sequence",
+      "source": "Gateway_2",
+      "target": "Task_3",
+      "name": ""
+    },
+    {
+      "id": "Flow_7",
+      "kind": "sequence",
+      "source": "Task_2",
+      "target": "Gateway_3",
+      "name": ""
+    },
+    {
+      "id": "Flow_8",
+      "kind": "sequence",
+      "source": "Task_3",
+      "target": "Gateway_3",
+      "name": ""
+    },
+    {
+      "id": "Flow_9",
+      "kind": "sequence",
+      "source": "Gateway_3",
+      "target": "Task_4",
+      "name": ""
+    },
+    {
+      "id": "Flow_10",
+      "kind": "sequence",
+      "source": "Task_4",
+      "target": "Task_5",
+      "name": ""
+    },
+    {
+      "id": "Flow_11",
+      "kind": "sequence",
+      "source": "Task_5",
+      "target": "Event_3",
+      "name": ""
+    },
+    {
+      "id": "Flow_12",
+      "kind": "sequence",
+      "source": "Event_4",
+      "target": "Event_5",
+      "name": ""
+    },
+    {
+      "id": "DataAssociation_1",
+      "kind": "data",
+      "source": "Task_2",
+      "target": "DataObject_1",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_1",
+      "kind": "message",
+      "source": "Participant_2",
+      "target": "Event_1",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_2",
+      "kind": "message",
+      "source": "Event_2",
+      "target": "Participant_2",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_3",
+      "kind": "message",
+      "source": "Task_3",
+      "target": "Participant_2",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_4",
+      "kind": "message",
+      "source": "Participant_2",
+      "target": "Task_4",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_5",
+      "kind": "message",
+      "source": "Event_5",
+      "target": "Participant_2",
+      "name": ""
+    }
+  ],
+  "diagram": {
+    "shapes": {
+      "Participant_1": {
+        "x": 0,
+        "y": 0,
+        "width": 1204,
+        "height": 556
+      },
+      "Lane_1": {
+        "x": 30,
+        "y": 0,
+        "width": 1174,
+        "height": 226
+      },
+      "Lane_2": {
+        "x": 30,
+        "y": 226,
+        "width": 1174,
+        "height": 330
+      },
+      "Participant_2": {
+        "x": 0,
+        "y": 616,
+        "width": 1204,
+        "height": 250
+      },
+      "Event_1": {
+        "x": 132,
+        "y": 128,
+        "width": 36,
+        "height": 36
+      },
+      "Task_1": {
+        "x": 218,
+        "y": 106,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_1": {
+        "x": 368,
+        "y": 121,
+        "width": 50,
+        "height": 50
+      },
+      "Event_2": {
+        "x": 468,
+        "y": 30,
+        "width": 36,
+        "height": 36
+      },
+      "Gateway_2": {
+        "x": 468,
+        "y": 121,
+        "width": 50,
+        "height": 50
+      },
+      "Task_2": {
+        "x": 568,
+        "y": 256,
+        "width": 100,
+        "height": 80
+      },
+      "Task_3": {
+        "x": 568,
+        "y": 106,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_3": {
+        "x": 718,
+        "y": 376,
+        "width": 50,
+        "height": 50
+      },
+      "Task_4": {
+        "x": 818,
+        "y": 106,
+        "width": 100,
+        "height": 80
+      },
+      "Task_5": {
+        "x": 968,
+        "y": 256,
+        "width": 100,
+        "height": 80
+      },
+      "Event_3": {
+        "x": 1118,
+        "y": 278,
+        "width": 36,
+        "height": 36
+      },
+      "Event_4": {
+        "x": 870,
+        "y": 168,
+        "width": 36,
+        "height": 36
+      },
+      "Event_5": {
+        "x": 968,
+        "y": 128,
+        "width": 36,
+        "height": 36
+      },
+      "DataObject_1": {
+        "x": 600,
+        "y": 466,
+        "width": 36,
+        "height": 50
+      }
+    },
+    "edges": {}
+  }
+}
