@@ -1,5 +1,5 @@
-// The welcome tour: a few cards pointing at the parts of the app. Opens once on the first visit; Help →
-// Tour and the trainer's "Tour of the app" open it again.
+// The tour: a few cards pointing at the parts of the app. The welcome card, Help → Tour and the trainer's
+// "Tour of the app" open it.
 import { useEffect, useLayoutEffect, useState } from 'react'
 import { create } from 'zustand'
 
@@ -36,14 +36,6 @@ function end() {
   }
 }
 
-/** Opens the tour on the first visit only. */
-export function tourOnFirstVisit() {
-  try {
-    if (!localStorage.getItem(SEEN_KEY)) startTour()
-  } catch {
-    // no storage: no automatic tour
-  }
-}
 
 export function Tour() {
   const step = useTour((s) => s.step)

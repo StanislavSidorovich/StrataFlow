@@ -29,7 +29,7 @@ Copy StrataSQL's frame (decided after comparing Figma, Excalidraw, tldraw, Chart
 
 ## First screen
 
-StrataSQL opens straight into the app with a **welcome card** (no separate landing page), and that worked: the visitor sees the product at once. Do the same:
+StrataSQL opens straight into the app with a **welcome card** (no separate landing page), and that worked: the visitor sees the product at once. Do the same (built in v0.5.3, `src/ui/Welcome.tsx`; see ROADMAP Decisions):
 
 - Welcome card: one line on what it is ("Learn BPMN by doing: from a text to a process you can present"), three choices: **Learn the basics** (lessons) · **Watch a process built** (walkthrough of the first case) · **Start an empty process**. Small print: unofficial student project, link to StrataSQL ("design the data model too").
 - Empty canvas hint: "Double-click to add a task, or open an example."

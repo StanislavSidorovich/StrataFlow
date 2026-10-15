@@ -22,6 +22,7 @@ import {
   Play,
   RefreshCw,
   Smartphone,
+  Sparkles,
   Timer,
   Save,
   Sun,
@@ -43,10 +44,11 @@ import { HelpPanel } from './panels/Help'
 import { Properties } from './panels/Properties'
 import { SimulatePanel, useSim } from './panels/Simulate'
 import { hadStoredModel, useEditor } from './store'
-import { startTour, Tour, tourOnFirstVisit } from './trainer/Tour'
+import { startTour, Tour } from './trainer/Tour'
 import { TrainerPane, TrainerVeil } from './trainer/TrainerPane'
 import { useTrainer } from './trainer/trainerStore'
 import { showSide, useLayout } from './viewport'
+import { openWelcome, WelcomeCard, welcomeAtStart } from './Welcome'
 import example from '../data/examples/library-loan.flow.json?raw'
 import expenseAsIs from '../../cases/expense-claim-as-is.flow.json?raw'
 import expenseToBe from '../../cases/expense-claim-to-be.flow.json?raw'
@@ -99,8 +101,8 @@ export function App() {
   }, [message])
 
   useEffect(() => {
-    // On a phone the notice comes first; the tour points at a bar that does not fit there.
-    if (!hadStoredModel && !useLayout.getState().phone) tourOnFirstVisit()
+    // On a phone the notice comes instead; the tour is one of the welcome card's choices.
+    if (!useLayout.getState().phone) welcomeAtStart()
   }, [])
 
   useEffect(() => {
@@ -260,6 +262,7 @@ export function App() {
             testid="help-menu"
             items={[
               { label: 'Help cards', icon: <BookOpen size={15} />, keys: 'F1', title: 'BPMN ideas one by one: elements, rules, typical mistakes', testid: 'help-cards', onPick: () => useEditor.getState().openHelp('index') },
+              { label: 'Welcome', icon: <Sparkles size={15} />, title: 'Where to start: lessons, a process built step by step, cases, a Bizagi file', testid: 'welcome-menu', onPick: openWelcome },
               { label: 'Tour', icon: <Play size={15} />, title: 'Six stops: drawing, files, check, trainer, help', testid: 'tour-menu', onPick: startTour },
               { label: 'How to draw', icon: <MousePointer2 size={15} />, title: 'Shortcuts and gestures (in Properties when nothing is selected)', onPick: () => {
                   useEditor.setState({ selection: [], help: null })
@@ -340,6 +343,7 @@ export function App() {
       <StatusBar />
       <Tour />
       <PhoneNotice />
+      <WelcomeCard onOpenFile={() => input.current?.click()} />
     </div>
   )
 }
