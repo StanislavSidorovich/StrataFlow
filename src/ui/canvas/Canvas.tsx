@@ -115,6 +115,10 @@ export function Canvas() {
   useEffect(() => setNodes(toNodes(model, selected)), [model, selected])
   const edges = useMemo(() => toEdges(model, selected), [model, selected])
   const flow = useReactFlow()
+  const fit = useEditor((s) => s.fit)
+  useEffect(() => {
+    if (fit) requestAnimationFrame(() => void flow.fitView({ maxZoom: 1, padding: 0.08, duration: 300 }))
+  }, [fit, flow])
   // Start positions of what a drag moves, so followers move by the same delta.
   const drag = useRef<Map<string, Point> | null>(null)
 

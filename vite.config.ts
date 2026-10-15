@@ -34,6 +34,8 @@ function pwaPlugin(): Plugin {
 export default defineConfig({
   base: './',
   plugins: [react(), tailwindcss(), pwaPlugin()],
+  // elkjs (auto layout) is one 1.4 MB chunk, loaded on the first Auto layout click only.
+  build: { chunkSizeWarningLimit: 1500 },
 
   test: {
     include: ['tests/**/*.test.ts'],

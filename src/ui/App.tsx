@@ -1,13 +1,13 @@
 // The editor. Top bar (files, example, theme), the canvas with its draw bar, and Properties.
 import { useEffect, useRef, useState } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
-import { BookOpen, FileDown, FilePlus2, FolderOpen, Moon, Save, Sun, TriangleAlert, X } from 'lucide-react'
+import { BookOpen, FileDown, LayoutDashboard, FilePlus2, FolderOpen, Moon, Save, Sun, TriangleAlert, X } from 'lucide-react'
 import { emptyModel } from '../core/metamodel'
 import { deleteElements } from '../core/ops'
 import { parseModel } from '../core/serialize'
 import { Canvas } from './canvas/Canvas'
 import { TOOLS } from './canvas/Palette'
-import { exportBpmn, openText, saveModel, saveModelAs } from './files'
+import { exportBpmn, layoutModel, openText, saveModel, saveModelAs } from './files'
 import { Properties } from './panels/Properties'
 import { hadStoredModel, useEditor } from './store'
 import example from '../data/examples/library-loan.flow.json?raw'
@@ -126,6 +126,20 @@ export function App() {
         </button>
         <button
           className="btn"
+          onClick={async () => {
+            try {
+              useEditor.getState().say(await layoutModel())
+            } catch (e) {
+              useEditor.getState().showError(`Not laid out: ${(e as Error).message}`)
+            }
+          }}
+          title="Auto layout: steps left to right, each in its own lane (Undo puts everything back)"
+          data-testid="auto-layout"
+        >
+          <LayoutDashboard size={15} /> Auto layout
+        </button>
+        <button
+          className="btn"
           onClick={() => {
             useEditor.getState().load(parseModel(example))
             useEditor.getState().say('Opened the example: a library lends a book. Undo brings your process back.')
@@ -159,7 +173,7 @@ export function App() {
         <Properties />
       </main>
       <footer className="statusbar">
-        Preview: draw, save and reopen BPMN processes; opens Bizagi .bpmn exports and exports BPMN 2.0 XML. Auto layout and the model check come next. Unofficial student project.
+        Preview: draw, save and reopen BPMN processes; opens Bizagi .bpmn exports and exports BPMN 2.0 XML. One-click auto layout. The model check comes next. Unofficial student project.
       </footer>
     </div>
   )

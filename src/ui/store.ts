@@ -35,6 +35,8 @@ interface EditorState {
   doc: number
   /** When autosave last wrote the model to the browser (0 = not in this visit). */
   savedAt: number
+  /** Goes up when the whole drawing moved (auto layout): the canvas fits the view again. */
+  fit: number
 
   /** Runs an edit on a draft; on ModelError the model is untouched and the message is shown. */
   apply: (edit: (m: FlowModel) => void, opts?: ApplyOptions) => boolean
@@ -59,6 +61,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   focusName: null,
   doc: 0,
   savedAt: 0,
+  fit: 0,
 
   apply(edit, opts = {}) {
     const { model, past, lastEdit } = get()

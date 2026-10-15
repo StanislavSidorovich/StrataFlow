@@ -99,3 +99,15 @@ export async function openText(text: string, fileName: string): Promise<void> {
     showError(`${fileName} could not be opened: ${(e as Error).message}`)
   }
 }
+
+/** Auto layout: planned off the store (elkjs is async and loads on first use), applied as one undo step. */
+export async function layoutModel(): Promise<string | null> {
+  const before = useEditor.getState().model
+  const { planLayout, applyLayout } = await import('../core/layout')
+  const plan = await planLayout(before)
+  // An edit made while elkjs worked wins: the plan was for the old drawing.
+  if (useEditor.getState().model !== before) return null
+  useEditor.getState().apply((m) => applyLayout(m, plan))
+  useEditor.setState((s) => ({ fit: s.fit + 1 }))
+  return 'Laid out left to right, lanes kept. Undo puts everything back.'
+}
