@@ -12,7 +12,7 @@
 // - a flow without stored waypoints is routed between the facing sides of its ends, as the canvas draws it;
 // - the content of a collapsed sub-process is drawn in a diagram of its own, as bpmn.io does.
 import { BpmnModdle } from 'bpmn-moddle'
-import { isArtifact, type Bounds, type EventTrigger, type Flow, type FlowModel, type FlowNode, type GatewayKind, type Lane, type Point, type TaskKind } from '../metamodel'
+import { isArtifact, type Bounds, type EventTrigger, type Flow, type FlowModel, type FlowNode, type GatewayKind, type Lane, type LoopKind, type Point, type TaskKind } from '../metamodel'
 
 type El = any
 
@@ -50,6 +50,8 @@ const TRIGGERS: Record<Exclude<EventTrigger, 'none'>, string> = {
 export async function writeBpmn(m: FlowModel): Promise<string> {
   const moddle = new BpmnModdle()
   const make = (type: string, attrs: object = {}): El => moddle.create(type, attrs)
+  const loopMarker = (l: LoopKind) =>
+    l === 'standard' ? make('bpmn:StandardLoopCharacteristics') : make('bpmn:MultiInstanceLoopCharacteristics', l === 'sequential' ? { isSequential: true } : {})
 
   // Ids we add must not clash with the model's.
   const used = new Set<string>([...m.participants.flatMap((p) => [p.id, p.processId ?? '']), ...m.lanes.map((l) => l.id), ...m.nodes.map((n) => n.id), ...m.flows.map((f) => f.id)])
@@ -123,9 +125,11 @@ export async function writeBpmn(m: FlowModel): Promise<string> {
     switch (n.type) {
       case 'task':
         e = make(TASKS[n.kind], base)
+        if (n.loop) e.loopCharacteristics = loopMarker(n.loop)
         break
       case 'subProcess':
         e = make('bpmn:SubProcess', { ...base, flowElements: [], artifacts: [] })
+        if (n.loop) e.loopCharacteristics = loopMarker(n.loop)
         break
       case 'gateway':
         e = make(GATEWAYS[n.kind], base)

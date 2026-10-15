@@ -1,7 +1,7 @@
 // What the context menu offers (right-click, as in Bizagi) and the "Change type" popup of the context pad
 // (the wrench, as in bpmn.io). Plain data, no React: each entry runs one op on the model (one undo step)
 // or names a command the UI carries out. The menu lists only what the ops allow where the element is.
-import type { EventPosition, FlowModel, FlowNode, Point } from '../../core/metamodel'
+import type { EventPosition, FlowModel, FlowNode, LoopKind, Point } from '../../core/metamodel'
 import { POOL_HEADER, isArtifact } from '../../core/metamodel'
 import {
   addBoundaryEvent,
@@ -22,7 +22,7 @@ import {
   type NodeSpec,
 } from '../../core/ops'
 import { cardForElement } from '../../data/help'
-import { GATEWAY_KINDS, TASK_KINDS, triggerLabel } from '../choices'
+import { GATEWAY_KINDS, LOOP_KINDS, TASK_KINDS, triggerLabel } from '../choices'
 
 /** What the UI does itself: type a name, open a help card, group, ungroup, open a page, lay out, check. */
 export type Command = 'rename' | 'help' | 'group' | 'ungroup' | 'open-page' | 'layout' | 'check'
@@ -53,6 +53,11 @@ const POSITIONS: [Exclude<EventPosition, 'boundary'>, string][] = [
   ['end', 'End: the process ends'],
 ]
 
+/** Once, loop or multi-instance (help card "loop"). */
+function repeats(loop: LoopKind | undefined, set: (patch: Parameters<typeof updateNode>[2]) => (d: FlowModel) => void): MenuItem {
+  return { id: 'loop', label: 'Repeats', items: LOOP_KINDS.map(([k, l]) => ({ id: `loop-${k}`, label: l, checked: (loop ?? 'none') === k, edit: set({ loop: k }) })) }
+}
+
 /** The "change type" entries of one node: what the wrench shows and the top of its right-click menu. */
 export function typeEntries(m: FlowModel, id: string): MenuItem[] {
   const n = nodeOf(m, id)
@@ -64,6 +69,7 @@ export function typeEntries(m: FlowModel, id: string): MenuItem[] {
     case 'task':
       return [
         { id: 'kind', label: 'Task type', items: TASK_KINDS.map(([k, l]) => ({ id: `kind-${k}`, label: l, checked: n.kind === k, edit: set({ kind: k }) })) },
+        repeats(n.loop, set),
         { id: 'to-subprocess', label: 'Convert to sub-process', edit: (d) => convertActivity(d, id, 'subProcess') },
         { id: 'boundary', label: 'Add boundary event', title: 'A deadline, an error or a message while the task runs', edit: (d) => addBoundaryEvent(d, id).id },
       ]
@@ -71,6 +77,7 @@ export function typeEntries(m: FlowModel, id: string): MenuItem[] {
       return [
         ...(n.collapsed ? [{ id: 'open-page', label: 'Open sub-process', title: 'Its steps on a page of their own (double-click does the same)', command: 'open-page' as const }] : []),
         { id: 'expanded', label: 'Expanded', title: 'Shows its steps inside', checked: !n.collapsed, edit: (d) => setCollapsed(d, id, !n.collapsed) },
+        repeats(n.loop, set),
         { id: 'to-task', label: 'Convert to task', edit: (d) => convertActivity(d, id, 'task') },
         { id: 'ungroup', label: 'Ungroup', keys: 'Ctrl+Shift+G', title: 'Put its steps back in the process', command: 'ungroup' },
         { id: 'boundary', label: 'Add boundary event', edit: (d) => addBoundaryEvent(d, id).id },

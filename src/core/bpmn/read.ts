@@ -3,8 +3,8 @@
 // - every diagram carries an empty "Main Process" pool drawn at 30,30 under the real one;
 // - lane bounds have x relative to the pool (y is absolute): x = header width.
 import { BpmnModdle } from 'bpmn-moddle'
-import { place } from '../ops'
-import { isArtifact, type Bounds, type EventTrigger, type Flow, type FlowModel, type FlowNode, type GatewayKind, type Lane, type Participant, type TaskKind } from '../metamodel'
+import { pageOf, place } from '../ops'
+import { isArtifact, type Bounds, type EventTrigger, type Flow, type FlowModel, type FlowNode, type GatewayKind, type Lane, type LoopKind, type Participant, type TaskKind } from '../metamodel'
 
 /** A moddle element: typed loosely on purpose, the reader checks `$type` itself. */
 interface El {
@@ -54,6 +54,14 @@ const TRIGGERS: Record<string, EventTrigger> = {
 }
 
 const SUBPROCESSES = ['bpmn:SubProcess', 'bpmn:Transaction', 'bpmn:AdHocSubProcess']
+
+/** The loop or multi-instance marker of an activity. */
+function loopOf(el: El): LoopKind | undefined {
+  const l = el.loopCharacteristics as El | undefined
+  if (l?.$type === 'bpmn:StandardLoopCharacteristics') return 'standard'
+  if (l?.$type === 'bpmn:MultiInstanceLoopCharacteristics') return l.isSequential ? 'sequential' : 'parallel'
+  return undefined
+}
 
 const EVENTS: Record<string, { position: 'start' | 'intermediate' | 'end' | 'boundary'; throwing: boolean }> = {
   'bpmn:StartEvent': { position: 'start', throwing: false },
@@ -120,7 +128,8 @@ export async function readBpmn(xml: string): Promise<ReadResult> {
       for (const el of elements) {
         const base = { id: el.id, name: (el.name ?? '').trim(), participantId, laneId: laneOf.get(el.id), parentId }
         const t = el.$type
-        if (t in TASKS) nodes.push({ ...base, type: 'task', kind: TASKS[t] })
+        const loop = loopOf(el)
+        if (t in TASKS) nodes.push({ ...base, type: 'task', kind: TASKS[t], ...(loop && { loop }) })
         else if (t in GATEWAYS) nodes.push({ ...base, type: 'gateway', kind: GATEWAYS[t], defaultFlow: el.default?.id })
         else if (t in EVENTS) {
           const defsOf = (el.eventDefinitions ?? []) as El[]
@@ -138,7 +147,7 @@ export async function readBpmn(xml: string): Promise<ReadResult> {
             attachedTo: el.attachedToRef?.id,
           })
         } else if (SUBPROCESSES.includes(t)) {
-          nodes.push({ ...base, type: 'subProcess', collapsed: true })
+          nodes.push({ ...base, type: 'subProcess', collapsed: true, ...(loop && { loop }) })
           walk(el.flowElements ?? [], el.id)
           walk(el.artifacts ?? [], el.id)
         } else if (t === 'bpmn:DataObjectReference') nodes.push({ ...base, name: base.name || (el.dataObjectRef?.name ?? ''), type: 'dataObject', state: el.dataState?.name || undefined })
@@ -218,6 +227,13 @@ export async function readBpmn(xml: string): Promise<ReadResult> {
   const name = (collaboration?.name || processes.find((p) => poolOf.has(p.id))?.name || (participants.length ? '' : processes[0]?.name) || '').trim()
   const model: FlowModel = { format: 'strata-flow', version: 1, name, participants, lanes, nodes, flows: kept, diagram: { shapes, edges } }
   // Data and annotations belong to no lane in BPMN: like the editor, put them where they sit.
-  for (const n of nodes) if (isArtifact(n)) place(model, n.id)
+  // On a collapsed sub-process's page they take its pool and lane, as steps drawn there do.
+  for (const n of nodes) {
+    if (!isArtifact(n)) continue
+    const page = pageOf(model, n.id)
+    const holder = page && nodes.find((x) => x.id === page)
+    if (holder) (n.participantId = holder.participantId), (n.laneId = holder.laneId)
+    else place(model, n.id)
+  }
   return { model, warnings }
 }

@@ -1,0 +1,683 @@
+{
+  "format": "strata-flow",
+  "version": 1,
+  "name": "Patient admission",
+  "participants": [
+    {
+      "id": "Participant_1",
+      "name": "Hospital",
+      "processId": "Process_1"
+    }
+  ],
+  "lanes": [
+    {
+      "id": "Lane_1",
+      "name": "Admissions",
+      "participantId": "Participant_1"
+    },
+    {
+      "id": "Lane_2",
+      "name": "Doctor",
+      "participantId": "Participant_1"
+    },
+    {
+      "id": "Lane_3",
+      "name": "Diagnostics",
+      "participantId": "Participant_1"
+    },
+    {
+      "id": "Lane_4",
+      "name": "Ward",
+      "participantId": "Participant_1"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "Event_1",
+      "name": "Patient arrived",
+      "type": "event",
+      "position": "start",
+      "trigger": "none",
+      "throwing": false,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "SubProcess_1",
+      "name": "Register patient",
+      "type": "subProcess",
+      "collapsed": true,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Event_2",
+      "name": "",
+      "type": "event",
+      "position": "start",
+      "trigger": "none",
+      "throwing": false,
+      "parentId": "SubProcess_1",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_1",
+      "name": "Look up patient",
+      "type": "task",
+      "kind": "user",
+      "parentId": "SubProcess_1",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Gateway_1",
+      "name": "Patient known?",
+      "type": "gateway",
+      "kind": "exclusive",
+      "parentId": "SubProcess_1",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1",
+      "defaultFlow": "Flow_6"
+    },
+    {
+      "id": "Task_2",
+      "name": "Create patient entry",
+      "type": "task",
+      "kind": "user",
+      "parentId": "SubProcess_1",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Gateway_2",
+      "name": "",
+      "type": "gateway",
+      "kind": "exclusive",
+      "parentId": "SubProcess_1",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_3",
+      "name": "Print wristband",
+      "type": "task",
+      "kind": "manual",
+      "parentId": "SubProcess_1",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Event_3",
+      "name": "Patient registered",
+      "type": "event",
+      "position": "end",
+      "trigger": "none",
+      "throwing": true,
+      "parentId": "SubProcess_1",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "DataStore_1",
+      "name": "Patient database",
+      "type": "dataStore",
+      "parentId": "SubProcess_1",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_4",
+      "name": "Examine patient",
+      "type": "task",
+      "kind": "user",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "DataObject_1",
+      "name": "Referral letter",
+      "type": "dataObject",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Gateway_3",
+      "name": "Tests needed?",
+      "type": "gateway",
+      "kind": "inclusive",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Task_5",
+      "name": "Take blood test",
+      "type": "task",
+      "kind": "manual",
+      "participantId": "Participant_1",
+      "laneId": "Lane_3"
+    },
+    {
+      "id": "Task_6",
+      "name": "Take X-ray",
+      "type": "task",
+      "kind": "manual",
+      "participantId": "Participant_1",
+      "laneId": "Lane_3"
+    },
+    {
+      "id": "Gateway_4",
+      "name": "",
+      "type": "gateway",
+      "kind": "inclusive",
+      "participantId": "Participant_1",
+      "laneId": "Lane_3"
+    },
+    {
+      "id": "DataObject_2",
+      "name": "Test results",
+      "type": "dataObject",
+      "participantId": "Participant_1",
+      "laneId": "Lane_3"
+    },
+    {
+      "id": "Task_7",
+      "name": "Review test results",
+      "type": "task",
+      "kind": "user",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Gateway_5",
+      "name": "Stay needed?",
+      "type": "gateway",
+      "kind": "exclusive",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2",
+      "defaultFlow": "Flow_19"
+    },
+    {
+      "id": "Task_8",
+      "name": "Write treatment plan",
+      "type": "task",
+      "kind": "user",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Event_4",
+      "name": "Patient sent home",
+      "type": "event",
+      "position": "end",
+      "trigger": "none",
+      "throwing": true,
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "SubProcess_2",
+      "name": "Admit to ward",
+      "type": "subProcess",
+      "collapsed": true,
+      "participantId": "Participant_1",
+      "laneId": "Lane_4"
+    },
+    {
+      "id": "Event_5",
+      "name": "",
+      "type": "event",
+      "position": "start",
+      "trigger": "none",
+      "throwing": false,
+      "parentId": "SubProcess_2",
+      "participantId": "Participant_1",
+      "laneId": "Lane_4"
+    },
+    {
+      "id": "Task_9",
+      "name": "Assign bed",
+      "type": "task",
+      "kind": "user",
+      "parentId": "SubProcess_2",
+      "participantId": "Participant_1",
+      "laneId": "Lane_4"
+    },
+    {
+      "id": "Task_10",
+      "name": "Take patient to ward",
+      "type": "task",
+      "kind": "manual",
+      "parentId": "SubProcess_2",
+      "participantId": "Participant_1",
+      "laneId": "Lane_4"
+    },
+    {
+      "id": "Event_6",
+      "name": "Patient on ward",
+      "type": "event",
+      "position": "end",
+      "trigger": "none",
+      "throwing": true,
+      "parentId": "SubProcess_2",
+      "participantId": "Participant_1",
+      "laneId": "Lane_4"
+    },
+    {
+      "id": "Event_7",
+      "name": "Patient admitted",
+      "type": "event",
+      "position": "end",
+      "trigger": "none",
+      "throwing": true,
+      "participantId": "Participant_1",
+      "laneId": "Lane_4"
+    }
+  ],
+  "flows": [
+    {
+      "id": "Flow_1",
+      "kind": "sequence",
+      "source": "Event_1",
+      "target": "SubProcess_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_2",
+      "kind": "sequence",
+      "source": "Event_2",
+      "target": "Task_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_3",
+      "kind": "sequence",
+      "source": "Task_1",
+      "target": "Gateway_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_4",
+      "kind": "sequence",
+      "source": "Gateway_1",
+      "target": "Task_2",
+      "name": "No",
+      "condition": "the patient is not in the records"
+    },
+    {
+      "id": "Flow_5",
+      "kind": "sequence",
+      "source": "Task_2",
+      "target": "Gateway_2",
+      "name": ""
+    },
+    {
+      "id": "Flow_6",
+      "kind": "sequence",
+      "source": "Gateway_1",
+      "target": "Gateway_2",
+      "name": "Yes"
+    },
+    {
+      "id": "Flow_7",
+      "kind": "sequence",
+      "source": "Gateway_2",
+      "target": "Task_3",
+      "name": ""
+    },
+    {
+      "id": "Flow_8",
+      "kind": "sequence",
+      "source": "Task_3",
+      "target": "Event_3",
+      "name": ""
+    },
+    {
+      "id": "DataAssociation_1",
+      "kind": "data",
+      "source": "DataStore_1",
+      "target": "Task_1",
+      "name": ""
+    },
+    {
+      "id": "DataAssociation_2",
+      "kind": "data",
+      "source": "Task_2",
+      "target": "DataStore_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_9",
+      "kind": "sequence",
+      "source": "SubProcess_1",
+      "target": "Task_4",
+      "name": ""
+    },
+    {
+      "id": "DataAssociation_3",
+      "kind": "data",
+      "source": "DataObject_1",
+      "target": "Task_4",
+      "name": ""
+    },
+    {
+      "id": "Flow_10",
+      "kind": "sequence",
+      "source": "Task_4",
+      "target": "Gateway_3",
+      "name": ""
+    },
+    {
+      "id": "Flow_11",
+      "kind": "sequence",
+      "source": "Gateway_3",
+      "target": "Task_5",
+      "name": "Blood test",
+      "condition": "the doctor orders a blood test"
+    },
+    {
+      "id": "Flow_12",
+      "kind": "sequence",
+      "source": "Gateway_3",
+      "target": "Task_6",
+      "name": "X-ray",
+      "condition": "the doctor orders an X-ray"
+    },
+    {
+      "id": "Flow_13",
+      "kind": "sequence",
+      "source": "Task_5",
+      "target": "Gateway_4",
+      "name": ""
+    },
+    {
+      "id": "Flow_14",
+      "kind": "sequence",
+      "source": "Task_6",
+      "target": "Gateway_4",
+      "name": ""
+    },
+    {
+      "id": "DataAssociation_4",
+      "kind": "data",
+      "source": "Task_5",
+      "target": "DataObject_2",
+      "name": ""
+    },
+    {
+      "id": "DataAssociation_5",
+      "kind": "data",
+      "source": "Task_6",
+      "target": "DataObject_2",
+      "name": ""
+    },
+    {
+      "id": "Flow_15",
+      "kind": "sequence",
+      "source": "Gateway_4",
+      "target": "Task_7",
+      "name": ""
+    },
+    {
+      "id": "DataAssociation_6",
+      "kind": "data",
+      "source": "DataObject_2",
+      "target": "Task_7",
+      "name": ""
+    },
+    {
+      "id": "Flow_16",
+      "kind": "sequence",
+      "source": "Task_7",
+      "target": "Gateway_5",
+      "name": ""
+    },
+    {
+      "id": "Flow_17",
+      "kind": "sequence",
+      "source": "Gateway_5",
+      "target": "Task_8",
+      "name": "No",
+      "condition": "the patient can be treated at home"
+    },
+    {
+      "id": "Flow_18",
+      "kind": "sequence",
+      "source": "Task_8",
+      "target": "Event_4",
+      "name": ""
+    },
+    {
+      "id": "Flow_19",
+      "kind": "sequence",
+      "source": "Gateway_5",
+      "target": "SubProcess_2",
+      "name": "Yes"
+    },
+    {
+      "id": "Flow_20",
+      "kind": "sequence",
+      "source": "Event_5",
+      "target": "Task_9",
+      "name": ""
+    },
+    {
+      "id": "Flow_21",
+      "kind": "sequence",
+      "source": "Task_9",
+      "target": "Task_10",
+      "name": ""
+    },
+    {
+      "id": "Flow_22",
+      "kind": "sequence",
+      "source": "Task_10",
+      "target": "Event_6",
+      "name": ""
+    },
+    {
+      "id": "Flow_23",
+      "kind": "sequence",
+      "source": "SubProcess_2",
+      "target": "Event_7",
+      "name": ""
+    }
+  ],
+  "diagram": {
+    "shapes": {
+      "Participant_1": {
+        "x": 0,
+        "y": 0,
+        "width": 1354,
+        "height": 900
+      },
+      "Lane_1": {
+        "x": 30,
+        "y": 0,
+        "width": 1324,
+        "height": 150
+      },
+      "Lane_2": {
+        "x": 30,
+        "y": 150,
+        "width": 1324,
+        "height": 240
+      },
+      "Lane_3": {
+        "x": 30,
+        "y": 390,
+        "width": 1324,
+        "height": 360
+      },
+      "Lane_4": {
+        "x": 30,
+        "y": 750,
+        "width": 1324,
+        "height": 150
+      },
+      "Event_1": {
+        "x": 132,
+        "y": 52,
+        "width": 36,
+        "height": 36
+      },
+      "SubProcess_1": {
+        "x": 218,
+        "y": 30,
+        "width": 100,
+        "height": 80
+      },
+      "Event_2": {
+        "x": 200,
+        "y": 52,
+        "width": 36,
+        "height": 36
+      },
+      "Task_1": {
+        "x": 296,
+        "y": 30,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_1": {
+        "x": 456,
+        "y": 45,
+        "width": 50,
+        "height": 50
+      },
+      "Task_2": {
+        "x": 566,
+        "y": 30,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_2": {
+        "x": 726,
+        "y": 45,
+        "width": 50,
+        "height": 50
+      },
+      "Task_3": {
+        "x": 836,
+        "y": 30,
+        "width": 100,
+        "height": 80
+      },
+      "Event_3": {
+        "x": 996,
+        "y": 52,
+        "width": 36,
+        "height": 36
+      },
+      "DataStore_1": {
+        "x": 321,
+        "y": 205,
+        "width": 50,
+        "height": 50
+      },
+      "Task_4": {
+        "x": 368,
+        "y": 180,
+        "width": 100,
+        "height": 80
+      },
+      "DataObject_1": {
+        "x": 400,
+        "y": 300,
+        "width": 36,
+        "height": 50
+      },
+      "Gateway_3": {
+        "x": 518,
+        "y": 195,
+        "width": 50,
+        "height": 50
+      },
+      "Task_5": {
+        "x": 618,
+        "y": 420,
+        "width": 100,
+        "height": 80
+      },
+      "Task_6": {
+        "x": 618,
+        "y": 540,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_4": {
+        "x": 768,
+        "y": 435,
+        "width": 50,
+        "height": 50
+      },
+      "DataObject_2": {
+        "x": 733,
+        "y": 660,
+        "width": 36,
+        "height": 50
+      },
+      "Task_7": {
+        "x": 868,
+        "y": 180,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_5": {
+        "x": 1018,
+        "y": 195,
+        "width": 50,
+        "height": 50
+      },
+      "Task_8": {
+        "x": 1118,
+        "y": 180,
+        "width": 100,
+        "height": 80
+      },
+      "Event_4": {
+        "x": 1268,
+        "y": 202,
+        "width": 36,
+        "height": 36
+      },
+      "SubProcess_2": {
+        "x": 1118,
+        "y": 780,
+        "width": 100,
+        "height": 80
+      },
+      "Event_5": {
+        "x": 1100,
+        "y": 802,
+        "width": 36,
+        "height": 36
+      },
+      "Task_9": {
+        "x": 1196,
+        "y": 780,
+        "width": 100,
+        "height": 80
+      },
+      "Task_10": {
+        "x": 1356,
+        "y": 780,
+        "width": 100,
+        "height": 80
+      },
+      "Event_6": {
+        "x": 1516,
+        "y": 802,
+        "width": 36,
+        "height": 36
+      },
+      "Event_7": {
+        "x": 1268,
+        "y": 802,
+        "width": 36,
+        "height": 36
+      }
+    },
+    "edges": {}
+  }
+}

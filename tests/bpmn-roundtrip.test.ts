@@ -73,6 +73,16 @@ describe('BPMN round-trip', () => {
       await expectLossless(parseModel(readFileSync(`cases/${c.id}.flow.json`, 'utf8')))
     })
 
+  it('loop and multi-instance markers are written as BPMN loop characteristics', async () => {
+    const m = parseModel(readFileSync('cases/football-match.flow.json', 'utf8'))
+    const loop = m.nodes.find((n) => n.name === 'Open gates')!
+    Object.assign(loop, { loop: 'standard' })
+    const { xml } = await expectLossless(m)
+    expect(xml).toMatch(/<bpmn:serviceTask id="[^"]+" name="Check player registration">\s*<bpmn:incoming>[^]*?<bpmn:multiInstanceLoopCharacteristics \/>/)
+    expect(xml).toMatch(/<bpmn:multiInstanceLoopCharacteristics isSequential="true" \/>/)
+    expect(xml).toMatch(/<bpmn:standardLoopCharacteristics \/>/)
+  })
+
   it('the Bizagi-shaped sample, once read, is lossless', async () => {
     const { model } = await readBpmn(readFileSync('src/data/examples/library-loan.bpmn', 'utf8'))
     await expectLossless(model)

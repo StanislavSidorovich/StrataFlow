@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest'
 import { compareModels, nameSimilarity } from '../src/core/compare'
 import type { FlowModel } from '../src/core/metamodel'
-import { addNode, connect, deleteElements, moveElements, rename, updateNode } from '../src/core/ops'
+import { addNode, connect, deleteElements, moveElements, rename, ungroupSubprocess, updateNode } from '../src/core/ops'
 import { CASES, caseById } from '../src/data/cases'
 import { compareWithCase } from '../src/data/trainer'
 
@@ -11,6 +11,8 @@ const library = caseById('library-lend')!
 const hotel = caseById('hotel-booking')!
 const shop = caseById('shop-order')!
 const scooter = caseById('scooter-ride')!
+const hospital = caseById('hospital-admission')!
+const football = caseById('football-match')!
 
 const byName = (m: FlowModel, name: string) => {
   const n = m.nodes.find((x) => x.name === name) ?? m.participants.find((x) => x.name === name) ?? m.lanes.find((x) => x.name === name)
@@ -201,6 +203,64 @@ describe('compare with the reference', () => {
     const retry = byName(m, 'Ask for new photo')
     deleteElements(m, m.flows.filter((f) => f.kind === 'sequence' && f.source === retry).map((f) => f.id))
     expect(notOk(m, scooter).map((i) => i.status)).toContain('missing')
+  })
+
+  it('hospital: an XOR or an AND where the doctor orders one or both tests is "different", the inclusive one is asked for', () => {
+    for (const kind of ['exclusive', 'parallel'] as const) {
+      const m = hospital.reference()
+      const tests = byName(m, 'Tests needed?')
+      const join = m.flows.find((f) => f.source === byName(m, 'Take blood test'))!.target
+      updateNode(m, tests, { kind })
+      updateNode(m, join, { kind })
+      const bad = notOk(m, hospital)
+      expect(bad, kind).toHaveLength(1)
+      expect(bad[0]).toMatchObject({ kind: 'decision', status: 'different', key: 'decision:Tests needed?' })
+      expect(bad[0].text).toMatch(/inclusive gateway \(one or more ways are taken\)/)
+    }
+  })
+
+  it('hospital: a flat model without the Register patient sub-process misses it, the steps inside still count', () => {
+    const m = hospital.reference()
+    ungroupSubprocess(m, byName(m, 'Register patient'))
+    const bad = notOk(m, hospital)
+    expect(bad.map((i) => `${i.status} ${i.key}`)).toContain('missing step:Register patient')
+    expect(bad.some((i) => i.key === 'step:Look up patient')).toBe(false)
+  })
+
+  it('hospital: the patient database drawn as a data object is "different"', () => {
+    const m = hospital.reference()
+    const store = m.nodes.find((n) => n.name === 'Patient database')!
+    Object.assign(store, { type: 'dataObject' })
+    const bad = notOk(m, hospital)
+    expect(bad).toHaveLength(1)
+    expect(bad[0]).toMatchObject({ key: 'data:Patient database', status: 'different' })
+    expect(bad[0].text).toMatch(/data store/)
+  })
+
+  it('football: a missing or wrong multi-instance marker is "different" and names the marker', () => {
+    const m = football.reference()
+    updateNode(m, byName(m, 'Check player registration'), { loop: 'none' })
+    updateNode(m, byName(m, 'Hold press conference'), { loop: 'parallel' })
+    const bad = notOk(m, football)
+    expect(bad.map((i) => `${i.status} ${i.key}`)).toEqual(['different step:Check player registration', 'different step:Hold press conference'])
+    expect(bad[0].text).toMatch(/parallel multi-instance/)
+    expect(bad[1].text).toMatch(/sequential multi-instance/)
+  })
+
+  it('football: an XOR after the sub-process instead of the error boundary event misses the boundary event', () => {
+    const m = football.reference()
+    const caught = byName(m, 'Stadium unsafe')
+    const callOff = byName(m, 'Call off match')
+    deleteElements(m, [caught])
+    const xor = addNode(m, { type: 'gateway' }, { x: 400, y: 100 }, 'Stadium safe?')
+    const prep = byName(m, 'Prepare stadium')
+    const next = m.flows.find((f) => f.source === prep && f.kind === 'sequence')!
+    connect(m, prep, xor.id)
+    connect(m, xor.id, next.target)
+    deleteElements(m, [next.id])
+    connect(m, xor.id, callOff)
+    const bad = notOk(m, football)
+    expect(bad.map((i) => `${i.status} ${i.key}`)).toContain('missing step:Stadium unsafe')
   })
 
   it('the score halves for different items and counts extras', () => {

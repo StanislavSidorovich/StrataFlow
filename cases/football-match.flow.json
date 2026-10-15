@@ -1,0 +1,521 @@
+{
+  "format": "strata-flow",
+  "version": 1,
+  "name": "Match day",
+  "participants": [
+    {
+      "id": "Participant_1",
+      "name": "Home club",
+      "processId": "Process_1"
+    },
+    {
+      "id": "Participant_2",
+      "name": "League"
+    },
+    {
+      "id": "Participant_3",
+      "name": "Visiting club"
+    }
+  ],
+  "lanes": [
+    {
+      "id": "Lane_1",
+      "name": "Match office",
+      "participantId": "Participant_1"
+    },
+    {
+      "id": "Lane_2",
+      "name": "Security",
+      "participantId": "Participant_1"
+    },
+    {
+      "id": "Lane_3",
+      "name": "Press office",
+      "participantId": "Participant_1"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "Event_1",
+      "name": "Fixture confirmed",
+      "type": "event",
+      "position": "start",
+      "trigger": "message",
+      "throwing": false,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "SubProcess_1",
+      "name": "Prepare stadium",
+      "type": "subProcess",
+      "collapsed": true,
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Event_2",
+      "name": "",
+      "type": "event",
+      "position": "start",
+      "trigger": "none",
+      "throwing": false,
+      "parentId": "SubProcess_1",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Task_1",
+      "name": "Inspect stands",
+      "type": "task",
+      "kind": "manual",
+      "parentId": "SubProcess_1",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Gateway_1",
+      "name": "Stands safe?",
+      "type": "gateway",
+      "kind": "exclusive",
+      "parentId": "SubProcess_1",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2",
+      "defaultFlow": "Flow_5"
+    },
+    {
+      "id": "Event_3",
+      "name": "Stand unsafe",
+      "type": "event",
+      "position": "end",
+      "trigger": "error",
+      "throwing": true,
+      "parentId": "SubProcess_1",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Task_2",
+      "name": "Set up gates",
+      "type": "task",
+      "kind": "manual",
+      "parentId": "SubProcess_1",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Event_4",
+      "name": "Stadium ready",
+      "type": "event",
+      "position": "end",
+      "trigger": "none",
+      "throwing": true,
+      "parentId": "SubProcess_1",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Event_5",
+      "name": "Stadium unsafe",
+      "type": "event",
+      "position": "boundary",
+      "trigger": "error",
+      "throwing": false,
+      "interrupting": true,
+      "attachedTo": "SubProcess_1",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Task_3",
+      "name": "Call off match",
+      "type": "task",
+      "kind": "user",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Event_6",
+      "name": "Match called off",
+      "type": "event",
+      "position": "end",
+      "trigger": "message",
+      "throwing": true,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_4",
+      "name": "Check player registration",
+      "type": "task",
+      "kind": "service",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1",
+      "loop": "parallel"
+    },
+    {
+      "id": "Task_5",
+      "name": "Open gates",
+      "type": "task",
+      "kind": "manual",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Task_6",
+      "name": "Host match",
+      "type": "task",
+      "kind": "task",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Gateway_2",
+      "name": "",
+      "type": "gateway",
+      "kind": "parallel",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_7",
+      "name": "Hold press conference",
+      "type": "task",
+      "kind": "manual",
+      "participantId": "Participant_1",
+      "laneId": "Lane_3",
+      "loop": "sequential"
+    },
+    {
+      "id": "Task_8",
+      "name": "Send result",
+      "type": "task",
+      "kind": "send",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Gateway_3",
+      "name": "",
+      "type": "gateway",
+      "kind": "parallel",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Event_7",
+      "name": "Match day closed",
+      "type": "event",
+      "position": "end",
+      "trigger": "none",
+      "throwing": true,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    }
+  ],
+  "flows": [
+    {
+      "id": "Flow_1",
+      "kind": "sequence",
+      "source": "Event_1",
+      "target": "SubProcess_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_2",
+      "kind": "sequence",
+      "source": "Event_2",
+      "target": "Task_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_3",
+      "kind": "sequence",
+      "source": "Task_1",
+      "target": "Gateway_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_4",
+      "kind": "sequence",
+      "source": "Gateway_1",
+      "target": "Event_3",
+      "name": "No",
+      "condition": "a stand is unsafe"
+    },
+    {
+      "id": "Flow_5",
+      "kind": "sequence",
+      "source": "Gateway_1",
+      "target": "Task_2",
+      "name": "Yes"
+    },
+    {
+      "id": "Flow_6",
+      "kind": "sequence",
+      "source": "Task_2",
+      "target": "Event_4",
+      "name": ""
+    },
+    {
+      "id": "Flow_7",
+      "kind": "sequence",
+      "source": "Event_5",
+      "target": "Task_3",
+      "name": ""
+    },
+    {
+      "id": "Flow_8",
+      "kind": "sequence",
+      "source": "Task_3",
+      "target": "Event_6",
+      "name": ""
+    },
+    {
+      "id": "Flow_9",
+      "kind": "sequence",
+      "source": "SubProcess_1",
+      "target": "Task_4",
+      "name": ""
+    },
+    {
+      "id": "Flow_10",
+      "kind": "sequence",
+      "source": "Task_4",
+      "target": "Task_5",
+      "name": ""
+    },
+    {
+      "id": "Flow_11",
+      "kind": "sequence",
+      "source": "Task_5",
+      "target": "Task_6",
+      "name": ""
+    },
+    {
+      "id": "Flow_12",
+      "kind": "sequence",
+      "source": "Task_6",
+      "target": "Gateway_2",
+      "name": ""
+    },
+    {
+      "id": "Flow_13",
+      "kind": "sequence",
+      "source": "Gateway_2",
+      "target": "Task_7",
+      "name": ""
+    },
+    {
+      "id": "Flow_14",
+      "kind": "sequence",
+      "source": "Gateway_2",
+      "target": "Task_8",
+      "name": ""
+    },
+    {
+      "id": "Flow_15",
+      "kind": "sequence",
+      "source": "Task_7",
+      "target": "Gateway_3",
+      "name": ""
+    },
+    {
+      "id": "Flow_16",
+      "kind": "sequence",
+      "source": "Task_8",
+      "target": "Gateway_3",
+      "name": ""
+    },
+    {
+      "id": "Flow_17",
+      "kind": "sequence",
+      "source": "Gateway_3",
+      "target": "Event_7",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_1",
+      "kind": "message",
+      "source": "Participant_2",
+      "target": "Event_1",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_2",
+      "kind": "message",
+      "source": "Event_6",
+      "target": "Participant_2",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_3",
+      "kind": "message",
+      "source": "Event_6",
+      "target": "Participant_3",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_4",
+      "kind": "message",
+      "source": "Task_8",
+      "target": "Participant_2",
+      "name": ""
+    }
+  ],
+  "diagram": {
+    "shapes": {
+      "Participant_1": {
+        "x": 0,
+        "y": 0,
+        "width": 1254,
+        "height": 570
+      },
+      "Lane_1": {
+        "x": 30,
+        "y": 0,
+        "width": 1224,
+        "height": 270
+      },
+      "Lane_2": {
+        "x": 30,
+        "y": 270,
+        "width": 1224,
+        "height": 150
+      },
+      "Lane_3": {
+        "x": 30,
+        "y": 420,
+        "width": 1224,
+        "height": 150
+      },
+      "Participant_2": {
+        "x": 0,
+        "y": 630,
+        "width": 1254,
+        "height": 250
+      },
+      "Participant_3": {
+        "x": 0,
+        "y": 940,
+        "width": 1254,
+        "height": 250
+      },
+      "Event_1": {
+        "x": 132,
+        "y": 172,
+        "width": 36,
+        "height": 36
+      },
+      "SubProcess_1": {
+        "x": 218,
+        "y": 300,
+        "width": 100,
+        "height": 80
+      },
+      "Event_2": {
+        "x": 200,
+        "y": 322,
+        "width": 36,
+        "height": 36
+      },
+      "Task_1": {
+        "x": 296,
+        "y": 300,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_1": {
+        "x": 456,
+        "y": 315,
+        "width": 50,
+        "height": 50
+      },
+      "Event_3": {
+        "x": 566,
+        "y": 322,
+        "width": 36,
+        "height": 36
+      },
+      "Task_2": {
+        "x": 566,
+        "y": 410,
+        "width": 100,
+        "height": 80
+      },
+      "Event_4": {
+        "x": 726,
+        "y": 432,
+        "width": 36,
+        "height": 36
+      },
+      "Event_5": {
+        "x": 270,
+        "y": 362,
+        "width": 36,
+        "height": 36
+      },
+      "Task_3": {
+        "x": 368,
+        "y": 30,
+        "width": 100,
+        "height": 80
+      },
+      "Event_6": {
+        "x": 518,
+        "y": 52,
+        "width": 36,
+        "height": 36
+      },
+      "Task_4": {
+        "x": 368,
+        "y": 150,
+        "width": 100,
+        "height": 80
+      },
+      "Task_5": {
+        "x": 518,
+        "y": 300,
+        "width": 100,
+        "height": 80
+      },
+      "Task_6": {
+        "x": 668,
+        "y": 150,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_2": {
+        "x": 818,
+        "y": 165,
+        "width": 50,
+        "height": 50
+      },
+      "Task_7": {
+        "x": 918,
+        "y": 450,
+        "width": 100,
+        "height": 80
+      },
+      "Task_8": {
+        "x": 918,
+        "y": 150,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_3": {
+        "x": 1068,
+        "y": 165,
+        "width": 50,
+        "height": 50
+      },
+      "Event_7": {
+        "x": 1168,
+        "y": 172,
+        "width": 36,
+        "height": 36
+      }
+    },
+    "edges": {}
+  }
+}

@@ -60,7 +60,7 @@ FlowModel
  │   └─ Lane             name, children: Lane[]                 (nested lanes allowed)
  ├─ Process              id, nodes[], flows[]
  │   ├─ Task             name, kind: task|user|service|manual|send|receive|script|businessRule,
- │   │                   loop?: standard|parallelMI|sequentialMI, laneId
+ │   │                   loop?: standard|parallel|sequential, laneId
  │   ├─ SubProcess       name, collapsed, eventSub?, nodes[], flows[], laneId   (nested process)
  │   ├─ Event            position: start|intermediate|end|boundary,
  │   │                   trigger: none|message|timer|error|signal|conditional|escalation|terminate|link,

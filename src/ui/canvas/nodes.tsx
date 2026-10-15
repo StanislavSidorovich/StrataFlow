@@ -3,7 +3,7 @@
 // connection; the editor decides the flow kind. Resizing ends in one undoable edit.
 import { Handle, NodeResizer, NodeResizeControl, Position, type Node, type NodeProps } from '@xyflow/react'
 import type { Severity } from '../../core/lint'
-import type { FlowNode } from '../../core/metamodel'
+import type { FlowNode, LoopKind } from '../../core/metamodel'
 import { resizeElement, resizeLane } from '../../core/ops'
 import { useEditor } from '../store'
 import { ContextPad } from './ContextPad'
@@ -77,6 +77,21 @@ export function BpmnShape({ data, width = 0, height = 0, selected }: NodeProps<S
   )
 }
 
+/** Loop (circular arrow) or multi-instance (three bars: vertical = parallel, horizontal = sequential), bottom centre. */
+function LoopMarker({ loop, x, y }: { loop: LoopKind; x: number; y: number }) {
+  return (
+    <g transform={`translate(${x} ${y})`} data-testid={`loop:${loop}`}>
+      {loop === 'standard' ? (
+        <path d="M3.5 11 A5 5 0 1 1 10.5 11 M10.5 11 l0.2 -3.4 M10.5 11 l-3.3 -0.6" className="bpmn-stroke" fill="none" />
+      ) : loop === 'parallel' ? (
+        <path d="M3 1v12M7 1v12M11 1v12" className="bpmn-stroke" strokeWidth={2} />
+      ) : (
+        <path d="M1 3h12M1 7h12M1 11h12" className="bpmn-stroke" strokeWidth={2} />
+      )}
+    </g>
+  )
+}
+
 function Figure({ el, w, h }: { el: FlowNode; w: number; h: number }) {
   switch (el.type) {
     case 'task':
@@ -84,6 +99,7 @@ function Figure({ el, w, h }: { el: FlowNode; w: number; h: number }) {
         <>
           <rect x={0.75} y={0.75} width={w - 1.5} height={h - 1.5} rx={8} className="bpmn-stroke bpmn-fill" />
           <TaskMarker kind={el.kind} />
+          {el.loop && <LoopMarker loop={el.loop} x={w / 2 - 7} y={h - 16} />}
         </>
       )
     case 'subProcess':
@@ -96,6 +112,7 @@ function Figure({ el, w, h }: { el: FlowNode; w: number; h: number }) {
               <path d="M7 3v8M3 7h8" className="bpmn-stroke" />
             </g>
           )}
+          {el.loop && <LoopMarker loop={el.loop} x={w / 2 - 7 - (el.collapsed ? 18 : 0)} y={h - 16} />}
         </>
       )
     case 'event': {

@@ -2,8 +2,8 @@
 // is one undo step per field (coalesced), every other change is one step.
 import { useEffect, useRef } from 'react'
 import { ArrowLeftRight, FolderOpen, Group, Plus, Trash2, Ungroup } from 'lucide-react'
-import type { EventPosition, EventTrigger, FlowModel, FlowNode, GatewayKind, TaskKind } from '../../core/metamodel'
-import { GATEWAY_KINDS, TASK_KINDS, triggerLabel } from '../choices'
+import type { EventPosition, EventTrigger, FlowModel, FlowNode, GatewayKind, LoopKind, TaskKind } from '../../core/metamodel'
+import { GATEWAY_KINDS, LOOP_KINDS, TASK_KINDS, triggerLabel } from '../choices'
 import {
   addBoundaryEvent,
   addLane,
@@ -138,6 +138,15 @@ function NodeProps({ model, n }: { model: FlowModel; n: FlowNode }) {
               ))}
             </select>
           </Field>
+          <Field label="Repeats" help="loop">
+            <select value={n.loop ?? 'none'} onChange={(e) => patch({ loop: e.target.value as LoopKind | 'none' })} data-testid="loop-kind">
+              {LOOP_KINDS.map(([k, l]) => (
+                <option key={k} value={k}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </Field>
           <div className="row">
             <button className="btn" onClick={() => apply((m) => convertActivity(m, n.id, 'subProcess'))}>
               To sub-process
@@ -165,6 +174,15 @@ function NodeProps({ model, n }: { model: FlowModel; n: FlowNode }) {
               <FolderOpen size={14} /> Open sub-process
             </button>
           )}
+          <Field label="Repeats" help="loop">
+            <select value={n.loop ?? 'none'} onChange={(e) => patch({ loop: e.target.value as LoopKind | 'none' })} data-testid="loop-kind">
+              {LOOP_KINDS.map(([k, l]) => (
+                <option key={k} value={k}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </Field>
           <div className="row">
             <button className="btn" onClick={() => apply((m) => convertActivity(m, n.id, 'task'))}>
               To task

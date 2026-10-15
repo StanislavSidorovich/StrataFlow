@@ -3,7 +3,7 @@
 // neighbours). Order is compared as "links": which step comes right after which, looking through
 // gateways, so an equivalent structure with other gateways counts as right; decisions are compared by
 // what their branches lead to and by kind. Layout and gateway count do not matter.
-import { isArtifact, type Flow, type FlowModel, type FlowNode, type GatewayKind } from './metamodel'
+import { isArtifact, type Flow, type FlowModel, type FlowNode, type GatewayKind, type LoopKind } from './metamodel'
 
 export type ItemStatus = 'ok' | 'missing' | 'different' | 'extra'
 export type ItemKind = 'pool' | 'lane' | 'step' | 'decision' | 'link' | 'message' | 'data'
@@ -340,6 +340,8 @@ export function compareModels(ref: FlowModel, mine: FlowModel, opts: CompareOpti
       if (r.kind === 'receive' && n.trigger === 'message' && !n.throwing && n.position !== 'end') return null
       return `${name} is work to do (a task); yours is an event.`
     }
+    if ((r.type === 'task' || r.type === 'subProcess') && (n.type === 'task' || n.type === 'subProcess') && (r.loop ?? '') !== (n.loop ?? ''))
+      return r.loop ? `${name} repeats: ${LOOP_MEANING[r.loop]}.` : `${name} runs once: the text does not ask for a ${n.loop === 'standard' ? 'loop' : 'multi-instance'} marker.`
     return null
   }
 
@@ -461,7 +463,18 @@ export function compareModels(ref: FlowModel, mine: FlowModel, opts: CompareOpti
     const want = mapped(linked(ref, d.id))
     const have = linked(mine, hit.id)
     const ok = [...want].every((x) => have.has(x))
-    add({ ...base, mine: [hit.id], status: ok ? 'ok' : 'different', text: ok ? `Data “${d.name}”.` : `Data “${d.name}” should be linked to ${[...linked(ref, d.id)].map((x) => label(R.byId.get(x))).join(', ')}.` })
+    const kind =
+      d.type === hit.type
+        ? ''
+        : d.type === 'dataStore'
+          ? `“${d.name}” is kept beyond this case and other processes use it: a data store (cylinder), not a data object.`
+          : `“${d.name}” exists for this case only: a data object (a page), not a data store.`
+    add({
+      ...base,
+      mine: [hit.id],
+      status: ok && !kind ? 'ok' : 'different',
+      text: kind || (ok ? `Data “${d.name}”.` : `Data “${d.name}” should be linked to ${[...linked(ref, d.id)].map((x) => label(R.byId.get(x))).join(', ')}.`),
+    })
   }
   for (const d of myData) if (!taken.has(d.id)) add({ key: `extra:${d.id}`, kind: 'data', status: 'extra', ref: [], mine: [d.id], text: `Data ${label(d)} is not in the reference.` })
 
@@ -479,6 +492,12 @@ const GATEWAY_MEANING: Record<GatewayKind, string> = {
   inclusive: 'one or more ways are taken',
   eventBased: 'the first event to happen decides',
   complex: 'a rule decides',
+}
+
+const LOOP_MEANING: Record<LoopKind, string> = {
+  standard: 'a loop marker (circular arrow), done again while a condition holds',
+  parallel: 'a parallel multi-instance marker (three vertical bars), once for each item, all at the same time',
+  sequential: 'a sequential multi-instance marker (three horizontal bars), once for each item, one after another',
 }
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)

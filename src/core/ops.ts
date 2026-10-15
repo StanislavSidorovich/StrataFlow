@@ -16,6 +16,7 @@ import {
   type FlowNode,
   type GatewayKind,
   type Lane,
+  type LoopKind,
   type Participant,
   type Point,
   type TaskKind,
@@ -437,6 +438,8 @@ export type NodePatch = {
   interrupting?: boolean
   state?: string
   collapsed?: boolean
+  /** Loop or multi-instance marker of a task or sub-process; 'none' removes it. */
+  loop?: LoopKind | 'none'
 }
 
 /** Triggers BPMN allows per event position (start, intermediate catch and boundary catch; `throw` = intermediate throw). */
@@ -465,6 +468,11 @@ export function canInterrupt(m: FlowModel, id: string): boolean {
  */
 export function updateNode(m: FlowModel, id: string, patch: NodePatch): void {
   const n = nodeOrThrow(m, id)
+  if (patch.loop !== undefined) {
+    if (n.type !== 'task' && n.type !== 'subProcess') throw new ModelError('Only a task or a sub-process repeats')
+    if (patch.loop === 'none') delete n.loop
+    else n.loop = patch.loop
+  }
   if (n.type === 'task' && patch.kind) n.kind = patch.kind as TaskKind
   else if (n.type === 'gateway' && patch.kind) {
     n.kind = patch.kind as GatewayKind
@@ -501,8 +509,9 @@ export function convertActivity(m: FlowModel, id: string, to: 'task' | 'subProce
   if (!n || (n.type !== 'task' && n.type !== 'subProcess')) throw new ModelError('Only a task or a sub-process converts')
   if (n.type === to) return
   if (n.type === 'subProcess' && m.nodes.some((x) => x.parentId === id)) throw new ModelError('Ungroup the sub-process first, or empty it')
-  const { participantId, laneId, parentId, name } = n
+  const { participantId, laneId, parentId, name, loop } = n
   m.nodes[i] = to === 'task' ? { id, name, participantId, laneId, parentId, type: 'task', kind: 'task' } : { id, name, participantId, laneId, parentId, type: 'subProcess', collapsed: true }
+  if (loop) (m.nodes[i] as { loop?: LoopKind }).loop = loop
 }
 
 export function setFlow(m: FlowModel, id: string, patch: { name?: string; condition?: string }): void {

@@ -146,6 +146,57 @@ export const LESSONS: Lesson[] = [
     cards: ['timer-event', 'boundary-event', 'intermediate-event'],
     practice: { caseId: 'shop-order', level: 3 },
   },
+  {
+    id: 'event-based',
+    title: 'Whichever comes first: the event-based gateway',
+    goal: 'Let the other party decide: wait for the first of several events, and do not wait for a message that may never come.',
+    guess: {
+      q: '"Now one of two things happens first: the photo arrives, or 10 minutes pass." Can the company check a condition here, as with "If the card is valid"?',
+      options: ['Yes, with an exclusive gateway', 'No: it does not know yet which will happen, it can only wait and react', 'Yes, with a parallel gateway'],
+      answer: 1,
+      explain: 'An exclusive gateway tests data the process already has. Here the rider decides; the company waits for the photo or the deadline, whichever comes first.',
+    },
+    gist: [
+      'An **event-based gateway** (a diamond with a pentagon in a double circle) is followed only by catching events or receive tasks: *Parking photo received* (message), *10 minutes* (timer). The first one to happen wins; the other ways are dropped.',
+      'Use it when **another participant decides** what comes next (the customer pays or cancels, the rider sends a photo or not) or when a deadline races a message.',
+      'The branches are closed by an **exclusive join**: only one of them ever runs. A loop back ("waits again") goes to an exclusive join in front of the gateway, so the race and its timer start again.',
+      'Collaboration check: when a pool always waits for a message that the other pool sends only on some paths, the waiting pool can be stuck forever (course exercise 3.7). Wait for each possible answer with an event-based gateway, or put a timer on the border of the wait.',
+    ],
+    trap: 'An exclusive gateway "Photo arrived?" right after asking for the photo. The process has no data to decide on yet: it is the rider who decides, by sending or not. The check P18 flags the wait that may never end.',
+    test: [
+      { q: 'What may follow an event-based gateway?', options: ['Tasks of any kind', 'Catching events and receive tasks', 'Another gateway'], answer: 1, explain: 'It waits for something to happen: only things that can be waited for (P10).' },
+      { q: 'The customer either confirms the order or cancels it, and the shop waits for whichever message comes. Which gateway?', options: ['Exclusive', 'Event-based', 'Inclusive'], answer: 1, explain: 'The customer decides; the shop reacts to the first message.' },
+      { q: 'The two branches after the gateway meet again before "Charge ride". Which join?', options: ['A parallel join', 'An exclusive join', 'No join is allowed'], answer: 1, explain: 'Only one branch runs: an AND join would wait forever.' },
+      { q: 'Another way to say "wait for the photo for at most 10 minutes"?', options: ['A receive task with an interrupting 10-minute timer on its border', 'A timer start event', 'A send task with a timer before it'], answer: 0, explain: 'Both forms are right; the gateway shows the two outcomes as equals.' },
+    ],
+    cards: ['event-based-gateway', 'intermediate-event', 'timer-event', 'message-event'],
+    practice: { caseId: 'scooter-ride', level: 2 },
+  },
+  {
+    id: 'subprocess-data-or',
+    title: 'Sub-processes, data and the OR gateway',
+    goal: 'Keep the main diagram at one level with sub-processes, show the documents and records the work uses, and know when one or more ways run.',
+    guess: {
+      q: '"The diagnostics team takes a blood test, an X-ray, or both." How many of the two ways can run?',
+      options: ['Exactly one', 'Always both', 'One or both'],
+      answer: 2,
+      explain: '"Or both" means one or more: an inclusive (OR) gateway, a diamond with a circle.',
+    },
+    gist: [
+      'A **sub-process** is an activity with steps of its own. Collapsed (a + at the bottom), it is one step on the main diagram and its steps are on a page of their own: double-click it (Bizagi: Edit Sub-Process). The page has its own start and end event.',
+      'Use one when the text tells how a step works in detail ("Registering works like this: …"), or when the main diagram grows past about 30 elements (7PMG G7).',
+      'A **data object** (a page) is a document or record of this case: *Referral letter*, *Test results*. A **data store** (a cylinder) is kept beyond the case and shared: *Patient database*. The dotted arrow points from the data to a task that reads it, from a task to the data it writes.',
+      'An **inclusive gateway (OR)**: one or more of the ways run, each with its condition. The OR join waits for the ways that were started, and only for them. Use it only where any combination is allowed: an XOR or an AND is easier to read.',
+    ],
+    trap: 'Closing an OR split with an AND join (waits for a test that was never ordered) or an XOR join (goes on after the first test, and again after the second). An OR join belongs right after its OR split.',
+    test: [
+      { q: 'The patient database is used by many processes and kept for years. It is…', options: ['a data object', 'a data store', 'a pool'], answer: 1, explain: 'Kept and shared: a data store.' },
+      { q: 'Where are the steps of a collapsed sub-process drawn?', options: ['Nowhere: it is a task', 'On its own page, opened by a double-click', 'In a separate pool'], answer: 1, explain: 'One step on the main diagram, the detail on its page.' },
+      { q: '"The clerk either phones or e-mails the customer." Which gateway?', options: ['Exclusive (XOR)', 'Inclusive (OR)', 'Parallel (AND)'], answer: 0, explain: '"Either … or" is exactly one way: XOR. OR only when several may run together.' },
+    ],
+    cards: ['sub-process', 'data-object', 'data-store', 'inclusive-gateway'],
+    practice: { caseId: 'hospital-admission', level: 2 },
+  },
 ]
 
 export const lessonById = (id: string) => LESSONS.find((l) => l.id === id)

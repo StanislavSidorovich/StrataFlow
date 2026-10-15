@@ -1,5 +1,5 @@
 // Names of the kinds an element can be changed into, shared by Properties and the context menu.
-import type { EventTrigger, GatewayKind, TaskKind } from '../core/metamodel'
+import type { EventTrigger, GatewayKind, LoopKind, TaskKind } from '../core/metamodel'
 
 export const TASK_KINDS: [TaskKind, string][] = [
   ['task', 'Task (no type)'],
@@ -18,6 +18,13 @@ export const GATEWAY_KINDS: [GatewayKind, string][] = [
   ['inclusive', 'Inclusive (OR): one or more ways'],
   ['eventBased', 'Event-based: the first event to happen'],
   ['complex', 'Complex'],
+]
+
+export const LOOP_KINDS: [LoopKind | 'none', string][] = [
+  ['none', 'Once'],
+  ['standard', 'Loop: again while a condition holds'],
+  ['parallel', 'Multi-instance, parallel: each item at once'],
+  ['sequential', 'Multi-instance, sequential: one item after another'],
 ]
 
 export const triggerLabel = (t: EventTrigger) => (t === 'none' ? 'None' : t.charAt(0).toUpperCase() + t.slice(1))

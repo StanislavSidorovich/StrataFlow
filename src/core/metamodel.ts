@@ -15,6 +15,8 @@ export type EventTrigger =
   | 'link'
   | 'compensation'
 export type GatewayKind = 'exclusive' | 'parallel' | 'inclusive' | 'eventBased' | 'complex'
+/** Repeats of an activity: a loop (while a condition holds) or multi-instance, all at once (parallel) or one after another (sequential). */
+export type LoopKind = 'standard' | 'parallel' | 'sequential'
 
 interface NodeBase {
   id: string
@@ -28,8 +30,8 @@ interface NodeBase {
 
 export type FlowNode = NodeBase &
   (
-    | { type: 'task'; kind: TaskKind }
-    | { type: 'subProcess'; collapsed: boolean }
+    | { type: 'task'; kind: TaskKind; loop?: LoopKind }
+    | { type: 'subProcess'; collapsed: boolean; loop?: LoopKind }
     | { type: 'event'; position: EventPosition; trigger: EventTrigger; throwing: boolean; interrupting?: boolean; attachedTo?: string }
     | { type: 'gateway'; kind: GatewayKind; defaultFlow?: string }
     | { type: 'dataObject'; state?: string }

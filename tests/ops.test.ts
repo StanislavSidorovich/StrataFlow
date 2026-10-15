@@ -304,3 +304,20 @@ describe('delete', () => {
     expect(m.diagram.shapes[low.id]).toMatchObject({ y: 280 })
   })
 })
+
+describe('loop and multi-instance markers', () => {
+  it('set, change and remove on a task; kept by convert; refused on an event', () => {
+    const m = emptyModel()
+    const t = addNode(m, { type: 'task' }, { x: 100, y: 100 }, 'Check player')
+    updateNode(m, t.id, { loop: 'parallel' })
+    expect(nodeOf(m, t.id)).toMatchObject({ loop: 'parallel' })
+    convertActivity(m, t.id, 'subProcess')
+    expect(nodeOf(m, t.id)).toMatchObject({ type: 'subProcess', loop: 'parallel' })
+    updateNode(m, t.id, { loop: 'sequential' })
+    expect(nodeOf(m, t.id)).toMatchObject({ loop: 'sequential' })
+    updateNode(m, t.id, { loop: 'none' })
+    expect(nodeOf(m, t.id)).not.toHaveProperty('loop')
+    const e = addNode(m, { type: 'event' }, { x: 300, y: 100 })
+    expect(() => updateNode(m, e.id, { loop: 'standard' })).toThrow(ModelError)
+  })
+})
