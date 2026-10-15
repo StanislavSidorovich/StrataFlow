@@ -3,7 +3,7 @@
 Browser-based **BPMN 2.0 process modeling** with help cards, a trainer and a story mode for presenting a process step by step. A lightweight, learnable companion to Bizagi Modeler for business process management courses.
 
 - Spec: [SPEC.md](SPEC.md) · Progress: [ROADMAP.md](ROADMAP.md) · Cases: [cases/](cases/)
-- Status: **preview** at https://flow.quaera.app: editor, BPMN import/export (Bizagi Modeler and bpmn.io), auto layout, model check with help cards, and a trainer (6 cases × 4 levels, 7 lessons, tour).
+- Status: **preview** at https://flow.quaera.app: editor, BPMN import/export (Bizagi Modeler and bpmn.io), auto layout, model check with help cards, a trainer (6 cases × 4 levels, 7 lessons, tour), and Simulate: play a case step by step, cycle time, waiting, efficiency, cost and lane utilisation (flow analysis), AS-IS vs TO-BE.
 - Sister app: [StrataSQL](https://model.quaera.app), data modeling (CDM → PDM → SQL). Both are part of **[Quaera](https://quaera.app)**.
 - **Unofficial student project**, not affiliated with or endorsed by NOVA IMS.
 

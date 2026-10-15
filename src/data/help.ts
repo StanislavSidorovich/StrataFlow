@@ -421,7 +421,23 @@ export const HELP_CARDS: HelpCard[] = [
     ],
     whenToUse: ['"currently…", "today the clerk…" (AS-IS)', '"should", "proposed" (TO-BE)'],
     typicalMistake: 'Drawing the ideal process and calling it AS-IS.',
-    seeAlso: ['happy-path', 'process'],
+    seeAlso: ['happy-path', 'process', 'simulation'],
+  },
+  {
+    id: 'simulation',
+    title: 'Cycle time and flow analysis',
+    oneLiner: 'How long a case takes on average, how much of it is real work, and what it costs.',
+    body: [
+      'Give each activity its duration (processing time: someone works on it) and its waiting time (the case lies in a queue, waits for a hand-over or for the customer). Give each branch of a decision the share of cases that take it. Simulate → Times and costs does the sums; Play a case runs one case step by step.',
+      'The rules (flow analysis, course Chapter 6, quantitative analysis): in a sequence, times add up. After an exclusive decision, each branch counts with its probability: 0.3 × 20 + 0.7 × 40. After a parallel split, the longest branch sets the time, but the costs of all branches add up. A rework loop taken back with probability r makes its part last T / (1 − r).',
+      'Cycle time efficiency = theoretical cycle time (processing only) / cycle time. Below 10–20 % is common: most of a case is waiting, and that is where redesign starts.',
+      'A lane is a resource pool: utilisation = new cases per time unit × work per case in the lane / people in the lane. Near 100 % queues grow fast; above 100 % they never stop growing.',
+      'Keep as AS-IS remembers the figures; change the model into the TO-BE and every figure shows the change.',
+    ],
+    whenToUse: ['"takes 10 minutes", "on average"', '"in 30 % of the cases"', '"two clerks", "50 orders a day"', 'comparing AS-IS with TO-BE'],
+    miniModel: 'start > task:Check claim > xor > task:Pay | Assess > xor > end',
+    typicalMistake: 'Adding the times of parallel branches (only the longest counts for time), or forgetting the waiting time, which is usually most of the cycle time.',
+    seeAlso: ['as-is-to-be', 'parallel-gateway', 'exclusive-gateway', 'lane'],
   },
 ]
 

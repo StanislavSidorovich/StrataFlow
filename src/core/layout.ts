@@ -34,6 +34,7 @@ const ELK_OPTIONS = {
   'elk.spacing.componentComponent': '40',
   // Steps go to elkjs lane by lane, top to bottom: keeping that order keeps lanes apart.
   'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+  'elk.layered.cycleBreaking.strategy': 'DEPTH_FIRST',
   'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
 }
 

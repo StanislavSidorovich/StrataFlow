@@ -1,0 +1,422 @@
+{
+  "format": "strata-flow",
+  "version": 1,
+  "name": "Expense claim (TO-BE)",
+  "participants": [
+    {
+      "id": "Participant_1",
+      "name": "Company",
+      "processId": "Process_1"
+    }
+  ],
+  "lanes": [
+    {
+      "id": "Lane_1",
+      "name": "Employee",
+      "participantId": "Participant_1"
+    },
+    {
+      "id": "Lane_2",
+      "name": "Expense app",
+      "participantId": "Participant_1"
+    },
+    {
+      "id": "Lane_3",
+      "name": "Manager",
+      "participantId": "Participant_1"
+    },
+    {
+      "id": "Lane_4",
+      "name": "Finance",
+      "participantId": "Participant_1"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "Event_1",
+      "name": "Expenses incurred",
+      "type": "event",
+      "position": "start",
+      "trigger": "none",
+      "throwing": false,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_1",
+      "name": "Submit claim in app",
+      "type": "task",
+      "kind": "user",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1",
+      "sim": {
+        "duration": 0.17,
+        "cost": 5
+      }
+    },
+    {
+      "id": "Gateway_1",
+      "name": "",
+      "type": "gateway",
+      "kind": "exclusive",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Task_2",
+      "name": "Check completeness",
+      "type": "task",
+      "kind": "service",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2",
+      "sim": {
+        "duration": 0,
+        "cost": 0.2
+      }
+    },
+    {
+      "id": "Gateway_2",
+      "name": "Claim complete?",
+      "type": "gateway",
+      "kind": "exclusive",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2",
+      "defaultFlow": "Flow_7"
+    },
+    {
+      "id": "Task_3",
+      "name": "Complete claim",
+      "type": "task",
+      "kind": "user",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1",
+      "sim": {
+        "duration": 0.1,
+        "wait": 2,
+        "cost": 3
+      }
+    },
+    {
+      "id": "Gateway_3",
+      "name": "",
+      "type": "gateway",
+      "kind": "parallel",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Gateway_4",
+      "name": "Above 200 EUR?",
+      "type": "gateway",
+      "kind": "exclusive",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2",
+      "defaultFlow": "Flow_12"
+    },
+    {
+      "id": "Task_4",
+      "name": "Check receipts",
+      "type": "task",
+      "kind": "task",
+      "participantId": "Participant_1",
+      "laneId": "Lane_4",
+      "sim": {
+        "duration": 0.17,
+        "wait": 4,
+        "cost": 6.8
+      }
+    },
+    {
+      "id": "Task_5",
+      "name": "Approve claim",
+      "type": "task",
+      "kind": "task",
+      "participantId": "Participant_1",
+      "laneId": "Lane_3",
+      "sim": {
+        "duration": 0.08,
+        "wait": 4,
+        "cost": 5
+      }
+    },
+    {
+      "id": "Gateway_5",
+      "name": "",
+      "type": "gateway",
+      "kind": "exclusive",
+      "participantId": "Participant_1",
+      "laneId": "Lane_3"
+    },
+    {
+      "id": "Gateway_6",
+      "name": "",
+      "type": "gateway",
+      "kind": "parallel",
+      "participantId": "Participant_1",
+      "laneId": "Lane_4"
+    },
+    {
+      "id": "Task_6",
+      "name": "Pay claim",
+      "type": "task",
+      "kind": "task",
+      "participantId": "Participant_1",
+      "laneId": "Lane_4",
+      "sim": {
+        "duration": 0.05,
+        "wait": 20,
+        "cost": 2
+      }
+    },
+    {
+      "id": "Event_2",
+      "name": "Claim paid",
+      "type": "event",
+      "position": "end",
+      "trigger": "none",
+      "throwing": true,
+      "participantId": "Participant_1",
+      "laneId": "Lane_4"
+    }
+  ],
+  "flows": [
+    {
+      "id": "Flow_1",
+      "kind": "sequence",
+      "source": "Event_1",
+      "target": "Task_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_2",
+      "kind": "sequence",
+      "source": "Task_1",
+      "target": "Gateway_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_3",
+      "kind": "sequence",
+      "source": "Gateway_1",
+      "target": "Task_2",
+      "name": ""
+    },
+    {
+      "id": "Flow_4",
+      "kind": "sequence",
+      "source": "Task_2",
+      "target": "Gateway_2",
+      "name": ""
+    },
+    {
+      "id": "Flow_5",
+      "kind": "sequence",
+      "source": "Gateway_2",
+      "target": "Task_3",
+      "name": "No",
+      "condition": "a receipt photo or a field is missing",
+      "probability": 0.05
+    },
+    {
+      "id": "Flow_6",
+      "kind": "sequence",
+      "source": "Task_3",
+      "target": "Gateway_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_7",
+      "kind": "sequence",
+      "source": "Gateway_2",
+      "target": "Gateway_3",
+      "name": "Yes"
+    },
+    {
+      "id": "Flow_8",
+      "kind": "sequence",
+      "source": "Gateway_3",
+      "target": "Gateway_4",
+      "name": ""
+    },
+    {
+      "id": "Flow_9",
+      "kind": "sequence",
+      "source": "Gateway_3",
+      "target": "Task_4",
+      "name": ""
+    },
+    {
+      "id": "Flow_10",
+      "kind": "sequence",
+      "source": "Gateway_4",
+      "target": "Task_5",
+      "name": "Yes",
+      "condition": "the claim is above 200 EUR",
+      "probability": 0.3
+    },
+    {
+      "id": "Flow_11",
+      "kind": "sequence",
+      "source": "Task_5",
+      "target": "Gateway_5",
+      "name": ""
+    },
+    {
+      "id": "Flow_12",
+      "kind": "sequence",
+      "source": "Gateway_4",
+      "target": "Gateway_5",
+      "name": "No"
+    },
+    {
+      "id": "Flow_13",
+      "kind": "sequence",
+      "source": "Gateway_5",
+      "target": "Gateway_6",
+      "name": ""
+    },
+    {
+      "id": "Flow_14",
+      "kind": "sequence",
+      "source": "Task_4",
+      "target": "Gateway_6",
+      "name": ""
+    },
+    {
+      "id": "Flow_15",
+      "kind": "sequence",
+      "source": "Gateway_6",
+      "target": "Task_6",
+      "name": ""
+    },
+    {
+      "id": "Flow_16",
+      "kind": "sequence",
+      "source": "Task_6",
+      "target": "Event_2",
+      "name": ""
+    }
+  ],
+  "diagram": {
+    "shapes": {
+      "Participant_1": {
+        "x": 0,
+        "y": 0,
+        "width": 1554,
+        "height": 840
+      },
+      "Lane_1": {
+        "x": 30,
+        "y": 0,
+        "width": 1524,
+        "height": 270
+      },
+      "Lane_2": {
+        "x": 30,
+        "y": 270,
+        "width": 1524,
+        "height": 150
+      },
+      "Lane_3": {
+        "x": 30,
+        "y": 420,
+        "width": 1524,
+        "height": 150
+      },
+      "Lane_4": {
+        "x": 30,
+        "y": 570,
+        "width": 1524,
+        "height": 270
+      },
+      "Event_1": {
+        "x": 132,
+        "y": 52,
+        "width": 36,
+        "height": 36
+      },
+      "Task_1": {
+        "x": 218,
+        "y": 30,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_1": {
+        "x": 368,
+        "y": 315,
+        "width": 50,
+        "height": 50
+      },
+      "Task_2": {
+        "x": 468,
+        "y": 300,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_2": {
+        "x": 618,
+        "y": 315,
+        "width": 50,
+        "height": 50
+      },
+      "Task_3": {
+        "x": 718,
+        "y": 150,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_3": {
+        "x": 751,
+        "y": 315,
+        "width": 50,
+        "height": 50
+      },
+      "Gateway_4": {
+        "x": 868,
+        "y": 315,
+        "width": 50,
+        "height": 50
+      },
+      "Task_4": {
+        "x": 968,
+        "y": 720,
+        "width": 100,
+        "height": 80
+      },
+      "Task_5": {
+        "x": 968,
+        "y": 450,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_5": {
+        "x": 1118,
+        "y": 465,
+        "width": 50,
+        "height": 50
+      },
+      "Gateway_6": {
+        "x": 1218,
+        "y": 615,
+        "width": 50,
+        "height": 50
+      },
+      "Task_6": {
+        "x": 1318,
+        "y": 600,
+        "width": 100,
+        "height": 80
+      },
+      "Event_2": {
+        "x": 1468,
+        "y": 622,
+        "width": 36,
+        "height": 36
+      }
+    },
+    "edges": {}
+  },
+  "sim": {
+    "unit": "h"
+  }
+}

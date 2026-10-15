@@ -1,0 +1,310 @@
+{
+  "format": "strata-flow",
+  "version": 1,
+  "name": "Expense claim (AS-IS)",
+  "participants": [
+    {
+      "id": "Participant_1",
+      "name": "Company",
+      "processId": "Process_1"
+    }
+  ],
+  "lanes": [
+    {
+      "id": "Lane_1",
+      "name": "Employee",
+      "participantId": "Participant_1"
+    },
+    {
+      "id": "Lane_2",
+      "name": "Manager",
+      "participantId": "Participant_1"
+    },
+    {
+      "id": "Lane_3",
+      "name": "Finance",
+      "participantId": "Participant_1"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "Event_1",
+      "name": "Expenses incurred",
+      "type": "event",
+      "position": "start",
+      "trigger": "none",
+      "throwing": false,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_1",
+      "name": "Fill in expense form",
+      "type": "task",
+      "kind": "task",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1",
+      "sim": {
+        "duration": 0.33,
+        "cost": 10
+      }
+    },
+    {
+      "id": "Gateway_1",
+      "name": "",
+      "type": "gateway",
+      "kind": "exclusive",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Task_2",
+      "name": "Check expense form",
+      "type": "task",
+      "kind": "task",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2",
+      "sim": {
+        "duration": 0.17,
+        "wait": 16,
+        "cost": 10
+      }
+    },
+    {
+      "id": "Gateway_2",
+      "name": "Form complete?",
+      "type": "gateway",
+      "kind": "exclusive",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2",
+      "defaultFlow": "Flow_7"
+    },
+    {
+      "id": "Task_3",
+      "name": "Complete expense form",
+      "type": "task",
+      "kind": "task",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1",
+      "sim": {
+        "duration": 0.25,
+        "wait": 8,
+        "cost": 7.5
+      }
+    },
+    {
+      "id": "Task_4",
+      "name": "Enter claim",
+      "type": "task",
+      "kind": "task",
+      "participantId": "Participant_1",
+      "laneId": "Lane_3",
+      "sim": {
+        "duration": 0.25,
+        "wait": 8,
+        "cost": 10
+      }
+    },
+    {
+      "id": "Task_5",
+      "name": "Check receipts",
+      "type": "task",
+      "kind": "task",
+      "participantId": "Participant_1",
+      "laneId": "Lane_3",
+      "sim": {
+        "duration": 0.17,
+        "cost": 6.8
+      }
+    },
+    {
+      "id": "Task_6",
+      "name": "Pay claim",
+      "type": "task",
+      "kind": "task",
+      "participantId": "Participant_1",
+      "laneId": "Lane_3",
+      "sim": {
+        "duration": 0.08,
+        "wait": 80,
+        "cost": 3.2
+      }
+    },
+    {
+      "id": "Event_2",
+      "name": "Claim paid",
+      "type": "event",
+      "position": "end",
+      "trigger": "none",
+      "throwing": true,
+      "participantId": "Participant_1",
+      "laneId": "Lane_3"
+    }
+  ],
+  "flows": [
+    {
+      "id": "Flow_1",
+      "kind": "sequence",
+      "source": "Event_1",
+      "target": "Task_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_2",
+      "kind": "sequence",
+      "source": "Task_1",
+      "target": "Gateway_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_3",
+      "kind": "sequence",
+      "source": "Gateway_1",
+      "target": "Task_2",
+      "name": ""
+    },
+    {
+      "id": "Flow_4",
+      "kind": "sequence",
+      "source": "Task_2",
+      "target": "Gateway_2",
+      "name": ""
+    },
+    {
+      "id": "Flow_5",
+      "kind": "sequence",
+      "source": "Gateway_2",
+      "target": "Task_3",
+      "name": "No",
+      "condition": "a receipt or a field is missing",
+      "probability": 0.25
+    },
+    {
+      "id": "Flow_6",
+      "kind": "sequence",
+      "source": "Task_3",
+      "target": "Gateway_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_7",
+      "kind": "sequence",
+      "source": "Gateway_2",
+      "target": "Task_4",
+      "name": "Yes"
+    },
+    {
+      "id": "Flow_8",
+      "kind": "sequence",
+      "source": "Task_4",
+      "target": "Task_5",
+      "name": ""
+    },
+    {
+      "id": "Flow_9",
+      "kind": "sequence",
+      "source": "Task_5",
+      "target": "Task_6",
+      "name": ""
+    },
+    {
+      "id": "Flow_10",
+      "kind": "sequence",
+      "source": "Task_6",
+      "target": "Event_2",
+      "name": ""
+    }
+  ],
+  "diagram": {
+    "shapes": {
+      "Participant_1": {
+        "x": 0,
+        "y": 0,
+        "width": 1254,
+        "height": 570
+      },
+      "Lane_1": {
+        "x": 30,
+        "y": 0,
+        "width": 1224,
+        "height": 270
+      },
+      "Lane_2": {
+        "x": 30,
+        "y": 270,
+        "width": 1224,
+        "height": 150
+      },
+      "Lane_3": {
+        "x": 30,
+        "y": 420,
+        "width": 1224,
+        "height": 150
+      },
+      "Event_1": {
+        "x": 132,
+        "y": 52,
+        "width": 36,
+        "height": 36
+      },
+      "Task_1": {
+        "x": 218,
+        "y": 30,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_1": {
+        "x": 368,
+        "y": 315,
+        "width": 50,
+        "height": 50
+      },
+      "Task_2": {
+        "x": 468,
+        "y": 300,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_2": {
+        "x": 618,
+        "y": 315,
+        "width": 50,
+        "height": 50
+      },
+      "Task_3": {
+        "x": 718,
+        "y": 150,
+        "width": 100,
+        "height": 80
+      },
+      "Task_4": {
+        "x": 718,
+        "y": 450,
+        "width": 100,
+        "height": 80
+      },
+      "Task_5": {
+        "x": 868,
+        "y": 450,
+        "width": 100,
+        "height": 80
+      },
+      "Task_6": {
+        "x": 1018,
+        "y": 450,
+        "width": 100,
+        "height": 80
+      },
+      "Event_2": {
+        "x": 1168,
+        "y": 472,
+        "width": 36,
+        "height": 36
+      }
+    },
+    "edges": {}
+  },
+  "sim": {
+    "unit": "h"
+  }
+}

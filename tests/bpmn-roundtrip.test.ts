@@ -205,3 +205,24 @@ describe('BPMN export for Bizagi', () => {
     expect(model.diagram.edges.DOA).toEqual([{ x: 190, y: 130 }, { x: 250, y: 125 }])
   })
 })
+
+describe('analysis figures in BPMN (stage 6)', () => {
+  it('keeps durations, waits, costs, repeats, probabilities, capacities and the settings', async () => {
+    const m = emptyModel('Figures')
+    drawOrderFulfilment(m)
+    const task = m.nodes.find((n) => n.type === 'task')!
+    task.sim = { duration: 12.5, wait: 3, cost: 40 }
+    const g = m.nodes.find((n) => n.type === 'gateway' && n.kind === 'exclusive')!
+    const branch = m.flows.find((f) => f.source === g.id)!
+    branch.probability = 0.25
+    if (m.lanes[0]) m.lanes[0].capacity = 3
+    m.sim = { unit: 'h', arrivals: 0.5 }
+    const { xml, back, warnings } = await roundTrip(m)
+    expect(warnings).toEqual([])
+    expect(xml).toContain('xmlns:sf="https://flow.quaera.app/ns/sim"')
+    expect(xml).toContain('sf:duration="12.5"')
+    const want = settled(m)
+    // Waypoints of flows the canvas routed itself are added on export (tested above); the rest comes back.
+    expect({ ...back, diagram: undefined }).toEqual({ ...want, diagram: undefined })
+  })
+})

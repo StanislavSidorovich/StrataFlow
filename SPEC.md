@@ -60,16 +60,19 @@ FlowModel
  │   └─ Lane             name, children: Lane[]                 (nested lanes allowed)
  ├─ Process              id, nodes[], flows[]
  │   ├─ Task             name, kind: task|user|service|manual|send|receive|script|businessRule,
- │   │                   loop?: standard|parallel|sequential, laneId
+ │   │                   loop?: standard|parallel|sequential, laneId,
+ │   │                   sim?: {duration, wait, cost, repeats}        (stage 6; also on a catching intermediate event: wait)
  │   ├─ SubProcess       name, collapsed, eventSub?, nodes[], flows[], laneId   (nested process)
  │   ├─ Event            position: start|intermediate|end|boundary,
  │   │                   trigger: none|message|timer|error|signal|conditional|escalation|terminate|link,
  │   │                   catching|throwing, interrupting (boundary/event sub), attachedTo?, laneId
  │   ├─ Gateway          kind: exclusive|parallel|inclusive|eventBased|complex, defaultFlow?, laneId
- │   └─ SequenceFlow     source, target, name, condition?
+ │   └─ SequenceFlow     source, target, name, condition?, probability? (0–1, a branch of a decision)
  ├─ MessageFlow          source, target (nodes or pools of DIFFERENT participants), name
  ├─ DataObject / DataStore  name, state?;  DataAssociation  node ↔ data
  ├─ TextAnnotation + Association;  Group (visual only)
+ ├─ Lane.capacity?        people of the role working at once (resource pool for the analysis)
+ ├─ sim?                 unit: min|h|d, arrivals (new cases per unit)
  └─ Diagram              shape bounds per element (+ isExpanded, isHorizontal), edge waypoints
 ```
 
@@ -78,6 +81,7 @@ Rules of the metamodel:
 - A boundary event belongs to its activity; it moves with it.
 - A collapsed and an expanded sub-process are the same object with a different `collapsed` flag (and different DI).
 - Element ids are stable (`Task_1` style) so BPMN XML round-trips keep them.
+- The analysis figures (`sim`, `probability`, `capacity`, the settings) go into BPMN XML as attributes in StrataFlow's own namespace `https://flow.quaera.app/ns/sim` (prefix `sf`); other tools ignore them, our reader takes them back.
 
 ## 6. Edit operations (each is a pure function in `src/core/ops.ts`, tested)
 
@@ -197,7 +201,7 @@ tests/         core unit tests
 | 3. Linter + Help | P01–P17 with tests; reference cases lint clean; ≥ 20 help cards; `?` on every property |
 | 4. Trainer | 3 cases × levels 0–3; text cues; comparator right on references and seeded wrong models; welcome tour; lessons |
 | 5. Story | `*.flow-story.json` opens, Present mode, token beats; in-app story editor; recording script makes an MP4 |
-| 6. Simulate | Token play-through; time analysis (durations, probabilities, resources) → cycle time and waiting time; AS-IS vs TO-BE comparison |
+| 6. Simulate | Token play-through; time analysis (durations, probabilities, resources) → cycle time and waiting time; AS-IS vs TO-BE comparison. 6b (later): queues from resource contention (Monte Carlo, Bizagi-like resource and calendar analysis) |
 | 7. AI | Optional, behind a user-provided API key: generate a process from text, review a student's model |
 
 ## 13. Open questions

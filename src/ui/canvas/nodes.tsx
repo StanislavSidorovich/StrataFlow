@@ -8,7 +8,7 @@ import { resizeElement, resizeLane } from '../../core/ops'
 import { useEditor } from '../store'
 import { ContextPad } from './ContextPad'
 
-export type ShapeData = { el: FlowNode; issue?: Severity }
+export type ShapeData = { el: FlowNode; issue?: Severity; token?: boolean }
 export type PoolData = { name: string; header: number; lane?: boolean }
 export type ShapeNode = Node<ShapeData, 'shape'>
 export type PoolNode = Node<PoolData, 'pool'>
@@ -59,6 +59,7 @@ export function BpmnShape({ data, width = 0, height = 0, selected }: NodeProps<S
         <NodeResizer isVisible={selected} minWidth={40} minHeight={30} lineClassName="bpmn-resize-line" handleClassName="bpmn-resize-handle" onResizeEnd={resized(el.id)} />
       )}
       <ContextPad el={el} />
+      {data.token && <span className="token-mark" title="A case is here (Simulate → Play a case)" data-testid={`token:${el.name}`} />}
       {data.issue && (
         <span className={`issue-mark is-${data.issue}`} title={`The check found ${data.issue === 'info' ? 'a hint' : `an ${data.issue}`} here: see the Check panel`} data-testid={`mark:${el.name}`}>
           {data.issue === 'info' ? 'i' : '!'}

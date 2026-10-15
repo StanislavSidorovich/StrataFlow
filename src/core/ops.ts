@@ -19,6 +19,8 @@ import {
   type LoopKind,
   type Participant,
   type Point,
+  type SimFigures,
+  type SimSettings,
   type TaskKind,
 } from './metamodel'
 
@@ -945,4 +947,65 @@ export function setCollapsed(m: FlowModel, id: string, collapsed: boolean): void
     b.y = Math.round(s.y + s.height - b.height / 2)
   }
   for (const f of m.flows) if (own.has(f.source) !== own.has(f.target) || f.source === id || f.target === id) delete m.diagram.edges[f.id]
+}
+
+// ---------------------------------------------------------------- figures for the analysis (stage 6)
+
+const figure = (v: number | undefined, what: string, min = 0): number | undefined => {
+  if (v === undefined || Number.isNaN(v)) return undefined
+  if (!Number.isFinite(v) || v < min) throw new ModelError(`${what} must be a number of at least ${min}`)
+  return v
+}
+
+/** Sets an activity's duration, waiting time, cost or repeats, or an intermediate event's waiting time (undefined clears it). */
+export function setSim(m: FlowModel, id: string, patch: Partial<Record<keyof SimFigures, number | undefined>>): void {
+  const n = nodeOrThrow(m, id)
+  const activity = n.type === 'task' || n.type === 'subProcess'
+  const waits = n.type === 'event' && n.position === 'intermediate' && !n.throwing
+  if (!activity && !waits) throw new ModelError('Only an activity or a catching intermediate event has times')
+  const sim: SimFigures = { ...n.sim }
+  for (const key of ['duration', 'wait', 'cost', 'repeats'] as const) {
+    if (!(key in patch)) continue
+    if (!activity && key !== 'wait') throw new ModelError('An event only waits: it has no duration or cost')
+    const v = figure(patch[key], label(key), key === 'repeats' ? 1 : 0)
+    if (v === undefined) delete sim[key]
+    else sim[key] = v
+  }
+  if (Object.keys(sim).length) n.sim = sim
+  else delete n.sim
+}
+
+const label = (key: string) => key.charAt(0).toUpperCase() + key.slice(1)
+
+/** The share of cases taking a branch of a decision, 0–1 (undefined clears it: the branches left share what remains). */
+export function setProbability(m: FlowModel, flowId: string, p: number | undefined): void {
+  const f = flowOf(m, flowId)
+  const g = f && nodeOf(m, f.source)
+  if (!f || f.kind !== 'sequence' || g?.type !== 'gateway' || g.kind === 'parallel') throw new ModelError('Only a branch of a decision has a probability')
+  const v = figure(p, 'A probability')
+  if (v !== undefined && v > 1) throw new ModelError('A probability is at most 100 %')
+  if (v === undefined) delete f.probability
+  else f.probability = v
+}
+
+/** How many people of a lane's role work at once (undefined = 1). */
+export function setCapacity(m: FlowModel, laneId: string, capacity: number | undefined): void {
+  const l = laneOf(m, laneId)
+  if (!l) throw new ModelError(`No lane ${laneId}`)
+  const v = figure(capacity, 'Capacity', 1)
+  if (v === undefined) delete l.capacity
+  else l.capacity = v
+}
+
+export function setSimSettings(m: FlowModel, patch: SimSettings): void {
+  const sim: SimSettings = { ...m.sim }
+  if ('unit' in patch) sim.unit = patch.unit
+  if ('arrivals' in patch) {
+    const v = figure(patch.arrivals, 'Arrivals')
+    if (v === undefined || v === 0) delete sim.arrivals
+    else sim.arrivals = v
+  }
+  if (!sim.unit) delete sim.unit
+  if (Object.keys(sim).length) m.sim = sim
+  else delete m.sim
 }

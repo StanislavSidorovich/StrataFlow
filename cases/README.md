@@ -12,9 +12,9 @@ Own cases, written by Claude on classic business domains (not copied from textbo
 | 4 | Scooter sharing: a ride | ★★ | event-based gateway, intermediate events, loop |
 | 5 | Hospital: patient admission | ★★ | sub-processes, data objects/stores, OR gateway (and why to avoid it) |
 | 6 | Football: match day | ★★★ | several pools, exceptions (error end + error boundary; escalation left out, see the case), multi-instance |
-| 7 | AS-IS → TO-BE (own, generic office process) | ★★★ | redesign, KPIs, simulation |
+| 7 | Expense claim: AS-IS → TO-BE | ★★★ | redesign, KPIs, flow analysis |
 
-Written: 1 `library-lend`, 2 `hotel-booking`, 3 `shop-order`, 4 `scooter-ride`, 5 `hospital-admission`, 6 `football-match`. Case 7 waits for stage 6 (Simulate): its KPIs need durations and simulation. Each has `<id>.md` and the reference model `<id>.flow.json` (File → Open in the app), drawn by `tests/fixtures/cases.ts`; `UPDATE_CASES=1 npx vitest run tests/cases.test.ts` rewrites the `.flow.json` after a change there.
+Written: 1 `library-lend`, 2 `hotel-booking`, 3 `shop-order`, 4 `scooter-ride`, 5 `hospital-admission`, 6 `football-match`, 7 `expense-claim` (two models, `expense-claim-as-is` and `expense-claim-to-be`, with durations, waits, costs and probabilities; also in File → Example; not in the trainer yet). Each has `<id>.md` and the reference model `<id>.flow.json` (File → Open in the app), drawn by `tests/fixtures/cases.ts`; `UPDATE_CASES=1 npx vitest run tests/cases.test.ts` rewrites the `.flow.json` after a change there.
 
 ## Case file sections (`<id>.md`)
 

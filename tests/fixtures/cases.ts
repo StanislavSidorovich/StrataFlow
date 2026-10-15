@@ -1,7 +1,7 @@
 // The own cases in `cases/`, drawn with the editor's operations. `tests/cases.test.ts` lays each one out and
 // checks it against `cases/<id>.flow.json` (UPDATE_CASES=1 writes the files).
 import type { FlowModel } from '../../src/core/metamodel'
-import { addBoundaryEvent, addLane, addNode, addPool, appendNode, connect, moveElements, rename, setDefaultFlow, setFlow, updateNode } from '../../src/core/ops'
+import { addBoundaryEvent, addLane, addNode, addPool, appendNode, connect, moveElements, rename, setDefaultFlow, setFlow, setProbability, setSim, setSimSettings, updateNode } from '../../src/core/ops'
 import { drawOrderFulfilment } from './order-fulfilment'
 
 /** Moves a step straight down (or up) so its centre sits at `cy`: into another lane. */
@@ -234,11 +234,94 @@ export function drawFootball(m: FlowModel) {
   return { start, prepare, inspect, safe, caught, callOff, calledOff, check, open, host, split, press, result, join, closed }
 }
 
-export const CASES: { id: string; name: string; draw: (m: FlowModel) => unknown }[] = [
+
+/** The centre line of a lane (to put a step in it). */
+const rowOf = (m: FlowModel, laneId: string) => m.diagram.shapes[laneId].y + m.diagram.shapes[laneId].height / 2
+
+/** Case 7 ★★★, AS-IS: a paper expense claim with long waits and a rework loop. Figures in hours (8 h a working day). */
+export function drawExpenseAsIs(m: FlowModel) {
+  addPool(m, { x: 0, y: 0 }, 'Company')
+  const emp = addLane(m, 'Participant_1', 'Employee')
+  const mgr = addLane(m, 'Participant_1', 'Manager')
+  const fin = addLane(m, 'Participant_1', 'Finance')
+  const start = addNode(m, { type: 'event' }, { x: 80, y: rowOf(m, emp.id) }, 'Expenses incurred')
+  const fill = appendNode(m, start.id, { type: 'task' }, 'Fill in expense form')
+  const merge = appendNode(m, fill.id, { type: 'gateway' })
+  toRow(m, merge.id, rowOf(m, mgr.id))
+  const check = appendNode(m, merge.id, { type: 'task' }, 'Check expense form')
+  const ok = appendNode(m, check.id, { type: 'gateway' }, 'Form complete?')
+  const complete = appendNode(m, ok.id, { type: 'task' }, 'Complete expense form')
+  toRow(m, complete.id, rowOf(m, emp.id))
+  connect(m, complete.id, merge.id)
+  const enter = appendNode(m, ok.id, { type: 'task' }, 'Enter claim')
+  toRow(m, enter.id, rowOf(m, fin.id))
+  const receipts = appendNode(m, enter.id, { type: 'task' }, 'Check receipts')
+  const pay = appendNode(m, receipts.id, { type: 'task' }, 'Pay claim')
+  appendNode(m, pay.id, { type: 'event', position: 'end' }, 'Claim paid')
+  branches(m, ok.id, 'a receipt or a field is missing')
+  setProbability(m, m.flows.find((f) => f.source === ok.id && f.target === complete.id)!.id, 0.25)
+  setSimSettings(m, { unit: 'h' })
+  setSim(m, fill.id, { duration: 0.33, cost: 10 })
+  setSim(m, check.id, { wait: 16, duration: 0.17, cost: 10 })
+  setSim(m, complete.id, { wait: 8, duration: 0.25, cost: 7.5 })
+  setSim(m, enter.id, { wait: 8, duration: 0.25, cost: 10 })
+  setSim(m, receipts.id, { duration: 0.17, cost: 6.8 })
+  setSim(m, pay.id, { wait: 80, duration: 0.08, cost: 3.2 })
+}
+
+/** Case 7 ★★★, TO-BE: the claim in an app, an automatic completeness check, approval only above a limit and in parallel with the receipts check, a weekly payment run. */
+export function drawExpenseToBe(m: FlowModel) {
+  addPool(m, { x: 0, y: 0 }, 'Company')
+  const emp = addLane(m, 'Participant_1', 'Employee')
+  const app = addLane(m, 'Participant_1', 'Expense app')
+  const mgr = addLane(m, 'Participant_1', 'Manager')
+  const fin = addLane(m, 'Participant_1', 'Finance')
+  const start = addNode(m, { type: 'event' }, { x: 80, y: rowOf(m, emp.id) }, 'Expenses incurred')
+  const submit = appendNode(m, start.id, { type: 'task', kind: 'user' }, 'Submit claim in app')
+  const merge = appendNode(m, submit.id, { type: 'gateway' })
+  toRow(m, merge.id, rowOf(m, app.id))
+  const auto = appendNode(m, merge.id, { type: 'task', kind: 'service' }, 'Check completeness')
+  const ok = appendNode(m, auto.id, { type: 'gateway' }, 'Claim complete?')
+  const complete = appendNode(m, ok.id, { type: 'task', kind: 'user' }, 'Complete claim')
+  toRow(m, complete.id, rowOf(m, emp.id))
+  connect(m, complete.id, merge.id)
+  const split = appendNode(m, ok.id, { type: 'gateway', kind: 'parallel' })
+  branches(m, ok.id, 'a receipt photo or a field is missing')
+  const limit = appendNode(m, split.id, { type: 'gateway' }, 'Above 200 EUR?')
+  const receipts = appendNode(m, split.id, { type: 'task' }, 'Check receipts')
+  toRow(m, receipts.id, rowOf(m, fin.id))
+  const approve = appendNode(m, limit.id, { type: 'task' }, 'Approve claim')
+  toRow(m, approve.id, rowOf(m, mgr.id))
+  const joinLimit = appendNode(m, approve.id, { type: 'gateway' })
+  connect(m, limit.id, joinLimit.id)
+  const [toApprove, skip] = [m.flows.find((f) => f.source === limit.id && f.target === approve.id)!, m.flows.find((f) => f.source === limit.id && f.target === joinLimit.id)!]
+  setFlow(m, toApprove.id, { name: 'Yes', condition: 'the claim is above 200 EUR' })
+  setFlow(m, skip.id, { name: 'No' })
+  setDefaultFlow(m, skip.id, true)
+  const join = appendNode(m, joinLimit.id, { type: 'gateway', kind: 'parallel' })
+  toRow(m, join.id, rowOf(m, fin.id))
+  connect(m, receipts.id, join.id)
+  const pay = appendNode(m, join.id, { type: 'task' }, 'Pay claim')
+  appendNode(m, pay.id, { type: 'event', position: 'end' }, 'Claim paid')
+  setProbability(m, m.flows.find((f) => f.source === ok.id && f.target === complete.id)!.id, 0.05)
+  setProbability(m, toApprove.id, 0.3)
+  setSimSettings(m, { unit: 'h' })
+  setSim(m, submit.id, { duration: 0.17, cost: 5 })
+  setSim(m, auto.id, { duration: 0, cost: 0.2 })
+  setSim(m, complete.id, { wait: 2, duration: 0.1, cost: 3 })
+  setSim(m, approve.id, { wait: 4, duration: 0.08, cost: 5 })
+  setSim(m, receipts.id, { wait: 4, duration: 0.17, cost: 6.8 })
+  setSim(m, pay.id, { wait: 20, duration: 0.05, cost: 2 })
+}
+
+/** `md`: the case file when two models share one (AS-IS and TO-BE). */
+export const CASES: { id: string; name: string; draw: (m: FlowModel) => unknown; md?: string }[] = [
   { id: 'library-lend', name: 'Lend a book', draw: drawLibrary },
   { id: 'hotel-booking', name: 'Hotel booking and check-in', draw: drawHotel },
   { id: 'shop-order', name: 'Order fulfilment', draw: drawOrderFulfilment },
   { id: 'scooter-ride', name: 'Scooter ride', draw: drawScooter },
   { id: 'hospital-admission', name: 'Patient admission', draw: drawHospital },
   { id: 'football-match', name: 'Match day', draw: drawFootball },
+  { id: 'expense-claim-as-is', name: 'Expense claim (AS-IS)', draw: drawExpenseAsIs, md: 'expense-claim' },
+  { id: 'expense-claim-to-be', name: 'Expense claim (TO-BE)', draw: drawExpenseToBe, md: 'expense-claim' },
 ]

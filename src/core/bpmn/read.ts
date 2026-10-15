@@ -4,6 +4,7 @@
 // - lane bounds have x relative to the pool (y is absolute): x = header width.
 import { BpmnModdle } from 'bpmn-moddle'
 import { pageOf, place } from '../ops'
+import { SIM_NS } from './write'
 import { isArtifact, type Bounds, type EventTrigger, type Flow, type FlowModel, type FlowNode, type GatewayKind, type Lane, type LoopKind, type Participant, type TaskKind } from '../metamodel'
 
 /** A moddle element: typed loosely on purpose, the reader checks `$type` itself. */
@@ -234,6 +235,38 @@ export async function readBpmn(xml: string): Promise<ReadResult> {
     const holder = page && nodes.find((x) => x.id === page)
     if (holder) (n.participantId = holder.participantId), (n.laneId = holder.laneId)
     else place(model, n.id)
+  }
+  // StrataFlow's analysis attributes (any prefix bound to its namespace).
+  const prefix = Object.entries((defs.$attrs ?? {}) as Record<string, string>).find(([k, v]) => k.startsWith('xmlns:') && v === SIM_NS)?.[0].slice(6)
+  if (prefix) {
+    const byId = new Map<string, El>()
+    const collect = (e: El | undefined) => {
+      if (!e || typeof e !== 'object' || byId.has(e.id ?? '\0')) return
+      if (e.id) byId.set(e.id, e)
+      for (const key of ['rootElements', 'flowElements', 'artifacts', 'laneSets', 'lanes', 'messageFlows', 'participants']) for (const c of (e[key] ?? []) as El[]) collect(c)
+      if (e.childLaneSet) collect(e.childLaneSet)
+    }
+    collect(defs)
+    const num = (e: El | undefined, key: string) => {
+      const v = e?.$attrs?.[`${prefix}:${key}`]
+      const x = v === undefined ? NaN : Number(v)
+      return Number.isFinite(x) ? x : undefined
+    }
+    for (const n of nodes) {
+      const sim = Object.fromEntries((['duration', 'wait', 'cost', 'repeats'] as const).map((k) => [k, num(byId.get(n.id), k)]).filter(([, v]) => v !== undefined))
+      if (Object.keys(sim).length) n.sim = sim
+    }
+    for (const f of model.flows) {
+      const p = num(byId.get(f.id), 'probability')
+      if (p !== undefined) f.probability = p
+    }
+    for (const l of lanes) {
+      const c = num(byId.get(l.id), 'capacity')
+      if (c !== undefined) l.capacity = c
+    }
+    const unit = defs.$attrs?.[`${prefix}:timeUnit`]
+    const arrivals = num(defs, 'arrivals')
+    if (unit === 'min' || unit === 'h' || unit === 'd' || arrivals !== undefined) model.sim = { ...((unit === 'min' || unit === 'h' || unit === 'd') && { unit }), ...(arrivals !== undefined && { arrivals }) }
   }
   return { model, warnings }
 }

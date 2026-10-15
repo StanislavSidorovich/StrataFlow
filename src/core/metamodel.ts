@@ -26,6 +26,28 @@ interface NodeBase {
   laneId?: string
   /** Enclosing sub-process, when nested. */
   parentId?: string
+  /** Figures for the time and cost analysis (stage 6): an activity's work, an intermediate event's wait. */
+  sim?: SimFigures
+}
+
+/**
+ * Time and cost of one run of an activity, in the model's time unit (Dumas et al., quantitative analysis).
+ * `duration` is processing time (someone works on it), `wait` is time before it starts (queue, hand-over,
+ * waiting for the customer). `repeats` = runs per visit of a loop or multi-instance activity.
+ */
+export interface SimFigures {
+  duration?: number
+  wait?: number
+  cost?: number
+  repeats?: number
+}
+
+export type TimeUnit = 'min' | 'h' | 'd'
+
+/** Settings of the analysis for the whole model. `arrivals` = new cases per time unit (for resource use). */
+export interface SimSettings {
+  unit?: TimeUnit
+  arrivals?: number
 }
 
 export type FlowNode = NodeBase &
@@ -51,6 +73,8 @@ export interface Lane {
   name: string
   participantId?: string
   parentLaneId?: string
+  /** How many people (or machines) of this role work in parallel: the resource pool of the analysis. */
+  capacity?: number
 }
 
 export type FlowKind = 'sequence' | 'message' | 'association' | 'data'
@@ -62,6 +86,8 @@ export interface Flow {
   target: string
   name: string
   condition?: string
+  /** Share of cases that take this branch of a decision (0–1), for the time analysis. */
+  probability?: number
 }
 
 export interface Bounds {
@@ -85,6 +111,7 @@ export interface FlowModel {
   nodes: FlowNode[]
   flows: Flow[]
   diagram: Diagram
+  sim?: SimSettings
 }
 
 export type ElementType = FlowNode['type']

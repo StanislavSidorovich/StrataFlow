@@ -20,6 +20,7 @@ import {
   MousePointer2,
   Play,
   RefreshCw,
+  Timer,
   Save,
   Sun,
   TriangleAlert,
@@ -38,11 +39,14 @@ import { Menu } from './Menu'
 import { CheckPanel, issueSummary, useIssues } from './panels/Check'
 import { HelpPanel } from './panels/Help'
 import { Properties } from './panels/Properties'
+import { SimulatePanel, useSim } from './panels/Simulate'
 import { hadStoredModel, useEditor } from './store'
 import { startTour, Tour, tourOnFirstVisit } from './trainer/Tour'
 import { TrainerPane, TrainerVeil } from './trainer/TrainerPane'
 import { useTrainer } from './trainer/trainerStore'
 import example from '../data/examples/library-loan.flow.json?raw'
+import expenseAsIs from '../../cases/expense-claim-as-is.flow.json?raw'
+import expenseToBe from '../../cases/expense-claim-to-be.flow.json?raw'
 
 // First visit: the example, so the canvas is not empty; later visits: what was there before.
 if (!hadStoredModel && !useEditor.getState().backup) useEditor.setState({ model: parseModel(example) })
@@ -73,6 +77,7 @@ export function App() {
   const message = useEditor((s) => s.message)
   const help = useEditor((s) => s.help)
   const checkOpen = useEditor((s) => s.checkOpen)
+  const simOpen = useSim((s) => s.open)
   const updateReady = useUpdateReady()
   const trainerOpen = useTrainer((s) => s.open)
   const inTask = useTrainer((s) => s.session !== null)
@@ -171,6 +176,28 @@ export function App() {
                   useEditor.getState().say('Opened the example: a library lends a book. Undo brings your process back.')
                 },
               },
+              {
+                label: 'Example: expense claim AS-IS',
+                icon: <Timer size={15} />,
+                title: 'A paper expense claim with its times and costs: open Simulate to see the cycle time',
+                testid: 'example-as-is',
+                onPick: () => {
+                  useEditor.getState().load(parseModel(expenseAsIs))
+                  useSim.setState({ open: true, tab: 'figures', play: null })
+                  useEditor.getState().say('Opened the AS-IS expense claim. Keep as AS-IS, then open the TO-BE (or change this one) to compare. Undo brings your process back.')
+                },
+              },
+              {
+                label: 'Example: expense claim TO-BE',
+                icon: <Timer size={15} />,
+                title: 'The redesigned expense claim: an app, triage, parallel checks, weekly payments',
+                testid: 'example-to-be',
+                onPick: () => {
+                  useEditor.getState().load(parseModel(expenseToBe))
+                  useSim.setState({ open: true, tab: 'figures', play: null })
+                  useEditor.getState().say('Opened the TO-BE expense claim. With AS-IS kept, each figure shows the change. Undo brings your process back.')
+                },
+              },
             ]}
           />
           <input
@@ -189,6 +216,14 @@ export function App() {
             <LayoutDashboard size={15} /> Auto layout
           </button>
           <CheckButton />
+          <button
+            className={`btn${simOpen ? ' is-open' : ''}`}
+            onClick={() => useSim.getState().setOpen(!simOpen)}
+            title="Simulate: play a case step by step; times, costs and how busy each lane is (AS-IS vs TO-BE)"
+            data-testid="simulate"
+          >
+            <Timer size={15} /> Simulate
+          </button>
           <button
             className={`btn${trainerOpen ? ' is-open' : ''}`}
             onClick={() => useTrainer.getState().setOpen(!trainerOpen)}
@@ -263,6 +298,7 @@ export function App() {
             <Canvas />
             <TrainerVeil />
             {checkOpen && <CheckPanel />}
+            {simOpen && <SimulatePanel />}
           </div>
         </ReactFlowProvider>
         {help ? <HelpPanel id={help} /> : <Properties />}

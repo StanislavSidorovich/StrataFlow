@@ -25,7 +25,7 @@ describe('own cases', () => {
       })
 
       it('the case file has the 7 sections and names every step of the model', () => {
-        const md = readFileSync(`cases/${c.id}.md`, 'utf8')
+        const md = readFileSync(`cases/${c.md ?? c.id}.md`, 'utf8')
         expect(md.match(/^## \d\. .+$/gm)).toEqual(SECTIONS.map((s, i) => `## ${i + 1}. ${s}`))
         const m = emptyModel(c.name)
         c.draw(m)

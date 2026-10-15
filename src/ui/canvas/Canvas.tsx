@@ -20,6 +20,7 @@ import { POOL_HEADER } from '../../core/metamodel'
 import { addNode, addPool, connect, ModelError, moveElements, nodeOf, pageOf, withDescendants } from '../../core/ops'
 import type { Severity } from '../../core/lint'
 import { useIssues } from '../panels/Check'
+import { useSim } from '../panels/Simulate'
 import { useEditor } from '../store'
 import { ContextMenu } from './ContextMenu'
 import { BpmnEdge, EdgeMarkers, type FlowEdge } from './edges'
@@ -45,7 +46,7 @@ function shownOn(model: FlowModel, page: string | null): Set<string> {
 
 const RANK: Record<Severity, number> = { error: 0, warning: 1, info: 2 }
 
-function toNodes(model: FlowModel, selected: Set<string>, page: string | null, marks: Map<string, Severity> = new Map()): AnyNode[] {
+function toNodes(model: FlowModel, selected: Set<string>, page: string | null, marks: Map<string, Severity> = new Map(), tokens: Set<string> = new Set()): AnyNode[] {
   const { shapes } = model.diagram
   const shown = shownOn(model, page)
   const out: AnyNode[] = []
@@ -55,6 +56,13 @@ function toNodes(model: FlowModel, selected: Set<string>, page: string | null, m
     let at: string | undefined = id
     while (at && !shown.has(at)) at = pageOf(model, at)
     if (at && (!mark.has(at) || RANK[sev] < RANK[mark.get(at)!])) mark.set(at, sev)
+  }
+  // A token inside a collapsed sub-process shows on the sub-process.
+  const token = new Set<string>()
+  for (const id of tokens) {
+    let at: string | undefined = id
+    while (at && !shown.has(at)) at = pageOf(model, at)
+    if (at) token.add(at)
   }
   for (const p of model.participants) {
     if (!shown.has(p.id)) continue
@@ -74,12 +82,12 @@ function toNodes(model: FlowModel, selected: Set<string>, page: string | null, m
     if (!s || !shown.has(el.id)) continue
     // An expanded sub-process sits under its content.
     const z = el.type === 'event' && el.position === 'boundary' ? 4 : el.type === 'subProcess' && !el.collapsed ? 1 : 2
-    out.push({ id: el.id, type: 'shape', position: { x: s.x, y: s.y }, width: s.width, height: s.height, data: { el, issue: mark.get(el.id) }, selected: selected.has(el.id), zIndex: z })
+    out.push({ id: el.id, type: 'shape', position: { x: s.x, y: s.y }, width: s.width, height: s.height, data: { el, issue: mark.get(el.id), token: token.has(el.id) }, selected: selected.has(el.id), zIndex: z })
   }
   return out
 }
 
-function toEdges(model: FlowModel, selected: Set<string>, page: string | null): FlowEdge[] {
+function toEdges(model: FlowModel, selected: Set<string>, page: string | null, passed: Set<string> = new Set()): FlowEdge[] {
   const byId = new Map(model.nodes.map((n) => [n.id, n]))
   const shown = shownOn(model, page)
   return model.flows.filter((f) => shown.has(f.source) && shown.has(f.target)).map((f) => {
@@ -97,6 +105,7 @@ function toEdges(model: FlowModel, selected: Set<string>, page: string | null): 
         points: model.diagram.edges[f.id],
         isDefault: src?.type === 'gateway' && src.defaultFlow === f.id,
         conditional: !!f.condition && src?.type !== 'gateway',
+        passed: passed.has(f.id),
       },
     }
   })
@@ -136,9 +145,12 @@ export function Canvas() {
       for (const i of issues) for (const id of i.elements) if (!out.has(id) || RANK[i.severity] < RANK[out.get(id)!]) out.set(id, i.severity)
     return out
   }, [checkOpen, issues])
-  const [nodes, setNodes] = useState<AnyNode[]>(() => toNodes(model, selected, page, marks))
-  useEffect(() => setNodes(toNodes(model, selected, page, marks)), [model, selected, page, marks])
-  const edges = useMemo(() => toEdges(model, selected, page), [model, selected, page])
+  const play = useSim((s) => (s.open ? s.play : null))
+  const tokens = useMemo(() => new Set(play ? [...play.tokens.map((t) => t.at), ...Object.keys(play.waiting)] : []), [play])
+  const passed = useMemo(() => new Set(play?.passed ?? []), [play])
+  const [nodes, setNodes] = useState<AnyNode[]>(() => toNodes(model, selected, page, marks, tokens))
+  useEffect(() => setNodes(toNodes(model, selected, page, marks, tokens)), [model, selected, page, marks, tokens])
+  const edges = useMemo(() => toEdges(model, selected, page, passed), [model, selected, page, passed])
   const flow = useReactFlow()
   const fit = useEditor((s) => s.fit)
   useEffect(() => {

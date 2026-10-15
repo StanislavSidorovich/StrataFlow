@@ -47,6 +47,9 @@ const TRIGGERS: Record<Exclude<EventTrigger, 'none'>, string> = {
   compensation: 'bpmn:CompensateEventDefinition',
 }
 
+/** Namespace of StrataFlow's analysis attributes in BPMN XML (prefix sf). */
+export const SIM_NS = 'https://flow.quaera.app/ns/sim'
+
 export async function writeBpmn(m: FlowModel): Promise<string> {
   const moddle = new BpmnModdle()
   const make = (type: string, attrs: object = {}): El => moddle.create(type, attrs)
@@ -221,6 +224,18 @@ export async function writeBpmn(m: FlowModel): Promise<string> {
   for (const n of m.nodes) {
     if (n.type === 'gateway' && n.defaultFlow && el.has(n.defaultFlow)) el.get(n.id).default = el.get(n.defaultFlow)
   }
+
+  // Figures for the analysis: StrataFlow's own attributes (other tools keep or ignore them).
+  const put = (e: El, key: string, v: number | string | undefined) => {
+    if (v === undefined || !e) return
+    e.$attrs[`sf:${key}`] = String(v)
+    defs.$attrs['xmlns:sf'] = SIM_NS
+  }
+  for (const n of m.nodes) for (const [k, v] of Object.entries(n.sim ?? {})) put(el.get(n.id), k, v)
+  for (const f of m.flows) put(el.get(f.id), 'probability', f.probability)
+  for (const l of m.lanes) put(el.get(l.id), 'capacity', l.capacity)
+  put(defs, 'timeUnit', m.sim?.unit)
+  put(defs, 'arrivals', m.sim?.arrivals)
 
   // Empty lists make empty tags in some tools: drop them.
   for (const e of [...el.values(), ...processOf.values(), collaboration, defs].filter(Boolean))
