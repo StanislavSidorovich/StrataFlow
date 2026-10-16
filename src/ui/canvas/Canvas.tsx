@@ -119,6 +119,9 @@ function followersOf(model: FlowModel, id: string): string[] {
 }
 
 /** The element under a point: the smallest shape, then a pool (a message flow can end on a pool). */
+// Fit view leaves room for the draw bar on the left and the zoom buttons at the bottom, so neither covers the process.
+const FIT = { maxZoom: 1, padding: { top: '24px', right: '24px', bottom: '56px', left: '76px' } } as const
+
 function elementAt(model: FlowModel, p: Point, page: string | null): string | undefined {
   const shown = shownOn(model, page)
   const hit = (id: string) => {
@@ -155,7 +158,7 @@ export function Canvas() {
   const flow = useReactFlow()
   const fit = useEditor((s) => s.fit)
   useEffect(() => {
-    if (fit) requestAnimationFrame(() => void flow.fitView({ maxZoom: 1, padding: 0.08, duration: 300 }))
+    if (fit) requestAnimationFrame(() => void flow.fitView({ ...FIT, duration: 300 }))
   }, [fit, flow])
   // Start positions of what a drag moves, so followers move by the same delta.
   const drag = useRef<Map<string, Point> | null>(null)
@@ -307,6 +310,8 @@ export function Canvas() {
         onConnectEnd={onConnectEnd}
         connectionMode={ConnectionMode.Loose}
         connectionRadius={24}
+        // A tap on a dot must not start a connection (touch): the pad's arrow does that.
+        connectOnClick={false}
         deleteKeyCode={null}
         zoomOnDoubleClick={false}
         selectionKeyCode="Shift"
@@ -314,7 +319,7 @@ export function Canvas() {
         // A selected expanded sub-process must stay under its steps.
         elevateNodesOnSelect={false}
         fitView
-        fitViewOptions={{ maxZoom: 1, padding: 0.08 }}
+        fitViewOptions={FIT}
         minZoom={0.1}
         proOptions={{ hideAttribution: false }}
       >

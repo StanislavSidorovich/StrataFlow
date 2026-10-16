@@ -1252,10 +1252,12 @@ button.link {
   .context-pad {
     grid-template-columns: repeat(2, 40px);
   }
-  .react-flow__handle.bpmn-handle {
-    width: 16px;
-    height: 16px;
-    border-width: 2px;
+  /* A finger on a small event lands on a dot and draws a flow instead of moving it: on a touch screen the
+     dots are off, a shape moves wherever it is touched, and the pad's arrow connects. */
+  .react-flow__handle.bpmn-handle,
+  .react-flow__node.selected .bpmn-handle {
+    opacity: 0;
+    pointer-events: none;
   }
   .react-flow__resize-control.handle.bpmn-resize-handle {
     width: 14px;
@@ -1459,11 +1461,19 @@ button.link {
   }
 }
 
-/* A low screen (a tablet in landscape with the browser bar): the draw bar in two columns, so every tool fits. */
+/* The draw bar scrolls when the canvas is lower than its tools; a low screen (a tablet in landscape with the
+   browser bar) puts the zoom buttons in a row under it. One column keeps the bar narrow: fit view leaves it room. */
+.palette {
+  max-height: calc(100% - 20px);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.palette > * {
+  flex: none;
+}
 @media (max-height: 560px) {
   .palette {
-    display: grid;
-    grid-template-columns: repeat(2, auto);
+    max-height: calc(100% - 72px);
   }
   .react-flow__controls {
     flex-direction: row;
