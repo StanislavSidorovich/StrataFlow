@@ -25,7 +25,7 @@
   --ok-soft: #173326;
 }
 .trainer-panel {
-  width: 340px;
+  width: var(--trainer-w, 340px);
   border-left: 0;
   border-right: 1px solid var(--panel-border);
 }

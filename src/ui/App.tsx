@@ -47,7 +47,7 @@ import { hadStoredModel, useEditor } from './store'
 import { startTour, Tour } from './trainer/Tour'
 import { TrainerPane, TrainerVeil } from './trainer/TrainerPane'
 import { useTrainer } from './trainer/trainerStore'
-import { showSide, useLayout } from './viewport'
+import { PaneResizer, showSide, useLayout } from './viewport'
 import { openWelcome, WelcomeCard, welcomeAtStart } from './Welcome'
 import example from '../data/examples/library-loan.flow.json?raw'
 import expenseAsIs from '../../cases/expense-claim-as-is.flow.json?raw'
@@ -88,6 +88,8 @@ export function App() {
   const inTask = useTrainer((s) => s.session !== null)
   const side = useLayout((s) => s.side)
   const narrow = useLayout((s) => s.narrow)
+  const phone = useLayout((s) => s.phone)
+  const trainerW = useLayout((s) => s.trainerW)
   const [dark, setDark] = useState(() => matchMedia('(prefers-color-scheme: dark)').matches)
   const input = useRef<HTMLInputElement>(null)
 
@@ -156,7 +158,7 @@ export function App() {
   }, [])
 
   return (
-    <div className="app">
+    <div className={`app${phone ? ' is-phone' : ''}`} style={{ '--trainer-w': `${trainerW}px` } as React.CSSProperties}>
       <header className="topbar">
         <div className="topbar-left">
           <div className="brand">
@@ -320,7 +322,12 @@ export function App() {
         </div>
       )}
       <main className="main">
-        {trainerOpen && <TrainerPane />}
+        {trainerOpen && (
+          <>
+            <TrainerPane />
+            {!phone && <PaneResizer />}
+          </>
+        )}
         <ReactFlowProvider key={doc}>
           <div className="workspace">
             <Canvas />
