@@ -16,6 +16,7 @@ import {
   GraduationCap,
   Info,
   LayoutDashboard,
+  MessageSquare,
   Moon,
   MousePointer2,
   PanelRight,
@@ -38,6 +39,7 @@ import { Canvas } from './canvas/Canvas'
 import { TOOLS } from './canvas/Palette'
 import { groupSelection, layoutNow, renameElement, ungroupSelection } from './actions'
 import { exportBpmn, openText, saveModel, saveModelAs } from './files'
+import { FEEDBACK_URL } from './links'
 import { Menu } from './Menu'
 import { CheckPanel, issueSummary, useIssues } from './panels/Check'
 import { HelpPanel } from './panels/Help'
@@ -271,6 +273,9 @@ export function App() {
                   showSide()
                 },
               },
+              ...(FEEDBACK_URL
+                ? [{ label: 'Send feedback…', icon: <MessageSquare size={15} />, title: 'Stuck or found a mistake? A short form, no account needed', testid: 'feedback', onPick: () => window.open(FEEDBACK_URL, '_blank', 'noopener') }]
+                : []),
               'sep',
               {
                 label: 'Install as app',

@@ -10,6 +10,7 @@ import { caseById, CASES } from '../data/cases'
 import { LESSONS } from '../data/lessons'
 import { LEVELS } from '../data/trainer'
 import { emptyModel } from '../core/metamodel'
+import { FEEDBACK_URL } from './links'
 import { useEditor } from './store'
 import { startTour } from './trainer/Tour'
 import { useTrainer } from './trainer/trainerStore'
@@ -153,6 +154,11 @@ export function WelcomeCard({ onOpenFile }: { onOpenFile: () => void }) {
           <a href="https://model.quaera.app" target="_blank" rel="noopener" className="muted">
             Sister app: StrataSQL (data models)
           </a>
+          {FEEDBACK_URL && (
+            <a href={FEEDBACK_URL} target="_blank" rel="noopener" className="muted" data-testid="welcome-feedback">
+              Send feedback
+            </a>
+          )}
         </div>
       </div>
     </div>
