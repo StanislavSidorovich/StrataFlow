@@ -1,6 +1,6 @@
 {
-  "name": "StrataFlow: BPMN process modeling",
-  "short_name": "StrataFlow",
+  "name": "Quaera Flow: BPMN process modeling",
+  "short_name": "Quaera Flow",
   "description": "Learn BPMN by doing: model a process in the browser, open Bizagi exports, get feedback that explains the rules.",
   "id": "./",
   "start_url": "./",

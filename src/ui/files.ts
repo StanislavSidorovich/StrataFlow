@@ -72,7 +72,7 @@ export async function saveModelAs(): Promise<string | null> {
   try {
     file = await show({
       suggestedName: `${fileBaseName(model.name)}${FILE_EXTENSION}`,
-      types: [{ description: 'StrataFlow process', accept: { 'application/json': ['.json'] } }],
+      types: [{ description: 'Quaera Flow process', accept: { 'application/json': ['.json'] } }],
     })
   } catch (e) {
     if ((e as Error).name === 'AbortError') return null

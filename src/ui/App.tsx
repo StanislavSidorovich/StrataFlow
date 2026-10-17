@@ -163,11 +163,11 @@ export function App() {
     <div className={`app${phone ? ' is-phone' : ''}`} style={{ '--trainer-w': `${trainerW}px` } as React.CSSProperties}>
       <header className="topbar">
         <div className="topbar-left">
-          <div className="brand">
+          <a className="brand" href="https://quaera.app" title="Part of Quaera: all the tools at quaera.app">
             <img src="./icon.svg" alt="" width={22} height={22} />
-            <strong>StrataFlow</strong>
+            <strong>Quaera Flow</strong>
             <span className="stage-pill">preview</span>
-          </div>
+          </a>
           <Menu
             label="File"
             testid="file-menu"
@@ -256,7 +256,7 @@ export function App() {
         </button>
         <div className="topbar-right">
           {updateReady && (
-            <button className="btn accent" onClick={applyUpdate} title="A new version of StrataFlow is ready: reload to use it (your process is kept)" data-testid="update">
+            <button className="btn accent" onClick={applyUpdate} title="A new version of Quaera Flow is ready: reload to use it (your process is kept)" data-testid="update">
               <RefreshCw size={15} /> Update
             </button>
           )}
@@ -289,7 +289,7 @@ export function App() {
               {
                 label: 'Third-party licences',
                 icon: <FileText size={15} />,
-                title: 'The open-source packages StrataFlow uses, with their licence texts',
+                title: 'The open-source packages Quaera Flow uses, with their licence texts',
                 testid: 'licences',
                 onPick: () => window.open('./third-party-licenses.txt', '_blank', 'noopener'),
               },
@@ -299,7 +299,7 @@ export function App() {
                 onPick: () =>
                   useEditor
                     .getState()
-                    .say(`StrataFlow ${__APP_VERSION__}: learn BPMN process modeling, sister app of StrataSQL. Unofficial student project. Code Apache-2.0, learning content CC BY-NC-SA 4.0; open-source packages: Help → Third-party licences. BPMN is an OMG standard; Bizagi is a trademark of its owner, StrataFlow is not affiliated with it.`),
+                    .say(`Quaera Flow ${__APP_VERSION__}: learn BPMN process modeling, part of Quaera (quaera.app). Unofficial student project. Code Apache-2.0, learning content CC BY-NC-SA 4.0; open-source packages: Help → Third-party licences. BPMN is an OMG standard; Bizagi is a trademark of its owner, Quaera Flow is not affiliated with it.`),
               },
             ]}
           />

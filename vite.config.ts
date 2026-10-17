@@ -53,7 +53,7 @@ function noticesPlugin(): Plugin {
         })
         .sort((a, b) => a.name.localeCompare(b.name))
         .map((x) => x.text)
-      const head = 'StrataFlow uses these open-source packages. Their licences and notices follow.\n'
+      const head = 'Quaera Flow uses these open-source packages. Their licences and notices follow.\n'
       this.emitFile({ type: 'asset', fileName: 'third-party-licenses.txt', source: [head, ...parts].join(`\n${'-'.repeat(72)}\n\n`) })
     },
   }

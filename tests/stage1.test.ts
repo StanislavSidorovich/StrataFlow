@@ -78,7 +78,7 @@ describe('*.flow.json', () => {
 
   it('refuses files that would break the canvas', () => {
     expect(() => parseModel('{')).toThrow(ModelFormatError)
-    expect(() => parseModel('{"format":"strata-sql"}')).toThrow('Not a StrataFlow model')
+    expect(() => parseModel('{"format":"strata-sql"}')).toThrow('Not a Quaera Flow model')
     const m = emptyModel()
     m.flows.push({ id: 'F', kind: 'sequence', source: 'A', target: 'B', name: '' })
     expect(() => parseModel(JSON.stringify(m))).toThrow('no element A')

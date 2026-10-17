@@ -56,7 +56,7 @@ export function parseCaseFile(text: string): TrainerCase {
   } catch (e) {
     return fail(`Not valid JSON: ${(e as Error).message}`)
   }
-  if (raw.format !== CASE_FORMAT) fail(`Not a StrataFlow case (format must be "${CASE_FORMAT}")`)
+  if (raw.format !== CASE_FORMAT) fail(`Not a Quaera Flow case (format must be "${CASE_FORMAT}")`)
   if (raw.version !== CASE_VERSION) fail(`Unsupported case version ${String(raw.version)}`)
   const model = parseModel(JSON.stringify({ format: 'strata-flow', version: 1, ...(raw.model as object) }))
   const o = (raw.case ?? fail('"case" is missing')) as Record<string, unknown>

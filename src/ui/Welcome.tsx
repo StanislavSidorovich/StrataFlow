@@ -80,7 +80,7 @@ export function WelcomeCard({ onOpenFile }: { onOpenFile: () => void }) {
         </button>
         <div className="welcome-head">
           <img src="./icon.svg" alt="" width={28} height={28} />
-          <h2 id="welcome-title">StrataFlow</h2>
+          <h2 id="welcome-title">Quaera Flow</h2>
         </div>
         <p className="welcome-lead">Learn BPMN by doing: from a text to a process, checked against the course rules.</p>
 
@@ -152,7 +152,7 @@ export function WelcomeCard({ onOpenFile }: { onOpenFile: () => void }) {
             Take the 1-minute tour
           </button>
           <a href="https://model.quaera.app" target="_blank" rel="noopener" className="muted">
-            Sister app: StrataSQL (data models)
+            Sister app: Quaera Model (data models)
           </a>
           {FEEDBACK_URL && (
             <a href={FEEDBACK_URL} target="_blank" rel="noopener" className="muted" data-testid="welcome-feedback">

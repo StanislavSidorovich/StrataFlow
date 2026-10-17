@@ -102,7 +102,7 @@ export const HELP_CARDS: HelpCard[] = [
     title: 'Sub-process',
     oneLiner: 'An activity that is itself a small process: collapsed shows +, its steps sit on a page of their own.',
     body: [
-      'Group steps into a sub-process when the diagram gets large or a part is a unit of its own ("Handle payment"). In StrataFlow select the steps and press Ctrl+G; double-click the sub-process to open its page.',
+      'Group steps into a sub-process when the diagram gets large or a part is a unit of its own ("Handle payment"). In Quaera Flow select the steps and press Ctrl+G; double-click the sub-process to open its page.',
       'Inside, a sub-process has its own start and end events. Its steps stay in one pool, and in BPMN it has no lanes inside.',
       'Level 1 of a process architecture is often a line of collapsed sub-processes with no gateways; level 2 opens each one.',
     ],
@@ -117,7 +117,7 @@ export const HELP_CARDS: HelpCard[] = [
     oneLiner: 'Calls a process defined elsewhere, so it can be reused (thick border).',
     body: [
       'A sub-process belongs to one process; a call activity points to a global process that several processes call ("Check customer credit").',
-      'Bizagi saves such reusable sub-processes in a separate diagram (a separate .bpmn file on export). StrataFlow reads them as plain tasks for now.',
+      'Bizagi saves such reusable sub-processes in a separate diagram (a separate .bpmn file on export). Quaera Flow reads them as plain tasks for now.',
     ],
     whenToUse: ['the same procedure appears in several processes'],
     typicalMistake: 'Copying the same steps into each process instead of calling one shared process.',
@@ -315,7 +315,7 @@ export const HELP_CARDS: HelpCard[] = [
     oneLiner: 'Solid inside a pool, dashed between pools: never the other way round.',
     body: [
       'A sequence flow orders the steps of one party. A message flow carries something from one party to another (a form, an e-mail, goods); it does not say what comes next.',
-      'In StrataFlow just draw "a line": between pools it becomes a message flow by itself.',
+      'In Quaera Flow just draw "a line": between pools it becomes a message flow by itself.',
     ],
     whenToUse: ['"sends", "receives", "informs", "replies" between parties → message flow'],
     miniModel: 'msgEnd:Invoice sent > msg:Payment received',

@@ -30,7 +30,7 @@ describe('case files', () => {
 
   it('refuses a model file, a phrase not in the text, a name not in the model, an unknown tag', () => {
     expect(isCaseFile('{"format":"strata-flow"}')).toBe(false)
-    expect(() => parseCaseFile('{"format":"strata-flow","version":1}')).toThrow(/Not a StrataFlow case/)
+    expect(() => parseCaseFile('{"format":"strata-flow","version":1}')).toThrow(/Not a Quaera Flow case/)
     expect(broken((o) => (o.case.spans[0].phrase = 'no such words'))).toThrow(/“no such words” is not in paragraph 0/)
     expect(broken((o) => (o.case.spans[1].target = ['Nowhere']))).toThrow(/names “Nowhere”, which is not in the reference/)
     expect(broken((o) => (o.case.spans[2].tag = 'thing'))).toThrow(/unknown tag “thing”/)

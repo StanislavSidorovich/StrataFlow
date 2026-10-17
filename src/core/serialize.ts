@@ -24,7 +24,7 @@ export function parseModel(text: string): FlowModel {
   const fail = (msg: string): never => {
     throw new ModelFormatError(msg)
   }
-  if (!m || typeof m !== 'object' || m.format !== 'strata-flow') fail('Not a StrataFlow model (format must be "strata-flow")')
+  if (!m || typeof m !== 'object' || m.format !== 'strata-flow') fail('Not a Quaera Flow model (format must be "strata-flow")')
   if (m.version !== 1) fail(`Unknown version ${String(m.version)}`)
   for (const key of ['participants', 'lanes', 'nodes', 'flows'] as const) if (!Array.isArray(m[key])) fail(`"${key}" must be a list`)
   m.name = typeof m.name === 'string' ? m.name : ''
