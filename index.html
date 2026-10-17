@@ -12,6 +12,16 @@
     <meta property="og:site_name" content="StrataFlow" />
     <meta property="og:title" content="StrataFlow: BPMN process modeling in the browser" />
     <meta property="og:url" content="https://flow.quaera.app/" />
+    <!-- Cloudflare Web Analytics: cookieless page-view counts, on the live site only (not local runs). -->
+    <script>
+      if (location.hostname === 'flow.quaera.app') {
+        const s = document.createElement('script')
+        s.defer = true
+        s.src = 'https://static.cloudflareinsights.com/beacon.min.js'
+        s.dataset.cfBeacon = '{"token": "c94dc42b979b4fe3aa47e120603e7007"}'
+        document.head.appendChild(s)
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
