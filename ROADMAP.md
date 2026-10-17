@@ -50,6 +50,7 @@ Done: an editor that draws every BPMN element the course uses (also loop and mul
 
 ## Decisions
 
+- 2026-10-17 ✱ **Appearance as in StrataSQL**: canvas and panel tints per theme with StrataSQL's swatches, so all Quaera apps offer the same colours; the theme choice is remembered.
 - 2026-10-14 ✱ Name **StrataFlow**, subdomain **flow.quaera.app**, public repo github.com/StanislavSidorovich/StrataFlow (owner's choice).
 - 2026-10-14 ✱ Same stack and architecture as StrataSQL (pure TS core + React Flow canvas). D1 (React Flow vs bpmn-js) and D2 (bpmn-moddle vs own XML) to be confirmed in stage 0.
 - 2026-10-14 ✱ BPMN XML is the interchange format with Bizagi; native `.bpm` is optional.
@@ -206,4 +207,8 @@ Built with: Claude Opus 5.5 (Claude Code), effort low.
 
 ### 2026-10-16 · Feedback form
 The owner made the StrataFlow feedback form as a copy of the StrataSQL one (same four questions, "Process Modelling App"), checked it in a private window (opens without an account, a test answer arrived). Built: Help → Send feedback… and a "Send feedback" link in the welcome card's footer, both hidden when `FEEDBACK_URL` (`src/ui/links.ts`) is empty. Checked with Playwright on the production build (1366 × 820): the welcome link points at the form, the menu item opens it in a new tab, no console errors. 295 tests. v0.5.7. Next: the Cloudflare Web Analytics token, screenshots for the cohort post.
+Built with: Claude Opus 5.5 (Claude Code), effort low.
+
+### 2026-10-17 · Appearance (Aa): canvas and panel colours
+The owner asked for softer backgrounds as in model.quaera.app, in Quaera Lab and here. Built: the sun / moon button in the top bar became **Aa**, as in StrataSQL: Light / Dark, the canvas background and the panels' background (top bar, side columns) from StrataSQL's seven tints or any colour, Reset to default. Colours are kept per theme (`strataflow.look`), and the theme itself is now remembered too (`strataflow.theme`; before, every visit followed the system). Same swatches and storage shape as StrataSQL and Quaera Lab (`src/core/look.ts`, `tests/look.test.ts`). No text size here (StrataSQL has one): the browser's zoom does it. Checked with Playwright on the production build: 1280 × 800 green canvas and warm panels in light, blue panels in dark, kept after a reload; 390 × 800 the panel fits the screen (80–380 px), no console errors. 299 tests. v0.5.8.
 Built with: Claude Opus 5.5 (Claude Code), effort low.

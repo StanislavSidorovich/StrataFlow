@@ -1,8 +1,9 @@
 // The editor. Top bar: File menu and the main actions on the left, the process name in the middle, Update /
-// Help / theme on the right. Below: the canvas (with the Check panel under it) and Properties or Help.
+// Help / Appearance (Aa) on the right. Below: the canvas (with the Check panel under it) and Properties or Help.
 // Status bar: where the work is kept, what the check says, what is shown.
 import { useEffect, useRef, useState } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
+import { AppearanceButton } from './Appearance'
 import {
   BookOpen,
   CircleAlert,
@@ -17,7 +18,6 @@ import {
   Info,
   LayoutDashboard,
   MessageSquare,
-  Moon,
   MousePointer2,
   PanelRight,
   Play,
@@ -26,7 +26,6 @@ import {
   Sparkles,
   Timer,
   Save,
-  Sun,
   TriangleAlert,
   X,
 } from 'lucide-react'
@@ -77,6 +76,19 @@ const exportNow = async () => {
   }
 }
 
+const THEME_KEY = 'strataflow.theme'
+
+/** The theme chosen last time, else the system's. */
+function initialDark(): boolean {
+  try {
+    const t = localStorage.getItem(THEME_KEY)
+    if (t === 'light' || t === 'dark') return t === 'dark'
+  } catch {
+    /* no storage */
+  }
+  return matchMedia('(prefers-color-scheme: dark)').matches
+}
+
 export function App() {
   const doc = useEditor((s) => s.doc)
   const name = useEditor((s) => s.model.name)
@@ -92,11 +104,16 @@ export function App() {
   const narrow = useLayout((s) => s.narrow)
   const phone = useLayout((s) => s.phone)
   const trainerW = useLayout((s) => s.trainerW)
-  const [dark, setDark] = useState(() => matchMedia('(prefers-color-scheme: dark)').matches)
+  const [dark, setDark] = useState(initialDark)
   const input = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark)
+    try {
+      localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light')
+    } catch {
+      /* private mode: the theme follows the system next time */
+    }
   }, [dark])
   useEffect(() => {
     if (!message) return
@@ -312,9 +329,7 @@ export function App() {
           >
             <PanelRight size={15} />
           </button>
-          <button className="btn icon" onClick={() => setDark((d) => !d)} title={dark ? 'Light theme' : 'Dark theme'} aria-label="Toggle theme">
-            {dark ? <Sun size={15} /> : <Moon size={15} />}
-          </button>
+          <AppearanceButton dark={dark} onToggleTheme={() => setDark((d) => !d)} />
         </div>
       </header>
       {(error || message) && (
