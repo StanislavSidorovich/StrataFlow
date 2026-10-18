@@ -2,15 +2,16 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Tokens as in StrataSQL (docs/design.md), plus the BPMN ones. */
+/* Neutrals and the accent come from the family kit (src/family/tokens.css, <html data-app="flow">);
+   the app's own names stay and point at the shared --q-* ones. The BPMN colours below are Flow's own. */
 :root {
-  --app-bg: #f6f7f9;
-  --panel-bg: #ffffff;
-  --panel-border: #e3e6eb;
-  --text: #1d2330;
-  --muted: #6b7385;
-  --accent: #2563eb;
-  --accent-soft: #e6eefe;
+  --app-bg: var(--q-bg);
+  --panel-bg: var(--q-surface);
+  --panel-border: var(--q-line);
+  --text: var(--q-text);
+  --muted: var(--q-muted);
+  --accent: var(--q-accent);
+  --accent-soft: color-mix(in srgb, var(--q-accent) 12%, var(--q-surface));
   --brand: #0d9488;
   --warning: #9a5b00;
   --warning-soft: #fff4e0;
@@ -21,7 +22,7 @@
   --shape-fill: #ffffff;
   --shape-stroke: #4b5568;
   --edge: #4b5568;
-  --edge-selected: #2563eb;
+  --edge-selected: var(--q-accent);
   --pool-header: #eef2f8;
   --pool-border: #8a94a6;
   --lane-tint: rgb(238 242 248 / 0.35);
@@ -32,13 +33,7 @@
 }
 
 :root.dark {
-  --app-bg: #14171d;
-  --panel-bg: #1b1f27;
-  --panel-border: #2c323e;
-  --text: #e4e7ee;
-  --muted: #98a0b3;
-  --accent: #6c9cff;
-  --accent-soft: #233150;
+  --accent-soft: color-mix(in srgb, var(--q-accent) 18%, var(--q-surface));
   --brand: #2dd4bf;
   --warning: #ffc266;
   --warning-soft: #3a2c12;
@@ -49,7 +44,6 @@
   --shape-fill: #20252f;
   --shape-stroke: #a9b2c6;
   --edge: #a9b2c6;
-  --edge-selected: #6c9cff;
   --pool-header: #2a3140;
   --pool-border: #5d6880;
   --lane-tint: rgb(42 49 64 / 0.25);
@@ -69,7 +63,7 @@ body,
 body {
   background: var(--app-bg);
   color: var(--text);
-  font-family: Inter, 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: var(--q-font-sans);
   font-size: 13px;
 }
 
@@ -640,7 +634,7 @@ svg.is-ok {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  font: 700 11px/16px system-ui, sans-serif;
+  font: 700 11px/16px var(--q-font-sans);
   text-align: center;
   color: #fff;
   pointer-events: none;
@@ -670,7 +664,7 @@ svg.is-ok {
   border-radius: 50%;
   background: var(--panel-bg);
   color: var(--muted);
-  font: 600 10px/1 system-ui, sans-serif;
+  font: 600 10px/1 var(--q-font-sans);
   vertical-align: 1px;
   cursor: pointer;
 }

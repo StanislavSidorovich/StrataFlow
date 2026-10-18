@@ -180,11 +180,10 @@ export function App() {
     <div className={`app${phone ? ' is-phone' : ''}`} style={{ '--trainer-w': `${trainerW}px` } as React.CSSProperties}>
       <header className="topbar">
         <div className="topbar-left">
-          <a className="brand" href="https://quaera.app" title="Part of Quaera: all the tools at quaera.app">
-            <img src="./icon.svg" alt="" width={22} height={22} />
-            <strong>Quaera Flow</strong>
+          <div className="brand">
+            <quaera-switcher app="flow" />
             <span className="stage-pill">preview</span>
-          </a>
+          </div>
           <Menu
             label="File"
             testid="file-menu"
