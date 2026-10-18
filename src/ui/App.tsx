@@ -33,7 +33,7 @@ import { summarize } from '../core/lint'
 import { emptyModel, isArtifact } from '../core/metamodel'
 import { deleteElements, nodeOf } from '../core/ops'
 import { parseModel } from '../core/serialize'
-import { applyUpdate, installApp, useUpdateReady } from '../pwa/register'
+import { applyUpdate, checkForUpdates, DEPLOY_DELAY_NOTE, installApp, updateCheckMessage, useUpdateReady } from '../pwa/register'
 import { Canvas } from './canvas/Canvas'
 import { TOOLS } from './canvas/Palette'
 import { groupSelection, layoutNow, renameElement, ungroupSelection } from './actions'
@@ -293,6 +293,16 @@ export function App() {
                 ? [{ label: 'Send feedback…', icon: <MessageSquare size={15} />, title: 'Stuck or found a mistake? A short form, no account needed', testid: 'feedback', onPick: () => window.open(FEEDBACK_URL, '_blank', 'noopener') }]
                 : []),
               'sep',
+              {
+                label: 'Check for updates',
+                icon: <RefreshCw size={15} />,
+                title: DEPLOY_DELAY_NOTE,
+                testid: 'check-updates',
+                onPick: async () => {
+                  useEditor.getState().say('Checking for updates…')
+                  useEditor.getState().say(updateCheckMessage(await checkForUpdates(), __APP_VERSION__))
+                },
+              },
               {
                 label: 'Install as app',
                 icon: <Download size={15} />,
