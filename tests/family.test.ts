@@ -9,7 +9,7 @@ const dir = 'src/family'
 const manifest = JSON.parse(readFileSync(`${dir}/MANIFEST.json`, 'utf8')) as { files: Record<string, string> }
 
 // Same rule as family-sync.mjs: text files are hashed with LF endings (git may check them out as CRLF).
-const TEXT = new Set(['.css', '.js', '.json', '.svg', '.txt', '.html'])
+const TEXT = new Set(['.css', '.js', '.json', '.svg', '.txt', '.html', '.ts'])
 function hashOf(file: string): string {
   let buf = readFileSync(`${dir}/${file}`)
   if (TEXT.has(path.extname(file))) buf = Buffer.from(buf.toString('utf8').replaceAll('\r\n', '\n'), 'utf8')

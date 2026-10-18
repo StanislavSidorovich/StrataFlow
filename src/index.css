@@ -1299,16 +1299,21 @@ button.link {
   .topbar-file {
     display: none;
   }
+  /* No overflow clip here: it would cut off the family switcher's menu, which hangs below the bar. */
   .topbar-left {
     flex: 1 1 auto;
     min-width: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
   }
   .side-wrap.is-over,
   .side-wrap.is-over > .side-panel {
     left: 0;
     width: 100%;
+  }
+}
+/* The smallest phones: the switcher keeps only its tile and caret (same menu), so the bar fits. */
+@media (max-width: 379px) {
+  .brand quaera-switcher::part(label) {
+    display: none;
   }
 }
 

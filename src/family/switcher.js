@@ -5,6 +5,13 @@
  * Блок данных между маркерами генерируется scripts/family-sync.mjs из
  * family.json и marks/*.svg; руками его не править.
  *
+ * Ширину меню можно сузить для узкой колонки: --q-switcher-menu-min и
+ * --q-switcher-menu-max на самом <quaera-switcher> (тренажёр: боковая панель).
+ *
+ * Компактный вид (плитка и стрелка, меню то же) для узкой шапки: атрибут compact
+ * или снаружи `quaera-switcher::part(label) { display: none }` в своём медиа- или
+ * контейнерном запросе. Имя приложения остаётся в aria-label кнопки.
+ *
  * Язык подписей: lang у <quaera-switcher> или у <html>, ru или en.
  */
 (function () {
@@ -115,10 +122,11 @@
     .tile { display: block; width: 22px; height: 22px; flex: none; }
     .tile svg { display: block; width: 100%; height: 100%; }
     .label { font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
+    :host([compact]) .label { display: none; }
     .suffix, .solo { color: var(--tint); }
-    .caret { width: 10px; height: 10px; flex: none; color: var(--q-muted, #6b7385); transition: transform .15s; }
+    .caret { width: 10px; height: 10px; flex: none; color: var(--q-muted, #626a7c); transition: transform .15s; }
     .trigger[aria-expanded='true'] .caret { transform: rotate(180deg); }
-    .menu { position: absolute; left: 0; top: calc(100% + 6px); z-index: 1000; min-width: 296px; max-width: min(360px, calc(100vw - 16px)); margin: 0; padding: 6px; list-style: none;
+    .menu { position: absolute; left: 0; top: calc(100% + 6px); z-index: 1000; min-width: var(--q-switcher-menu-min, 296px); max-width: var(--q-switcher-menu-max, min(360px, calc(100vw - 16px))); margin: 0; padding: 6px; list-style: none;
       background: var(--q-surface, #fff); border: 1px solid var(--q-line, #e3e6eb); border-radius: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, .18); }
     .menu[hidden] { display: none; }
     .menu li { margin: 0; }
@@ -126,10 +134,10 @@
     .item:hover, .item:focus-visible { background: var(--q-surface-2, #f1f3f6); }
     .item .tile { width: 28px; height: 28px; }
     .name { display: block; font-weight: 600; line-height: 1.25; }
-    .purpose { display: block; margin-top: 1px; color: var(--q-muted, #6b7385); font-size: 12.5px; line-height: 1.35; }
+    .purpose { display: block; margin-top: 1px; color: var(--q-muted, #626a7c); font-size: 12.5px; line-height: 1.35; }
     .check { width: 14px; height: 14px; color: var(--tint); }
     .foot { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--q-line, #e3e6eb); }
-    .foot a { display: block; padding: 8px; border-radius: 8px; color: var(--q-muted, #6b7385); text-decoration: none; font-size: 12.5px; }
+    .foot a { display: block; padding: 8px; border-radius: 8px; color: var(--q-muted, #626a7c); text-decoration: none; font-size: 12.5px; }
     .foot a:hover, .foot a:focus-visible { background: var(--q-surface-2, #f1f3f6); color: var(--q-text, #1d2330); }
   `;
 
@@ -147,10 +155,14 @@
       super();
       this._root = this.attachShadow({ mode: 'open' });
       this._onDoc = (e) => { if (!e.composedPath().includes(this)) this._close(false); };
+      this._onEsc = (e) => { if (e.key === 'Escape') { e.preventDefault(); this._close(true); } };
     }
 
     connectedCallback() { this._render(); }
-    disconnectedCallback() { document.removeEventListener('pointerdown', this._onDoc, true); }
+    disconnectedCallback() {
+      document.removeEventListener('pointerdown', this._onDoc, true);
+      document.removeEventListener('keydown', this._onEsc, true);
+    }
     attributeChangedCallback() { if (this.isConnected) this._render(); }
 
     _lang() {
@@ -175,9 +187,9 @@
         </a></li>`).join('');
       this._root.innerHTML = `
         <style>${CSS}</style>
-        <button class="trigger" type="button" aria-haspopup="menu" aria-expanded="false"
+        <button class="trigger" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(cur.name)}"
             style="--tint: var(--q-accent-${cur.id}, ${cur.accent.light})">
-          <span class="tile">${cur.svg}</span><span class="label">${label}</span>${CARET}
+          <span class="tile">${cur.svg}</span><span class="label" part="label">${label}</span>${CARET}
         </button>
         <ul class="menu" role="menu" hidden aria-label="Quaera">${items}
           <li role="none" class="foot"><a role="menuitem" href="https://quaera.app" target="_blank" rel="noopener">quaera.app</a></li>
@@ -198,6 +210,7 @@
       this._menu.hidden = false;
       this._btn.setAttribute('aria-expanded', 'true');
       document.addEventListener('pointerdown', this._onDoc, true);
+      document.addEventListener('keydown', this._onEsc, true);
       if (focusAt === undefined) return;
       const links = this._links();
       (focusAt < 0 ? links[links.length - 1] : links[0]).focus();
@@ -208,6 +221,7 @@
       this._menu.hidden = true;
       this._btn.setAttribute('aria-expanded', 'false');
       document.removeEventListener('pointerdown', this._onDoc, true);
+      document.removeEventListener('keydown', this._onEsc, true);
       if (refocus) this._btn.focus();
     }
 
@@ -219,7 +233,6 @@
       else if (e.key === 'ArrowUp') go(i - 1);
       else if (e.key === 'Home') go(0);
       else if (e.key === 'End') go(links.length - 1);
-      else if (e.key === 'Escape') { e.preventDefault(); this._close(true); }
       else if (e.key === 'Tab') this._close(false);
     }
   }
