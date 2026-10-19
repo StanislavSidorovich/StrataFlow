@@ -99,9 +99,9 @@ export function AppearanceButton({ dark, onToggleTheme }: { dark: boolean; onTog
           <div className="look-row">
             <div className="look-label">Borders</div>
             <div className="look-theme" role="radiogroup" aria-label="Borders">
-              {(['soft', 'strong'] as const).map((b) => (
+              {(['strong', 'soft'] as const).map((b) => (
                 <button key={b} type="button" role="radio" aria-checked={borders === b} className={borders === b ? 'on' : ''} onClick={() => setBorders(b)}>
-                  {b === 'soft' ? 'Soft' : 'Strong'}
+                  {b === 'strong' ? 'Strong' : 'Soft'}
                 </button>
               ))}
             </div>
@@ -111,7 +111,7 @@ export function AppearanceButton({ dark, onToggleTheme }: { dark: boolean; onTog
           <div className="look-hint">Colours are kept separately for the light and dark theme, in this browser.</div>
           <button type="button" className="btn look-reset" onClick={() => {
               setLook(NO_LOOK)
-              setBorders('soft')
+              setBorders('strong')
             }}>
             Reset to default
           </button>
