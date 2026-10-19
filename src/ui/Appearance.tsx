@@ -2,6 +2,7 @@
 // each from a few pale tints or any colour, as in StrataSQL and Quaera Lab. Rules and swatches in src/core/look.ts.
 import { Moon, Sun } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { applyBorders, readBorders, type Borders } from '../core/borders'
 import { lookColor, lookVars, NO_LOOK, parseLook, setLookColor, SWATCHES, type Look, type LookPart } from '../core/look'
 
 const LOOK_KEY = 'strataflow.look'
@@ -17,6 +18,7 @@ function readLook(): Look {
 export function AppearanceButton({ dark, onToggleTheme }: { dark: boolean; onToggleTheme: () => void }) {
   const theme = dark ? 'dark' : 'light'
   const [look, setLook] = useState(readLook)
+  const [borders, setBorders] = useState<Borders>(readBorders)
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
 
@@ -32,6 +34,8 @@ export function AppearanceButton({ dark, onToggleTheme }: { dark: boolean; onTog
       /* private mode: the look is not remembered */
     }
   }, [look, theme])
+
+  useEffect(() => applyBorders(borders), [borders])
 
   useEffect(() => {
     if (!open) return
@@ -92,10 +96,23 @@ export function AppearanceButton({ dark, onToggleTheme }: { dark: boolean; onTog
               ))}
             </div>
           </div>
+          <div className="look-row">
+            <div className="look-label">Borders</div>
+            <div className="look-theme" role="radiogroup" aria-label="Borders">
+              {(['soft', 'strong'] as const).map((b) => (
+                <button key={b} type="button" role="radio" aria-checked={borders === b} className={borders === b ? 'on' : ''} onClick={() => setBorders(b)}>
+                  {b === 'soft' ? 'Soft' : 'Strong'}
+                </button>
+              ))}
+            </div>
+          </div>
           {colorRow('canvas', 'Canvas')}
           {colorRow('panels', 'Panels (top bar, side columns)')}
           <div className="look-hint">Colours are kept separately for the light and dark theme, in this browser.</div>
-          <button type="button" className="btn look-reset" onClick={() => setLook(NO_LOOK)}>
+          <button type="button" className="btn look-reset" onClick={() => {
+              setLook(NO_LOOK)
+              setBorders('soft')
+            }}>
             Reset to default
           </button>
         </div>
