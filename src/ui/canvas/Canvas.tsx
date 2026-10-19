@@ -25,6 +25,7 @@ import { useEditor } from '../store'
 import { ContextMenu } from './ContextMenu'
 import { BpmnEdge, EdgeMarkers, type FlowEdge } from './edges'
 import { BpmnShape, PoolShape, type PoolNode, type ShapeNode } from './nodes'
+import { registerBounds } from '../exportImage'
 import { Palette } from './Palette'
 
 type AnyNode = ShapeNode | PoolNode
@@ -157,6 +158,10 @@ export function Canvas() {
   const edges = useMemo(() => toEdges(model, selected, page, passed), [model, selected, page, passed])
   const flow = useReactFlow()
   const fit = useEditor((s) => s.fit)
+  useEffect(() => {
+    registerBounds(() => flow.getNodesBounds(flow.getNodes()))
+    return () => registerBounds(null)
+  }, [flow])
   useEffect(() => {
     if (fit) requestAnimationFrame(() => void flow.fitView({ ...FIT, duration: 300 }))
   }, [fit, flow])

@@ -2,7 +2,7 @@
   "name": "strataflow",
   "private": true,
   "license": "Apache-2.0",
-  "version": "0.5.13",
+  "version": "0.5.14",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -16,6 +16,7 @@
     "@xyflow/react": "^12.12.0",
     "bpmn-moddle": "^10.3.1",
     "elkjs": "^0.12.0",
+    "html-to-image": "^1.11.13",
     "immer": "^11.1.18",
     "lucide-react": "^1.52.0",
     "react": "^19.3.0",

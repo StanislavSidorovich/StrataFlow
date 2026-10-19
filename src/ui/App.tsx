@@ -11,6 +11,8 @@ import {
   CircleHelp,
   Download,
   FileDown,
+  Image as ImageIcon,
+  MoreHorizontal,
   FileText,
   FilePlus2,
   FolderOpen,
@@ -37,6 +39,7 @@ import { applyUpdate, checkForUpdates, DEPLOY_DELAY_NOTE, installApp, updateChec
 import { Canvas } from './canvas/Canvas'
 import { TOOLS } from './canvas/Palette'
 import { groupSelection, layoutNow, renameElement, ungroupSelection } from './actions'
+import { exportImage } from './exportImage'
 import { exportBpmn, openText, saveModel, saveModelAs } from './files'
 import { FEEDBACK_URL } from './links'
 import { Menu } from './Menu'
@@ -71,6 +74,15 @@ const save = async (as: boolean) => {
 const exportNow = async () => {
   try {
     useEditor.getState().say(await exportBpmn())
+  } catch (e) {
+    useEditor.getState().showError(`Not exported: ${(e as Error).message}`)
+  }
+}
+
+const exportPicture = async (format: 'png' | 'svg') => {
+  try {
+    const name = await exportImage(format)
+    if (name) useEditor.getState().say(`Exported ${name}: the whole diagram as an image, ready for slides and reports.`)
   } catch (e) {
     useEditor.getState().showError(`Not exported: ${(e as Error).message}`)
   }
@@ -194,6 +206,8 @@ export function App() {
               { label: 'Save', icon: <Save size={15} />, keys: 'Ctrl+S', title: 'Save as a .flow.json file', testid: 'save', onPick: () => void save(false) },
               { label: 'Save as…', keys: 'Ctrl+Shift+S', title: 'Choose where to save', testid: 'save-as', onPick: () => void save(true) },
               { label: 'Export BPMN', icon: <FileDown size={15} />, title: 'Export as BPMN 2.0 XML (.bpmn) for Bizagi Modeler, bpmn.io and other BPMN tools', testid: 'export-bpmn', onPick: () => void exportNow() },
+              { label: 'Export PNG', icon: <ImageIcon size={15} />, title: 'The whole diagram as a PNG picture, for slides and reports', testid: 'export-png', onPick: () => void exportPicture('png') },
+              { label: 'Export SVG', icon: <ImageIcon size={15} />, title: 'The whole diagram as an SVG picture (sharp at any size)', testid: 'export-svg', onPick: () => void exportPicture('svg') },
               'sep',
               {
                 label: 'Open the example',
@@ -276,6 +290,19 @@ export function App() {
               <RefreshCw size={15} /> Update
             </button>
           )}
+          <div className="topbar-more">
+            <Menu
+              label=""
+              icon={<MoreHorizontal size={15} />}
+              testid="more-menu"
+              items={[
+                { label: 'Auto layout', icon: <LayoutDashboard size={15} />, title: 'Steps left to right, each in its own lane (Undo puts everything back)', testid: 'more-layout', onPick: () => void layoutNow() },
+                { label: 'Check', icon: <CircleCheck size={15} />, title: 'Open or close the Check panel', testid: 'more-check', onPick: () => useEditor.getState().setCheckOpen(!checkOpen) },
+                { label: 'Simulate', icon: <Timer size={15} />, title: 'Play a case; times, costs and lane load', testid: 'more-simulate', onPick: () => useSim.getState().setOpen(!simOpen) },
+                { label: 'Trainer', icon: <GraduationCap size={15} />, title: 'Cases from easy to hard, and lessons', testid: 'more-trainer', onPick: () => useTrainer.getState().setOpen(!trainerOpen) },
+              ]}
+            />
+          </div>
           <Menu
             label="Help"
             icon={<CircleHelp size={15} />}

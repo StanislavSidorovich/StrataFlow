@@ -46,6 +46,38 @@ export async function exportBpmn(): Promise<string> {
   return `Exported ${name}: BPMN 2.0 XML. In Bizagi Modeler use Import, BPMN; bpmn.io opens it directly.`
 }
 
+const IMAGE_KINDS = {
+  png: { description: 'PNG image', accept: { 'image/png': ['.png'] } },
+  svg: { description: 'SVG image', accept: { 'image/svg+xml': ['.svg'] } },
+}
+
+/**
+ * Save a generated file: the dialog opens first (Chrome, Edge) and the content is made after it, since a slow
+ * image would otherwise lose the click the browser requires. Others download. Returns the name, or null if cancelled.
+ */
+export async function saveExport(name: string, kind: keyof typeof IMAGE_KINDS, make: () => Promise<Blob>): Promise<string | null> {
+  const show = picker()
+  if (!show) {
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(await make())
+    a.download = name
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+    return name
+  }
+  let file: WritableFile
+  try {
+    file = await show({ suggestedName: name, types: [IMAGE_KINDS[kind]] })
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') return null
+    throw e
+  }
+  const out = await file.createWritable()
+  await out.write(await make())
+  await out.close()
+  return file.name
+}
+
 async function write(file: WritableFile) {
   const out = await file.createWritable()
   await out.write(serializeModel(useEditor.getState().model))

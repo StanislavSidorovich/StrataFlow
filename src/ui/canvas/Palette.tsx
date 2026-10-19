@@ -1,6 +1,7 @@
 // The floating draw bar: pick a tool (or press its key), then click on the canvas to place it.
 // Shift+click keeps the tool for the next element; Esc goes back to selecting.
-import { MousePointer2 } from 'lucide-react'
+import { useState } from 'react'
+import { MousePointer2, Shapes, X } from 'lucide-react'
 import { useEditor, type Tool } from '../store'
 import { BpmnIcon, type IconName } from './icons'
 
@@ -20,8 +21,13 @@ export const TOOLS: { tool: Tool; icon: IconName | 'select'; label: string; key:
 
 export function Palette() {
   const active = useEditor((s) => s.tool.id)
+  // Under 600 px the bar is folded into one button (CSS), so it does not cover the diagram; a pick folds it again.
+  const [open, setOpen] = useState(false)
   return (
-    <div className="palette" data-testid="palette" role="toolbar" aria-label="Draw">
+    <div className={`palette${open ? ' is-open' : ''}`} data-testid="palette" role="toolbar" aria-label="Draw">
+      <button className="palette-fold" aria-label={open ? 'Hide the draw bar' : 'Show the draw bar'} aria-expanded={open} title="Draw bar" onClick={() => setOpen((o) => !o)} data-testid="palette-fold">
+        {open ? <X size={16} /> : <Shapes size={16} />}
+      </button>
       {TOOLS.map((t) => (
         <button
           key={t.tool.id}
@@ -30,7 +36,10 @@ export function Palette() {
           aria-label={t.label}
           aria-pressed={active === t.tool.id}
           data-testid={`tool-${t.tool.id}`}
-          onClick={() => useEditor.getState().setTool(t.tool)}
+          onClick={() => {
+            useEditor.getState().setTool(t.tool)
+            setOpen(false)
+          }}
         >
           {t.icon === 'select' ? <MousePointer2 size={16} /> : <BpmnIcon name={t.icon} />}
         </button>

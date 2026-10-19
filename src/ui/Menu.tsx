@@ -33,7 +33,7 @@ export function Menu({ label, icon, items, testid }: { label: string; icon?: Rea
   return (
     <div className="menu" ref={box}>
       <button className={`btn${open ? ' is-open' : ''}`} onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} data-testid={testid}>
-        {icon} {label} <ChevronDown size={13} />
+        {icon} {label && <span className="menu-label">{label}</span>} <ChevronDown size={13} />
       </button>
       {open && (
         <div className="menu-list" role="menu">

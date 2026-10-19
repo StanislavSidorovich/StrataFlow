@@ -1311,7 +1311,7 @@ button.link {
   }
 }
 /* The smallest phones: the switcher keeps only its tile and caret (same menu), so the bar fits. */
-@media (max-width: 379px) {
+@media (max-width: 419px) {
   .brand quaera-switcher::part(label) {
     display: none;
   }
@@ -1615,5 +1615,56 @@ button.link {
   }
   .react-flow__controls {
     flex-direction: row;
+  }
+}
+
+/* The "…" menu (Auto layout, Check, Simulate, Trainer) and the folded draw bar exist only at phone width. */
+.topbar-more,
+.palette-fold {
+  display: none;
+}
+@media (max-width: 599px) {
+  .topbar-left > .btn {
+    display: none;
+  }
+  .topbar-more {
+    display: block;
+  }
+  /* Its list hangs from the bar's right edge, not from the small button, so it never leaves the screen. */
+  .topbar {
+    position: relative;
+  }
+  .topbar-more .menu {
+    position: static;
+  }
+  .topbar-more .menu-list {
+    left: auto;
+    right: 6px;
+  }
+  .topbar-left,
+  .topbar-right {
+    flex: 0 0 auto;
+  }
+  .topbar-right {
+    gap: 4px;
+    margin-left: auto;
+  }
+  /* Help and the "…" menu keep their icon and caret only. */
+  .topbar-right .menu-label {
+    display: none;
+  }
+  .palette-fold {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .palette:not(.is-open) .palette-btn {
+    display: none;
   }
 }
