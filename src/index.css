@@ -427,6 +427,8 @@ svg.is-ok {
 /* ------------------------------------------------------------ properties */
 
 .side-panel {
+  display: flex;
+  flex-direction: column;
   width: 280px;
   flex: none;
   overflow-y: auto;
@@ -1673,4 +1675,16 @@ button.link {
   .palette:not(.is-open) .palette-btn {
     display: none;
   }
+}
+
+/* Author line at the bottom of the side panels, not under the last section (as in Quaera Model) */
+.author-links a {
+  color: var(--accent);
+}
+.side-panel .side-author {
+  margin: auto 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--panel-border);
+  font-size: 12px;
+  color: var(--muted);
 }

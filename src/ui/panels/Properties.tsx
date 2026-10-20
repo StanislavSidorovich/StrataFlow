@@ -28,6 +28,7 @@ import { canGroup, groupSelection, ungroupSelection } from '../actions'
 import { cardForElement } from '../../data/help'
 import { useEditor } from '../store'
 import { HelpQ } from './Help'
+import { AuthorLinks } from '../AuthorLinks'
 
 const label = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
@@ -47,6 +48,7 @@ export function Properties() {
           <DeleteButton ids={ids} />
         </section>
       )}
+      <AuthorLinks className="side-author" />
     </aside>
   )
 }

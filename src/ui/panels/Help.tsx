@@ -6,6 +6,7 @@ import { caseRefs } from '../../data/caseRefs'
 import { cardById, HELP_CARDS, type HelpCard } from '../../data/help'
 import { useEditor } from '../store'
 import { useTrainer } from '../trainer/trainerStore'
+import { AuthorLinks } from '../AuthorLinks'
 
 /** A small "?" that opens a help card. */
 export function HelpQ({ card, label }: { card: string; label?: string }) {
@@ -45,6 +46,7 @@ export function HelpPanel({ id }: { id: string }) {
         </button>
       </div>
       {card ? <CardView card={card} /> : <CardIndex />}
+      <AuthorLinks className="side-author" />
     </aside>
   )
 }
