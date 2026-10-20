@@ -6,6 +6,7 @@
 import { useEffect } from 'react'
 import { create } from 'zustand'
 import { BookOpen, Clapperboard, FilePlus2, FolderOpen, GraduationCap, MousePointer2, Play, X } from 'lucide-react'
+import { AuthorLinks } from './AuthorLinks'
 import { caseById, CASES } from '../data/cases'
 import { LESSONS } from '../data/lessons'
 import { LEVELS } from '../data/trainer'
@@ -144,6 +145,7 @@ export function WelcomeCard({ onOpenFile }: { onOpenFile: () => void }) {
         <p className="welcome-small">
           Free, unofficial student tool. Works offline; files open in Bizagi Modeler. Course deliverables are still made in Bizagi.
         </p>
+        <AuthorLinks />
         <div className="welcome-foot">
           <label>
             <input type="checkbox" checked={atStart} onChange={(e) => useWelcome.setState({ atStart: e.target.checked })} data-testid="welcome-at-start" /> Show at start
