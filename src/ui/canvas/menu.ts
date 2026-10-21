@@ -25,7 +25,7 @@ import { cardForElement } from '../../data/help'
 import { GATEWAY_KINDS, LOOP_KINDS, TASK_KINDS, triggerLabel } from '../choices'
 
 /** What the UI does itself: type a name, open a help card, group, ungroup, open a page, lay out, check. */
-export type Command = 'rename' | 'help' | 'group' | 'ungroup' | 'open-page' | 'layout' | 'check'
+export type Command = 'rename' | 'help' | 'group' | 'ungroup' | 'open-page' | 'layout' | 'check' | 'connect'
 
 export interface MenuEntry {
   /** Stable key, also the test id (`cm-<id>`). */
@@ -160,6 +160,8 @@ export function menuFor(m: FlowModel, ids: string[], at: Point, page: string | n
   }
   const id = ids[0]
   const out: MenuItem[] = [...typeEntries(m, id)]
+  if (poolOf(m, id))
+    out.push({ id: 'connect', label: 'Message flow to…', title: 'Then click the shape in another pool to send a message to (the empty canvas cancels)', command: 'connect' })
   const f = flowOf(m, id)
   if (f) {
     const g = nodeOf(m, f.source)

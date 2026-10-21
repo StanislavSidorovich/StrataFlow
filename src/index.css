@@ -1821,3 +1821,14 @@ button.link {
 .bpmn-annotation-text .bpmn-name-edit {
   text-align: inherit;
 }
+
+/* A pool with no steps (a black box) starts message flows from its dots; its node ignores the pointer, the dots do not. */
+.pool-node .react-flow__handle.bpmn-handle {
+  pointer-events: all;
+  opacity: 0.55;
+}
+.pool-node .react-flow__handle.bpmn-handle:hover,
+.pool-node.selected .react-flow__handle.bpmn-handle,
+.react-flow.connecting .pool-node .react-flow__handle.bpmn-handle {
+  opacity: 1;
+}

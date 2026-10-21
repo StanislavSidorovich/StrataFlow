@@ -71,6 +71,8 @@ function pick(e: MenuEntry, state: ContextMenuState) {
       return void layoutNow()
     case 'check':
       return s.setCheckOpen(true)
+    case 'connect':
+      return useEditor.setState({ linkFrom: id, tool: { id: 'select' }, error: null, message: 'Message flow: click the shape to send it to (the empty canvas cancels).' })
   }
 }
 

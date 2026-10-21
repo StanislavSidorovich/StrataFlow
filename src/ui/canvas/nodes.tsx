@@ -10,7 +10,8 @@ import { useEditor } from '../store'
 import { ContextPad } from './ContextPad'
 
 export type ShapeData = { el: FlowNode; issue?: Severity; token?: boolean }
-export type PoolData = { name: string; header: number; lane?: boolean }
+/** `empty`: a pool with no steps (a black box: the contractor); its dots start message flows. */
+export type PoolData = { name: string; header: number; lane?: boolean; empty?: boolean }
 export type ShapeNode = Node<ShapeData, 'shape'>
 export type PoolNode = Node<PoolData, 'pool'>
 
@@ -48,7 +49,7 @@ export function PoolShape({ id, data, width = 0, height = 0, selected }: NodePro
         // Always there (edges only show on hover, corners when selected): drag any pool edge to resize.
         <NodeResizer isVisible minWidth={200} minHeight={60} lineClassName="bpmn-resize-line" handleClassName="bpmn-resize-handle" onResizeEnd={resized(id)} />
       )}
-      <Handles connectable={false} />
+      <Handles connectable={!!data.empty && !data.lane} />
     </div>
   )
 }

@@ -71,7 +71,7 @@ function toNodes(model: FlowModel, selected: Set<string>, page: string | null, m
     if (!s) continue
     const lanes = model.lanes.filter((l) => l.participantId === p.id && !l.parentLaneId && shapes[l.id])
     const header = lanes.length ? Math.max(POOL_HEADER, s.width - Math.max(...lanes.map((l) => shapes[l.id].width))) : POOL_HEADER
-    out.push({ id: p.id, type: 'pool', position: { x: s.x, y: s.y }, width: s.width, height: s.height, data: { name: p.name, header }, dragHandle: '.bpmn-pool-header', selected: selected.has(p.id), className: 'pool-node', zIndex: 0 })
+    out.push({ id: p.id, type: 'pool', position: { x: s.x, y: s.y }, width: s.width, height: s.height, data: { name: p.name, header, empty: !model.nodes.some((n) => n.participantId === p.id) }, dragHandle: '.bpmn-pool-header', selected: selected.has(p.id), className: 'pool-node', zIndex: 0 })
   }
   for (const l of model.lanes) {
     const s = shapes[l.id]
