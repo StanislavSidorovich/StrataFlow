@@ -104,6 +104,7 @@ function initialDark(): boolean {
 export function App() {
   const doc = useEditor((s) => s.doc)
   const name = useEditor((s) => s.model.name)
+  const hasContent = useEditor((s) => s.model.nodes.length + s.model.participants.length > 0)
   const error = useEditor((s) => s.error)
   const message = useEditor((s) => s.message)
   const help = useEditor((s) => s.help)
@@ -276,14 +277,28 @@ export function App() {
             <GraduationCap size={15} /> <span className="btn-label">Trainer</span>{inTask && <span className="count is-task">task</span>}
           </button>
         </div>
-        <button className="topbar-file" title="The process: click to see and rename it" onClick={() => {
-            useEditor.setState({ selection: [], help: null })
-            showSide()
-          }}
-          data-testid="doc-name"
-        >
-          {name || 'Untitled process'}
-        </button>
+        <div className="topbar-doc">
+          <button className="topbar-file" title="The process: click to see and rename it" onClick={() => {
+              useEditor.setState({ selection: [], help: null })
+              showSide()
+            }}
+            data-testid="doc-name"
+          >
+            {name || 'Untitled process'}
+          </button>
+          {hasContent && !inTask && (
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => useEditor.getState().load(emptyModel())}
+              title={`Close “${name || 'Untitled process'}” and start an empty process (Undo brings it back)`}
+              aria-label="Close process"
+              data-testid="close-model"
+            >
+              <X size={14} aria-hidden />
+            </button>
+          )}
+        </div>
         <div className="topbar-right">
           {updateReady && (
             <button className="btn accent" onClick={applyUpdate} title="A new version of Quaera Flow is ready: reload to use it (your process is kept)" data-testid="update">

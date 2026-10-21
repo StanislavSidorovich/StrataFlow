@@ -107,10 +107,34 @@ body {
 .topbar-right {
   justify-content: flex-end;
 }
-.topbar-file {
+.topbar-doc {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   flex: 0 1 auto;
   min-width: 0;
   max-width: 40%;
+}
+.topbar-doc .icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  color: var(--muted);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.topbar-doc .icon-btn:hover {
+  color: var(--text);
+  border-color: var(--panel-border);
+}
+.topbar-file {
+  flex: 0 1 auto;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1298,7 +1322,7 @@ button.link {
     grid-template-columns: 1fr;
     justify-items: center;
   }
-  .topbar-file {
+  .topbar-doc {
     display: none;
   }
   /* No overflow clip here: it would cut off the family switcher's menu, which hangs below the bar. */
