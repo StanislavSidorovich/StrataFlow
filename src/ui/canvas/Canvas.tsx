@@ -300,10 +300,11 @@ export function Canvas() {
           // Pools and lanes are clicked by their header: placing there still drops the element at the pointer.
           else if (tool.id !== 'select') place(e.clientX, e.clientY, e.shiftKey)
         }}
-        onNodeDoubleClick={(_, n) => {
+        onNodeDoubleClick={(e, n) => {
           // A collapsed sub-process opens its page (Bizagi: Edit Sub-Process); anything else: type its name.
           const el = nodeOf(model, n.id)
           if (el?.type === 'subProcess' && el.collapsed) useEditor.getState().openPage(el.id)
+          else if (el) useEditor.setState({ selection: [n.id], editing: { id: n.id, caret: caretAt(e.clientX, e.clientY) } })
           else useEditor.setState({ focusName: n.id })
         }}
         onEdgeDoubleClick={(_, ed) => useEditor.setState({ selection: [ed.id], focusName: ed.id })}
@@ -373,4 +374,25 @@ function PagePath({ model, page }: { model: FlowModel; page: string }) {
       ))}
     </nav>
   )
+}
+
+/** Where in a label's text a double-click landed (a character offset), so the caret goes there; null = not on text. */
+function caretAt(x: number, y: number): number | null {
+  const d = document as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null
+    caretRangeFromPoint?: (x: number, y: number) => Range | null
+  }
+  let node: Node | null | undefined
+  let offset = 0
+  if (d.caretPositionFromPoint) {
+    const p = d.caretPositionFromPoint(x, y)
+    node = p?.offsetNode
+    offset = p?.offset ?? 0
+  } else if (d.caretRangeFromPoint) {
+    const r = d.caretRangeFromPoint(x, y)
+    node = r?.startContainer
+    offset = r?.startOffset ?? 0
+  }
+  if (!node || node.nodeType !== Node.TEXT_NODE || !node.parentElement?.closest('.bpmn-inner-label, .bpmn-outer-label, .bpmn-annotation-text')) return null
+  return offset
 }

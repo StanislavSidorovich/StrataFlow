@@ -47,6 +47,8 @@ interface EditorState {
   lastEdit: { key: string; at: number } | null
   /** An element whose name field should take the focus (type the name right away). */
   focusName: string | null
+  /** The element whose name is being typed on the canvas itself (double-click), with the caret's place in the name. */
+  editing: { id: string; caret: number | null } | null
   /** Goes up on every load (New, Open, example): the canvas fits the view again, a "Save as" file belongs to one document. */
   doc: number
   /** When autosave last wrote the model to the browser (0 = not in this visit). */
@@ -90,6 +92,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   message: null,
   lastEdit: null,
   focusName: null,
+  editing: null,
   doc: 0,
   savedAt: 0,
   fit: 0,
@@ -145,7 +148,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
     const { model: current, past, doc, backup } = get()
     // Loading is undoable too: Open by mistake loses nothing. During a trainer task, New / Open end the task:
     // Undo then brings back the user's own model, not the task's.
-    set({ model, doc: doc + 1, backup: null, past: backup ? [backup] : [...past, current].slice(-HISTORY_LIMIT), future: [], selection: [], lastEdit: null, error: null, tool: { id: 'select' }, linkFrom: null, page: null })
+    set({ model, doc: doc + 1, backup: null, past: backup ? [backup] : [...past, current].slice(-HISTORY_LIMIT), future: [], selection: [], lastEdit: null, error: null, tool: { id: 'select' }, linkFrom: null, page: null, editing: null })
   },
 
   openPage: (page) => set((s) => ({ page, selection: [], tool: { id: 'select' }, linkFrom: null, fit: s.fit + 1 })),

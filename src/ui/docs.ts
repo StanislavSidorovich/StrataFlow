@@ -84,6 +84,7 @@ function show(p: Parked) {
     linkFrom: null,
     menu: null,
     focusName: null,
+    editing: null,
     lastEdit: null,
     error: null,
   }))

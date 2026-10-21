@@ -1779,3 +1779,32 @@ button.link {
   font-size: 12px;
   white-space: nowrap;
 }
+
+/* The name typed on the shape itself (double-click). */
+.bpmn-name-edit {
+  display: block;
+  width: 100%;
+  min-height: 1.3em;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  line-height: inherit;
+  text-align: center;
+  color: var(--text);
+  background: var(--app-bg);
+  border: none;
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 2px;
+  resize: none;
+  overflow: hidden;
+}
+.bpmn-outer-label.is-editing {
+  width: 120px;
+  max-width: none;
+  z-index: 5;
+}
+.bpmn-inner-label .bpmn-name-edit,
+.bpmn-annotation-text .bpmn-name-edit {
+  text-align: inherit;
+}

@@ -2,9 +2,10 @@
 // gateways and data sit under the shape, as in Bizagi and bpmn.io. Dots on the four sides start a
 // connection; the editor decides the flow kind. Resizing ends in one undoable edit.
 import { Handle, NodeResizer, NodeResizeControl, Position, type Node, type NodeProps } from '@xyflow/react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import type { Severity } from '../../core/lint'
 import type { FlowNode, LoopKind } from '../../core/metamodel'
-import { resizeElement, resizeLane } from '../../core/ops'
+import { rename, resizeElement, resizeLane } from '../../core/ops'
 import { useEditor } from '../store'
 import { ContextPad } from './ContextPad'
 
@@ -51,8 +52,59 @@ export function PoolShape({ id, data, width = 0, height = 0, selected }: NodePro
   )
 }
 
+/**
+ * The name typed in place (double-click a shape): a text box over the label, the caret where the click was.
+ * Typing is the same edit as in Properties (one undo step per burst); Enter or a click elsewhere ends it.
+ */
+function NameEditor({ id, name, caret }: { id: string; name: string; caret: number | null }) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  const fit = () => {
+    const t = ref.current
+    if (!t) return
+    t.style.height = 'auto'
+    t.style.height = `${t.scrollHeight}px`
+  }
+  useEffect(() => {
+    const t = ref.current
+    if (!t) return
+    const at = caret === null ? t.value.length : Math.min(caret, t.value.length)
+    const place = () => {
+      t.focus()
+      t.setSelectionRange(at, at)
+    }
+    place()
+    // React Flow focuses the node after the click that opened this box: take the focus back once it has.
+    const frame = requestAnimationFrame(() => document.activeElement !== t && place())
+    return () => cancelAnimationFrame(frame)
+  }, [])
+  useLayoutEffect(fit, [name])
+  return (
+    <textarea
+      ref={ref}
+      className="bpmn-name-edit nodrag nowheel nopan"
+      rows={1}
+      value={name}
+      aria-label="Name"
+      data-testid="name-inline"
+      onChange={(e) => useEditor.getState().apply((m) => rename(m, id, e.target.value), { coalesce: `name:${id}` })}
+      onBlur={() => useEditor.setState({ editing: null })}
+      onKeyDown={(e) => {
+        e.stopPropagation()
+        // Enter finishes the name (Shift+Enter: a new line), as in Properties and Bizagi.
+        if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Escape') {
+          e.preventDefault()
+          e.currentTarget.blur()
+        }
+      }}
+      onDoubleClick={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    />
+  )
+}
+
 export function BpmnShape({ data, width = 0, height = 0, selected }: NodeProps<ShapeNode>) {
   const el = data.el
+  const editing = useEditor((s) => (s.editing?.id === el.id ? s.editing : null))
   return (
     <div className={`bpmn-shape bpmn-${el.type}${selected ? ' is-selected' : ''}`} style={{ width, height }} data-testid={`${el.type}:${el.name}`}>
       {(el.type === 'task' || el.type === 'subProcess' || el.type === 'annotation') && (
@@ -69,7 +121,13 @@ export function BpmnShape({ data, width = 0, height = 0, selected }: NodeProps<S
         <Figure el={el} w={width} h={height} />
       </svg>
       {el.type === 'task' || el.type === 'subProcess' || el.type === 'annotation' ? (
-        <div className={el.type === 'annotation' ? 'bpmn-annotation-text' : 'bpmn-inner-label'}>{el.name}</div>
+        <div className={el.type === 'annotation' ? 'bpmn-annotation-text' : 'bpmn-inner-label'}>
+          {editing ? <NameEditor id={el.id} name={el.name} caret={editing.caret} /> : el.name}
+        </div>
+      ) : editing ? (
+        <div className="bpmn-outer-label is-editing">
+          <NameEditor id={el.id} name={el.name} caret={editing.caret} />
+        </div>
       ) : (
         el.name && <div className="bpmn-outer-label">{el.name}{el.type === 'dataObject' && el.state ? ` [${el.state}]` : ''}</div>
       )}
