@@ -5,10 +5,11 @@ import { ViewportPortal, useReactFlow, useStore } from '@xyflow/react'
 import { useState } from 'react'
 import type { Point } from '../../core/metamodel'
 import { flowOf, reconnect, setFlowRoute } from '../../core/ops'
-import { dragSegment, isOrthogonal, nearestSide, route } from '../../core/routing'
+import { dragSegment, isOrthogonal, nearestSide, route, snapValue } from '../../core/routing'
 import { useEditor } from '../store'
 
 const MIN_SEGMENT = 18
+const SNAP_PX = 10 // screen pixels: how near a dragged segment must come to a guide to stick to it
 
 export function FlowGrips({ elementAt }: { elementAt: (p: Point) => string | undefined }) {
   const model = useEditor((s) => s.model)
@@ -37,9 +38,22 @@ export function FlowGrips({ elementAt }: { elementAt: (p: Point) => string | und
     e.stopPropagation()
     const base = pts
     const start = at(e)
+    // Guides the segment is pulled onto: the middles and edges of the shapes and the straight runs of other lines.
+    const vertical = base[i].x === base[i + 1].x
+    const guides: number[] = []
+    for (const [sid, b] of Object.entries(model.diagram.shapes)) {
+      if (model.participants.some((x) => x.id === sid) || model.lanes.some((x) => x.id === sid)) continue
+      guides.push(...(vertical ? [b.x, b.x + b.width / 2, b.x + b.width] : [b.y, b.y + b.height / 2, b.y + b.height]))
+    }
+    for (const [eid, line] of Object.entries(model.diagram.edges))
+      if (eid !== flowId) for (let j = 0; j + 1 < line.length; j++) if (vertical ? line[j].x === line[j + 1].x : line[j].y === line[j + 1].y) guides.push(vertical ? line[j].x : line[j].y)
     const move = (ev: PointerEvent) => {
       const p = at(ev)
-      const next = dragSegment(base, i, { x: p.x - start.x, y: p.y - start.y })
+      const d = { x: p.x - start.x, y: p.y - start.y }
+      // The ends of the line stay put; snapping moves only the sideways part.
+      if (vertical) d.x = snapValue(base[i].x + d.x, guides, SNAP_PX * k) - base[i].x
+      else d.y = snapValue(base[i].y + d.y, guides, SNAP_PX * k) - base[i].y
+      const next = dragSegment(base, i, d)
       useEditor.getState().apply((m) => setFlowRoute(m, flowId, { points: next }), { coalesce: `route:${flowId}` })
     }
     const up = () => {

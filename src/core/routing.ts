@@ -147,3 +147,20 @@ export function route(f: Pick<Flow, 'kind' | 'sourceSide' | 'targetSide'>, s: Bo
   const mid = Math.round((a.y + b.y) / 2)
   return a.x === b.x ? [a, b] : [a, { x: a.x, y: mid }, { x: b.x, y: mid }, b]
 }
+
+/**
+ * Pulls a dragged segment onto a guide: `value` is where the segment's coordinate (y for a horizontal one,
+ * x for a vertical one) would land; the nearest guide within `tolerance` wins, else the value stays.
+ */
+export function snapValue(value: number, guides: number[], tolerance: number): number {
+  let best = value
+  let gap = tolerance + 1
+  for (const g of guides) {
+    const d = Math.abs(g - value)
+    if (d < gap) {
+      gap = d
+      best = g
+    }
+  }
+  return gap <= tolerance ? best : value
+}

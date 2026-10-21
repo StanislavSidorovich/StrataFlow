@@ -1879,3 +1879,27 @@ button.link {
     height: 32px;
   }
 }
+
+/* Pool border strips: a message flow can start anywhere along a pool's top or bottom border (just outside it, so the resize lines stay free). */
+.react-flow__handle.pool-edge-handle {
+  left: 0;
+  width: 100%;
+  height: 8px;
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  transform: none;
+  pointer-events: all;
+}
+.react-flow__handle.pool-edge-handle.react-flow__handle-top {
+  top: -11px;
+}
+.react-flow__handle.pool-edge-handle.react-flow__handle-bottom {
+  top: auto;
+  bottom: -11px;
+}
+.pool-node:hover .pool-edge-handle,
+.react-flow.connecting .pool-edge-handle {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}

@@ -50,6 +50,13 @@ export function PoolShape({ id, data, width = 0, height = 0, selected }: NodePro
         <NodeResizer isVisible minWidth={200} minHeight={60} lineClassName="bpmn-resize-line" handleClassName="bpmn-resize-handle" onResizeEnd={resized(id)} />
       )}
       <Handles connectable={!!data.empty && !data.lane} />
+      {!data.lane && (
+        // A strip along the outside of the long borders: a message flow starts (or ends) anywhere on a pool's border, not only at the dot.
+        <>
+          <Handle id="edge-top" type="source" position={Position.Top} className="pool-edge-handle" title="Drag from the border to send a message flow" />
+          <Handle id="edge-bottom" type="source" position={Position.Bottom} className="pool-edge-handle" title="Drag from the border to send a message flow" />
+        </>
+      )}
     </div>
   )
 }

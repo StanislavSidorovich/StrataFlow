@@ -18,7 +18,7 @@ import { ArrowLeft, Redo2, Undo2 } from 'lucide-react'
 import type { FlowModel, Point, Side } from '../../core/metamodel'
 import { nearestSide } from '../../core/routing'
 import { POOL_HEADER } from '../../core/metamodel'
-import { addLane, addNode, addPool, connect, ModelError, moveElements, nodeOf, pageOf, withDescendants } from '../../core/ops'
+import { addLane, addNode, addPool, connect, ModelError, moveElements, nodeOf, pageOf, snapToNeighbours, withDescendants } from '../../core/ops'
 import type { Severity } from '../../core/lint'
 import { useIssues } from '../panels/Check'
 import { useSim } from '../panels/Simulate'
@@ -181,6 +181,10 @@ export function Canvas() {
   const drag = useRef<Map<string, Point> | null>(null)
 
   const onNodesChange = (changes: NodeChange<AnyNode>[]) => {
+    // One shape dragged alone is pulled onto the line of a shape it is joined to, so its flow comes out straight.
+    const moving = changes.filter((c): c is Extract<NodeChange<AnyNode>, { type: 'position' }> => c.type === 'position' && !!c.dragging && !!c.position)
+    if (moving.length === 1 && !followersOf(model, moving[0].id).length)
+      changes = changes.map((c) => (c === moving[0] ? { ...moving[0], position: snapToNeighbours(model, moving[0].id, moving[0].position!) } : c))
     setNodes((ns) => {
       let next = applyNodeChanges(changes.filter((c) => c.type !== 'select'), ns)
       const start = drag.current
@@ -252,7 +256,8 @@ export function Canvas() {
     const from = useEditor.getState().linkFrom
     useEditor.setState({ linkFrom: null, message: null })
     const target = elementAt(model, flow.screenToFlowPosition({ x: clientX, y: clientY }), page)
-    if (from && target && target !== from) onConnect({ source: from, target, sourceHandle: linkSide.current?.id === from ? linkSide.current.side : null, targetHandle: sideAt(model, target, flow.screenToFlowPosition({ x: clientX, y: clientY })) })
+    const fromPool = !!from && model.participants.some((x) => x.id === from)
+    if (from && target && target !== from) onConnect({ source: from, target, sourceHandle: fromPool ? null : linkSide.current?.id === from ? linkSide.current.side : null, targetHandle: fromPool ? null : sideAt(model, target, flow.screenToFlowPosition({ x: clientX, y: clientY })) })
   }
 
   // Dropped on a shape but not on one of its dots, or on a pool: connect to what is under the pointer.
@@ -260,8 +265,10 @@ export function Canvas() {
     if (state.isValid || !state.fromNode) return
     const pt = 'changedTouches' in e ? e.changedTouches[0] : e
     const target = elementAt(model, flow.screenToFlowPosition({ x: pt.clientX, y: pt.clientY }), page)
+    // From a pool a message flow takes the facing sides, so it runs straight to the shape instead of round to the side nearest the drop.
+    const fromPool = model.participants.some((x) => x.id === state.fromNode!.id)
     if (target && target !== state.fromNode.id)
-      onConnect({ source: state.fromNode.id, target, sourceHandle: state.fromHandle?.id ?? null, targetHandle: sideAt(model, target, flow.screenToFlowPosition({ x: pt.clientX, y: pt.clientY })) })
+      onConnect({ source: state.fromNode.id, target, sourceHandle: state.fromHandle?.id ?? null, targetHandle: fromPool ? null : sideAt(model, target, flow.screenToFlowPosition({ x: pt.clientX, y: pt.clientY })) })
   }
 
   // Right-click (as in Bizagi): on a selected element the menu is for the whole selection, on another one
@@ -321,13 +328,15 @@ export function Canvas() {
           const to: Record<string, Point> = {}
           for (const d of dragged) {
             const from = start?.get(d.id)
-            if (from && (from.x !== d.position.x || from.y !== d.position.y)) to[d.id] = d.position
+            const at = dragged.length === 1 && !followersOf(model, d.id).length ? snapToNeighbours(model, d.id, d.position) : d.position
+            if (from && (from.x !== at.x || from.y !== at.y)) to[d.id] = at
           }
           if (Object.keys(to).length) useEditor.getState().apply((m) => moveElements(m, to))
           else setNodes(toNodes(model, selected, page, marks))
         }}
         onPaneClick={(e) => {
           if (linkFrom) linkTo(e.clientX, e.clientY)
+          else if (tool.id === 'flow') startFlow(e.clientX, e.clientY)
           else if (tool.id !== 'select') place(e.clientX, e.clientY, e.shiftKey)
         }}
         onNodeClick={(e) => {

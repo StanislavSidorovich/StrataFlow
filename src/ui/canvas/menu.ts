@@ -8,6 +8,8 @@ import {
   addNode,
   addPool,
   canInterrupt,
+  canMoveLane,
+  moveLane,
   convertActivity,
   deleteElements,
   flowOf,
@@ -162,6 +164,9 @@ export function menuFor(m: FlowModel, ids: string[], at: Point, page: string | n
   const out: MenuItem[] = [...typeEntries(m, id)]
   if (poolOf(m, id))
     out.push({ id: 'connect', label: 'Message flow to…', title: 'Then click the shape in another pool to send a message to (the empty canvas cancels)', command: 'connect' })
+  if (laneOf(m, id))
+    for (const dir of ['up', 'down'] as const)
+      if (canMoveLane(m, id, dir)) out.push({ id: `lane-${dir}`, label: `Move lane ${dir}`, title: 'Swap places with the lane next to it (its steps go along)', edit: (d) => moveLane(d, id, dir) })
   const f = flowOf(m, id)
   if (f) {
     const g = nodeOf(m, f.source)

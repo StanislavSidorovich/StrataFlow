@@ -1,12 +1,14 @@
 // The right column: what the selected element is and what it can be changed into. Typing in a field
 // is one undo step per field (coalesced), every other change is one step.
 import { useEffect, useRef } from 'react'
-import { ArrowLeftRight, FolderOpen, Group, Plus, Route, Trash2, Ungroup } from 'lucide-react'
+import { ArrowDown, ArrowLeftRight, ArrowUp, FolderOpen, Group, Plus, Route, Trash2, Ungroup } from 'lucide-react'
 import type { EventPosition, EventTrigger, FlowModel, FlowNode, GatewayKind, LoopKind, TaskKind } from '../../core/metamodel'
 import { GATEWAY_KINDS, LOOP_KINDS, TASK_KINDS, triggerLabel } from '../choices'
 import {
   addBoundaryEvent,
   addLane,
+  canMoveLane,
+  moveLane,
   canInterrupt,
   convertActivity,
   deleteElements,
@@ -101,6 +103,14 @@ function ElementProps({ model, id }: { model: FlowModel; id: string }) {
         <Title text="Lane" card="lane" />
         <NameField id={id} value={lane.name} placeholder="A role, e.g. Clerk" />
         <p className="muted">Drag the line under a selected lane to change its height.</p>
+        <div className="row">
+          <button className="btn" data-testid="lane-up" disabled={!canMoveLane(model, id, 'up')} onClick={() => useEditor.getState().apply((m) => moveLane(m, id, 'up'))}>
+            <ArrowUp size={14} /> Move up
+          </button>
+          <button className="btn" data-testid="lane-down" disabled={!canMoveLane(model, id, 'down')} onClick={() => useEditor.getState().apply((m) => moveLane(m, id, 'down'))}>
+            <ArrowDown size={14} /> Move down
+          </button>
+        </div>
         {lane.participantId && (
           <button className="btn" data-testid="add-lane" onClick={() => addLaneTo(lane.participantId!)}>
             <Plus size={14} /> Add lane

@@ -264,6 +264,54 @@ export function topLanes(m: FlowModel, poolId: string): Lane[] {
   return m.lanes.filter((l) => l.participantId === poolId && !l.parentLaneId && m.diagram.shapes[l.id]).sort((a, b) => m.diagram.shapes[a.id].y - m.diagram.shapes[b.id].y)
 }
 
+/** The lane and every lane nested in it. */
+function laneTree(m: FlowModel, id: string): Set<string> {
+  const out = new Set([id])
+  for (let grew = true; grew; ) {
+    grew = false
+    for (const l of m.lanes) if (l.parentLaneId && out.has(l.parentLaneId) && !out.has(l.id)) out.add(l.id), (grew = true)
+  }
+  return out
+}
+
+/** Whether the lane has a neighbour in that direction. */
+export function canMoveLane(m: FlowModel, id: string, dir: 'up' | 'down'): boolean {
+  const lane = laneOf(m, id)
+  const s = m.diagram.shapes[id]
+  if (!lane || !s) return false
+  return m.lanes.some((l) => l.id !== id && l.participantId === lane.participantId && l.parentLaneId === lane.parentLaneId && m.diagram.shapes[l.id] && (dir === 'up' ? m.diagram.shapes[l.id].y < s.y : m.diagram.shapes[l.id].y > s.y))
+}
+
+/** Swaps a lane with the one above or below it (same pool, same parent); its steps and nested lanes go along. */
+export function moveLane(m: FlowModel, id: string, dir: 'up' | 'down'): void {
+  const lane = laneOf(m, id)
+  if (!lane || !m.diagram.shapes[id]) throw new ModelError(`No lane ${id}`)
+  const sibs = m.lanes.filter((l) => l.participantId === lane.participantId && l.parentLaneId === lane.parentLaneId && m.diagram.shapes[l.id]).sort((a, b) => m.diagram.shapes[a.id].y - m.diagram.shapes[b.id].y)
+  const i = sibs.findIndex((l) => l.id === id)
+  const other = sibs[dir === 'up' ? i - 1 : i + 1]
+  if (!other) throw new ModelError(dir === 'up' ? 'This lane is already the top one' : 'This lane is already the bottom one')
+  const [upper, lower] = dir === 'up' ? [other, lane] : [lane, other]
+  const up = m.diagram.shapes[upper.id]
+  const low = m.diagram.shapes[lower.id]
+  const dUpper = low.height // the upper lane moves down by the height of the lower one
+  const dLower = -up.height
+  const treeUp = laneTree(m, upper.id)
+  const treeLow = laneTree(m, lower.id)
+  const shift = (tree: Set<string>, dy: number) => {
+    for (const l of m.lanes) if (tree.has(l.id) && m.diagram.shapes[l.id]) m.diagram.shapes[l.id].y += dy
+  }
+  const steps: Record<string, Point> = {}
+  for (const n of m.nodes) {
+    const s = m.diagram.shapes[n.id]
+    if (!s || !n.laneId || (n.type === 'event' && n.attachedTo)) continue
+    const dy = treeUp.has(n.laneId) ? dUpper : treeLow.has(n.laneId) ? dLower : 0
+    if (dy) steps[n.id] = { x: s.x, y: s.y + dy }
+  }
+  shift(treeUp, dUpper)
+  shift(treeLow, dLower)
+  if (Object.keys(steps).length) moveElements(m, steps)
+}
+
 // ---------------------------------------------------------------- connect
 
 /** Which kind of flow joins two elements: decided by what they are and which pools they sit in. */
@@ -392,6 +440,34 @@ export function moveElements(m: FlowModel, to: Record<string, Point>): void {
   // Sub-processes first, so their content finds them where they now are.
   const order = m.nodes.filter((n) => moved.has(n.id)).sort((a, b) => (a.type === 'subProcess' ? 0 : 1) - (b.type === 'subProcess' ? 0 : 1))
   for (const n of order) place(m, n.id)
+}
+
+/** How near (model units) a dragged shape must come to a lined-up position to be pulled onto it. */
+export const SNAP = 16
+
+/**
+ * Where a shape dropped with its top-left at `to` should sit so that the flows it has come out straight:
+ * if its centre is within SNAP of the centre of a shape it is joined to (across or along), it is pulled onto
+ * that line. The nearest neighbour wins on each axis. Pools, lanes and shapes that are not on the canvas do
+ * not count; a shape with no such neighbour stays where it is.
+ */
+export function snapToNeighbours(m: FlowModel, id: string, to: Point, tolerance = SNAP): Point {
+  const s = m.diagram.shapes[id]
+  if (!s || poolOf(m, id) || laneOf(m, id)) return to
+  const cx = to.x + s.width / 2
+  const cy = to.y + s.height / 2
+  let bestX: number | undefined
+  let bestY: number | undefined
+  for (const f of m.flows) {
+    const other = f.source === id ? f.target : f.target === id ? f.source : undefined
+    const o = other && nodeOf(m, other) ? m.diagram.shapes[other] : undefined
+    if (!o) continue
+    const ox = o.x + o.width / 2
+    const oy = o.y + o.height / 2
+    if (Math.abs(ox - cx) <= tolerance && (bestX === undefined || Math.abs(ox - cx) < Math.abs(bestX - cx))) bestX = ox
+    if (Math.abs(oy - cy) <= tolerance && (bestY === undefined || Math.abs(oy - cy) < Math.abs(bestY - cy))) bestY = oy
+  }
+  return { x: bestX === undefined ? to.x : Math.round(bestX - s.width / 2), y: bestY === undefined ? to.y : Math.round(bestY - s.height / 2) }
 }
 
 /** New bounds for a task, sub-process, annotation, data, or a pool (its lanes stretch with it). */

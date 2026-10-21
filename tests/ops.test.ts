@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { emptyModel, type FlowModel } from '../src/core/metamodel'
 import {
   addBoundaryEvent,
+  canMoveLane,
+  moveLane,
+  snapToNeighbours,
+  topLanes,
   addLane,
   addNode,
   addPool,
@@ -319,5 +323,48 @@ describe('loop and multi-instance markers', () => {
     expect(nodeOf(m, t.id)).not.toHaveProperty('loop')
     const e = addNode(m, { type: 'event' }, { x: 300, y: 100 })
     expect(() => updateNode(m, e.id, { loop: 'standard' })).toThrow(ModelError)
+  })
+})
+
+describe('lane order and snapping', () => {
+  const build = () => {
+    const m = emptyModel()
+    addPool(m, { x: 0, y: 0 })
+    const a = addLane(m, 'Participant_1', 'A')
+    const b = addLane(m, 'Participant_1', 'B')
+    const ta = addNode(m, { type: 'task' }, { x: 200, y: 60 }, 'in A')
+    const tb = addNode(m, { type: 'task' }, { x: 200, y: 260 }, 'in B')
+    return { m, a, b, ta, tb }
+  }
+
+  it('swaps two lanes and carries their steps', () => {
+    const { m, a, b, ta, tb } = build()
+    expect(canMoveLane(m, a.id, 'up')).toBe(false)
+    expect(canMoveLane(m, a.id, 'down')).toBe(true)
+    const ha = m.diagram.shapes[a.id].height
+    const hb = m.diagram.shapes[b.id].height
+    const ya = m.diagram.shapes[ta.id].y
+    const yb = m.diagram.shapes[tb.id].y
+    moveLane(m, b.id, 'up')
+    expect(topLanes(m, 'Participant_1').map((l) => l.id)).toEqual([b.id, a.id])
+    expect(m.diagram.shapes[b.id].y).toBe(0)
+    expect(m.diagram.shapes[a.id].y).toBe(hb)
+    expect(m.diagram.shapes[ta.id].y).toBe(ya + hb)
+    expect(m.diagram.shapes[tb.id].y).toBe(yb - ha)
+    expect(m.nodes.find((n) => n.id === ta.id)?.laneId).toBe(a.id)
+    expect(m.nodes.find((n) => n.id === tb.id)?.laneId).toBe(b.id)
+    expect(() => moveLane(m, b.id, 'up')).toThrow()
+  })
+
+  it('pulls a dragged shape onto the line of the shape it is joined to', () => {
+    const m = emptyModel()
+    const x = addNode(m, { type: 'task' }, { x: 100, y: 100 })
+    const y = addNode(m, { type: 'task' }, { x: 400, y: 100 })
+    connect(m, x.id, y.id)
+    const top = m.diagram.shapes[x.id].y
+    const left = m.diagram.shapes[x.id].x
+    expect(snapToNeighbours(m, y.id, { x: 410, y: top + 8 })).toEqual({ x: 410, y: top })
+    expect(snapToNeighbours(m, y.id, { x: 410, y: top + 50 })).toEqual({ x: 410, y: top + 50 })
+    expect(snapToNeighbours(m, y.id, { x: left + 6, y: top + 190 })).toEqual({ x: left, y: top + 190 })
   })
 })
