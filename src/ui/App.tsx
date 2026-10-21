@@ -29,10 +29,13 @@ import {
   Timer,
   Save,
   TriangleAlert,
+  Undo2,
   X,
 } from 'lucide-react'
 import { summarize } from '../core/lint'
-import { emptyModel, isArtifact } from '../core/metamodel'
+import { isArtifact } from '../core/metamodel'
+import { closeTab, newProcess, openProcess, reopenClosed, useDocs } from './docs'
+import { Tabs } from './Tabs'
 import { deleteElements, nodeOf } from '../core/ops'
 import { parseModel } from '../core/serialize'
 import { applyUpdate, checkForUpdates, DEPLOY_DELAY_NOTE, installApp, updateCheckMessage, useUpdateReady } from '../pwa/register'
@@ -104,6 +107,9 @@ function initialDark(): boolean {
 export function App() {
   const doc = useEditor((s) => s.doc)
   const name = useEditor((s) => s.model.name)
+  const active = useDocs((s) => s.active)
+  const tabCount = useDocs((s) => s.tabs.length)
+  const closedCount = useDocs((s) => s.closed.length)
   const hasContent = useEditor((s) => s.model.nodes.length + s.model.participants.length > 0)
   const error = useEditor((s) => s.error)
   const message = useEditor((s) => s.message)
@@ -201,8 +207,11 @@ export function App() {
             label="File"
             testid="file-menu"
             items={[
-              { label: 'New', icon: <FilePlus2 size={15} />, title: 'Start an empty process (Undo brings the last one back)', testid: 'new', onPick: () => useEditor.getState().load(emptyModel()) },
+              { label: 'New', icon: <FilePlus2 size={15} />, title: 'Start an empty process in a new tab (the open ones stay)', testid: 'new', onPick: () => void newProcess() },
               { label: 'Open…', icon: <FolderOpen size={15} />, keys: 'Ctrl+O', title: 'Open a .flow.json file, or a .bpmn file (for example one exported from Bizagi Modeler)', testid: 'open', onPick: () => input.current?.click() },
+              ...(closedCount > 0
+                ? [{ label: 'Reopen closed process', icon: <Undo2 size={15} />, title: 'Brings back the process you closed last, in a new tab', testid: 'reopen', onPick: () => void reopenClosed() }]
+                : []),
               'sep',
               { label: 'Save', icon: <Save size={15} />, keys: 'Ctrl+S', title: 'Save as a .flow.json file', testid: 'save', onPick: () => void save(false) },
               { label: 'Save as…', keys: 'Ctrl+Shift+S', title: 'Choose where to save', testid: 'save-as', onPick: () => void save(true) },
@@ -213,11 +222,11 @@ export function App() {
               {
                 label: 'Open the example',
                 icon: <BookOpen size={15} />,
-                title: 'A library lends a book (Undo brings your process back)',
+                title: 'A library lends a book (opens in a new tab)',
                 testid: 'example',
                 onPick: () => {
-                  useEditor.getState().load(parseModel(example))
-                  useEditor.getState().say('Opened the example: a library lends a book. Undo brings your process back.')
+                  openProcess(parseModel(example))
+                  useEditor.getState().say('Opened the example: a library lends a book. Your other processes stay in their tabs.')
                 },
               },
               {
@@ -226,9 +235,9 @@ export function App() {
                 title: 'A paper expense claim with its times and costs: open Simulate to see the cycle time',
                 testid: 'example-as-is',
                 onPick: () => {
-                  useEditor.getState().load(parseModel(expenseAsIs))
+                  openProcess(parseModel(expenseAsIs))
                   useSim.setState({ open: true, tab: 'figures', play: null })
-                  useEditor.getState().say('Opened the AS-IS expense claim. Keep as AS-IS, then open the TO-BE (or change this one) to compare. Undo brings your process back.')
+                  useEditor.getState().say('Opened the AS-IS expense claim. Keep as AS-IS, then open the TO-BE (or change this one) to compare. Your other processes stay in their tabs.')
                 },
               },
               {
@@ -237,9 +246,9 @@ export function App() {
                 title: 'The redesigned expense claim: an app, triage, parallel checks, weekly payments',
                 testid: 'example-to-be',
                 onPick: () => {
-                  useEditor.getState().load(parseModel(expenseToBe))
+                  openProcess(parseModel(expenseToBe))
                   useSim.setState({ open: true, tab: 'figures', play: null })
-                  useEditor.getState().say('Opened the TO-BE expense claim. With AS-IS kept, each figure shows the change. Undo brings your process back.')
+                  useEditor.getState().say('Opened the TO-BE expense claim. With AS-IS kept, each figure shows the change. Your other processes stay in their tabs.')
                 },
               },
             ]}
@@ -286,12 +295,12 @@ export function App() {
           >
             {name || 'Untitled process'}
           </button>
-          {hasContent && !inTask && (
+          {(hasContent || tabCount > 1) && !inTask && (
             <button
               type="button"
               className="icon-btn"
-              onClick={() => useEditor.getState().load(emptyModel())}
-              title={`Close “${name || 'Untitled process'}” and start an empty process (Undo brings it back)`}
+              onClick={() => closeTab(active)}
+              title={`Close “${name || 'Untitled process'}” (File → Reopen closed process brings it back)`}
               aria-label="Close process"
               data-testid="close-model"
             >
@@ -383,6 +392,7 @@ export function App() {
           <AppearanceButton dark={dark} onToggleTheme={() => setDark((d) => !d)} />
         </div>
       </header>
+      <Tabs />
       {(error || message) && (
         <div className={`notice${error ? ' is-error' : ''}`} role="status" data-testid="notice">
           {error && <TriangleAlert size={14} />}

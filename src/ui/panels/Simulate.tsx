@@ -50,6 +50,11 @@ export const useSim = create<SimState>()((set) => ({
   setOpen: (open) => set({ open, play: null }),
 }))
 
+// Another document on the canvas (a tab switch, Open): a token play of the old one stops.
+useEditor.subscribe((s, prev) => {
+  if (s.doc !== prev.doc && useSim.getState().play) useSim.setState({ play: null })
+})
+
 let cache: { model: FlowModel | null; out: Analysis[] } = { model: null, out: [] }
 /** The analyses of the current model, computed once per model version. */
 export function useAnalyses(): Analysis[] {

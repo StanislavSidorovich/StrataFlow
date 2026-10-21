@@ -10,9 +10,8 @@ import { AuthorLinks } from './AuthorLinks'
 import { caseById, CASES } from '../data/cases'
 import { LESSONS } from '../data/lessons'
 import { LEVELS } from '../data/trainer'
-import { emptyModel } from '../core/metamodel'
+import { newProcess } from './docs'
 import { FEEDBACK_URL } from './links'
-import { useEditor } from './store'
 import { startTour } from './trainer/Tour'
 import { useTrainer } from './trainer/trainerStore'
 
@@ -136,7 +135,7 @@ export function WelcomeCard({ onOpenFile }: { onOpenFile: () => void }) {
                 <span className="muted">On the process that is open now</span>
               </span>
             </button>
-            <button className="welcome-link" onClick={go(() => useEditor.getState().load(emptyModel()))} data-testid="welcome-empty">
+            <button className="welcome-link" onClick={go(() => void newProcess())} data-testid="welcome-empty">
               <FilePlus2 size={13} /> or on an empty canvas
             </button>
           </section>

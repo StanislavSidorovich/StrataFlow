@@ -4,10 +4,11 @@
 // "Save" writes to that file until another document is loaded; other browsers download the file.
 import { isCaseFile } from '../data/caseFile'
 import { parseModel, serializeModel, FILE_EXTENSION } from '../core/serialize'
+import { openProcess } from './docs'
 import { useEditor } from './store'
 import { useTrainer } from './trainer/trainerStore'
 
-interface WritableFile {
+export interface WritableFile {
   name: string
   createWritable: () => Promise<{ write: (data: string | Blob) => Promise<void>; close: () => Promise<void> }>
 }
@@ -17,6 +18,18 @@ const picker = (): SavePicker | undefined => (window as unknown as { showSaveFil
 
 /** The file chosen with "Save as", and the document it belongs to. */
 let current: { file: WritableFile; doc: number } | null = null
+
+export type SavedFile = WritableFile
+
+/** The "Save as" file of the process on the canvas (null if none): taken when its tab is parked. */
+export function takeSavedFile(): SavedFile | null {
+  return current && current.doc === useEditor.getState().doc ? current.file : null
+}
+
+/** Gives the process now on the canvas its "Save as" file back (or none). */
+export function setSavedFile(file: SavedFile | null) {
+  current = file ? { file, doc: useEditor.getState().doc } : null
+}
 
 export function fileBaseName(name: string): string {
   return (name.trim() || 'process').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, '-').toLowerCase()
@@ -117,20 +130,20 @@ export async function saveModelAs(): Promise<string | null> {
 
 /** Opens a file by its content: JSON is our model, XML is BPMN (the reader loads on first use). */
 export async function openText(text: string, fileName: string): Promise<void> {
-  const { load, showError, say } = useEditor.getState()
+  const { showError, say } = useEditor.getState()
   try {
     if (text.trimStart().startsWith('<')) {
       const { readBpmn } = await import('../core/bpmn/read')
       const { model, warnings } = await readBpmn(text)
       if (!model.name) model.name = fileName.replace(/\.(bpmn|xml)$/i, '')
-      load(model)
+      openProcess(model)
       say(warnings.length ? `Opened ${fileName}. Not shown yet: ${warnings.slice(0, 3).join('; ')}${warnings.length > 3 ? '…' : ''}` : `Opened ${fileName}`)
     } else if (isCaseFile(text)) {
       // A case file joins the trainer and starts its walkthrough; the user's own model waits meanwhile.
       const c = useTrainer.getState().openCaseFile(text)
       say(`Opened the case “${c.title}”: watch it built, then try its levels. Leave task brings your own process back.`)
     } else {
-      load(parseModel(text))
+      openProcess(parseModel(text))
       say(`Opened ${fileName}`)
     }
   } catch (e) {
