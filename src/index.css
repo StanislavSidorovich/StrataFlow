@@ -913,11 +913,24 @@ h2.with-help {
 }
 .react-flow__resize-control.line.bpmn-resize-line {
   border-color: transparent;
+  border-width: 4px;
   pointer-events: all;
 }
-.react-flow__resize-control.bpmn-lane-resize {
+.react-flow__resize-control.line.bpmn-resize-line:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+/* Pool corners show only on a selected pool; the edges are grabbable all the time. */
+.bpmn-pool:not(.is-selected) .react-flow__resize-control.handle {
+  display: none;
+}
+.react-flow__resize-control.line.bottom.bpmn-lane-resize {
   pointer-events: all;
-  border-color: var(--accent);
+  border-width: 4px;
+  border-color: transparent;
+}
+.react-flow__resize-control.line.bottom.bpmn-lane-resize:hover,
+.bpmn-lane.is-selected .react-flow__resize-control.line.bottom.bpmn-lane-resize {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
 }
 .react-flow {
   --xy-background-color: var(--canvas-bg);

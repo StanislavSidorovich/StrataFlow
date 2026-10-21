@@ -1,7 +1,7 @@
 // BPMN shapes as React Flow nodes. Each node is drawn in SVG at its DI size; labels of events,
 // gateways and data sit under the shape, as in Bizagi and bpmn.io. Dots on the four sides start a
 // connection; the editor decides the flow kind. Resizing ends in one undoable edit.
-import { Handle, NodeResizer, NodeResizeControl, Position, type Node, type NodeProps } from '@xyflow/react'
+import { Handle, NodeResizer, NodeResizeControl, ResizeControlVariant, Position, type Node, type NodeProps } from '@xyflow/react'
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import type { Severity } from '../../core/lint'
 import type { FlowNode, LoopKind } from '../../core/metamodel'
@@ -35,17 +35,18 @@ export function PoolShape({ id, data, width = 0, height = 0, selected }: NodePro
         <span>{data.name}</span>
       </div>
       {data.lane ? (
-        selected && (
-          <NodeResizeControl
-            position="bottom"
-            resizeDirection="vertical"
-            minHeight={40}
-            className="bpmn-lane-resize"
-            onResizeEnd={(_, p) => useEditor.getState().apply((m) => resizeLane(m, id, p.height))}
-          />
-        )
+        // Always there, so the lower edge can be grabbed without selecting the lane first.
+        <NodeResizeControl
+          position="bottom"
+          variant={ResizeControlVariant.Line}
+          resizeDirection="vertical"
+          minHeight={40}
+          className="bpmn-lane-resize"
+          onResizeEnd={(_, p) => useEditor.getState().apply((m) => resizeLane(m, id, p.height))}
+        />
       ) : (
-        <NodeResizer isVisible={selected} minWidth={200} minHeight={60} lineClassName="bpmn-resize-line" handleClassName="bpmn-resize-handle" onResizeEnd={resized(id)} />
+        // Always there (edges only show on hover, corners when selected): drag any pool edge to resize.
+        <NodeResizer isVisible minWidth={200} minHeight={60} lineClassName="bpmn-resize-line" handleClassName="bpmn-resize-handle" onResizeEnd={resized(id)} />
       )}
       <Handles connectable={false} />
     </div>
