@@ -1,7 +1,7 @@
 // The right column: what the selected element is and what it can be changed into. Typing in a field
 // is one undo step per field (coalesced), every other change is one step.
 import { useEffect, useRef } from 'react'
-import { ArrowLeftRight, FolderOpen, Group, Plus, Trash2, Ungroup } from 'lucide-react'
+import { ArrowLeftRight, FolderOpen, Group, Plus, Route, Trash2, Ungroup } from 'lucide-react'
 import type { EventPosition, EventTrigger, FlowModel, FlowNode, GatewayKind, LoopKind, TaskKind } from '../../core/metamodel'
 import { GATEWAY_KINDS, LOOP_KINDS, TASK_KINDS, triggerLabel } from '../choices'
 import {
@@ -16,6 +16,7 @@ import {
   poolOf,
   rename,
   setCollapsed,
+  resetFlowRoute,
   reverseFlow,
   setDefaultFlow,
   setFlow,
@@ -320,6 +321,11 @@ function FlowProps({ model, id }: { model: FlowModel; id: string }) {
         <button className="btn" onClick={() => apply((m) => reverseFlow(m, id))} title="Swap source and target">
           <ArrowLeftRight size={14} /> Reverse
         </button>
+        {(model.diagram.edges[id] || f.sourceSide || f.targetSide) && (
+          <button className="btn" onClick={() => apply((m) => resetFlowRoute(m, id))} title="Forget the bends and sides you chose: the line is routed by itself again" data-testid="auto-route">
+            <Route size={14} /> Auto route
+          </button>
+        )}
       </div>
       <DeleteButton ids={[id]} />
     </section>

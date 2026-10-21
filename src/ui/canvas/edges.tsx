@@ -2,9 +2,10 @@
 // association and data association (dotted). Drawn along DI waypoints; without them (a new flow, or an
 // end has moved) routed orthogonally between the sides of the two shapes that face each other.
 import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, Position, useInternalNode, type Edge, type EdgeProps, type InternalNode } from '@xyflow/react'
-import type { FlowKind } from '../../core/metamodel'
+import type { FlowKind, Side } from '../../core/metamodel'
+import { routeSides } from '../../core/routing'
 
-export type FlowData = { kind: FlowKind; name: string; points?: { x: number; y: number }[]; isDefault?: boolean; conditional?: boolean; passed?: boolean }
+export type FlowData = { kind: FlowKind; name: string; points?: { x: number; y: number }[]; sourceSide?: Side; targetSide?: Side; isDefault?: boolean; conditional?: boolean; passed?: boolean }
 export type FlowEdge = Edge<FlowData, 'flow'>
 
 type Box = { x: number; y: number; w: number; h: number; pool: boolean }
@@ -41,7 +42,16 @@ export function BpmnEdge({ id, source, target, data, sourceX, sourceY, targetX, 
     if (sb.pool && (sp === Position.Top || sp === Position.Bottom)) sourceX = Math.min(Math.max(targetX, sb.x + 40), sb.x + sb.w - 10)
   }
   const kind = data?.kind ?? 'sequence'
-  const pts = data?.points
+  let pts = data?.points
+  // A side the user chose (a dot of the shape) decides the route; the user's own bends decide it more.
+  if (!(pts && pts.length >= 2) && (data?.sourceSide || data?.targetSide) && sb && tb)
+    pts = routeSides(
+      { x: sb.x, y: sb.y, width: sb.w, height: sb.h },
+      data.sourceSide ?? (sourcePosition as Side),
+      { x: tb.x, y: tb.y, width: tb.w, height: tb.h },
+      data.targetSide ?? (targetPosition as Side),
+      { source: sb.pool, target: tb.pool },
+    )
   let path: string
   let labelX: number
   let labelY: number

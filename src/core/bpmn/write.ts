@@ -12,7 +12,8 @@
 // - a flow without stored waypoints is routed between the facing sides of its ends, as the canvas draws it;
 // - the content of a collapsed sub-process is drawn in a diagram of its own, as bpmn.io does.
 import { BpmnModdle } from 'bpmn-moddle'
-import { isArtifact, type Bounds, type EventTrigger, type Flow, type FlowModel, type FlowNode, type GatewayKind, type Lane, type LoopKind, type Point, type TaskKind } from '../metamodel'
+import { route } from '../routing'
+import { isArtifact, type Bounds, type EventTrigger, type FlowModel, type FlowNode, type GatewayKind, type Lane, type LoopKind, type Point, type TaskKind } from '../metamodel'
 
 type El = any
 
@@ -320,25 +321,4 @@ function flowLabel(name: string, pts: Point[]): Bounds | undefined {
   return { x: Math.round(cx - width / 2), y: Math.round(cy - height / 2), width, height }
 }
 
-/** An orthogonal path between the sides of two shapes that face each other (as edges.tsx draws it). */
-export function route(f: Pick<Flow, 'kind'>, s: Bounds | undefined, t: Bounds | undefined, toPool = false, fromPool = false): Point[] | undefined {
-  if (!s || !t) return undefined
-  const apartX = t.x >= s.x + s.width + 10 ? 1 : t.x + t.width <= s.x - 10 ? -1 : 0
-  const apartY = t.y >= s.y + s.height + 10 ? 1 : t.y + t.height <= s.y - 10 ? -1 : 0
-  const cy = (b: Bounds) => b.y + b.height / 2
-  const cx = (b: Bounds) => b.x + b.width / 2
-  if (apartX && !(f.kind === 'message' && apartY)) {
-    const a = { x: apartX > 0 ? s.x + s.width : s.x, y: cy(s) }
-    const b = { x: apartX > 0 ? t.x : t.x + t.width, y: cy(t) }
-    const mid = Math.round((a.x + b.x) / 2)
-    return a.y === b.y ? [a, b] : [a, { x: mid, y: a.y }, { x: mid, y: b.y }, b]
-  }
-  const down = apartY >= 0
-  const a = { x: cx(s), y: down ? s.y + s.height : s.y }
-  const b = { x: cx(t), y: down ? t.y : t.y + t.height }
-  // A message to or from a pool meets the pool's border straight above or below the other end.
-  if (toPool) b.x = Math.min(Math.max(a.x, t.x + 40), t.x + t.width - 10)
-  if (fromPool) a.x = Math.min(Math.max(b.x, s.x + 40), s.x + s.width - 10)
-  const mid = Math.round((a.y + b.y) / 2)
-  return a.x === b.x ? [a, b] : [a, { x: a.x, y: mid }, { x: b.x, y: mid }, b]
-}
+export { route }

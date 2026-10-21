@@ -88,7 +88,12 @@ export interface Flow {
   condition?: string
   /** Share of cases that take this branch of a decision (0–1), for the time analysis. */
   probability?: number
+  /** The side of the source / target the flow leaves / enters by, when the user chose it (else the facing sides). */
+  sourceSide?: Side
+  targetSide?: Side
 }
+
+export type Side = 'top' | 'right' | 'bottom' | 'left'
 
 export interface Bounds {
   x: number

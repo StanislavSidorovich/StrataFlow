@@ -15,7 +15,8 @@ import {
   type NodeChange,
 } from '@xyflow/react'
 import { ArrowLeft, Redo2, Undo2 } from 'lucide-react'
-import type { FlowModel, Point } from '../../core/metamodel'
+import type { FlowModel, Point, Side } from '../../core/metamodel'
+import { nearestSide } from '../../core/routing'
 import { POOL_HEADER } from '../../core/metamodel'
 import { addLane, addNode, addPool, connect, ModelError, moveElements, nodeOf, pageOf, withDescendants } from '../../core/ops'
 import type { Severity } from '../../core/lint'
@@ -24,6 +25,7 @@ import { useSim } from '../panels/Simulate'
 import { useEditor } from '../store'
 import { ContextMenu } from './ContextMenu'
 import { BpmnEdge, EdgeMarkers, type FlowEdge } from './edges'
+import { FlowGrips } from './FlowGrips'
 import { BpmnShape, PoolShape, type PoolNode, type ShapeNode } from './nodes'
 import { registerBounds } from '../exportImage'
 import { Palette } from './Palette'
@@ -104,6 +106,8 @@ function toEdges(model: FlowModel, selected: Set<string>, page: string | null, p
         kind: f.kind,
         name: f.name,
         points: model.diagram.edges[f.id],
+        sourceSide: f.sourceSide,
+        targetSide: f.targetSide,
         isDefault: src?.type === 'gateway' && src.defaultFlow === f.id,
         conditional: !!f.condition && src?.type !== 'gateway',
         passed: passed.has(f.id),
@@ -122,6 +126,14 @@ function followersOf(model: FlowModel, id: string): string[] {
 /** The element under a point: the smallest shape, then a pool (a message flow can end on a pool). */
 // Fit view leaves room for the draw bar on the left and the zoom buttons at the bottom, so neither covers the process.
 const FIT = { maxZoom: 1, padding: { top: '24px', right: '24px', bottom: '56px', left: '76px' } } as const
+
+const SIDES: string[] = ['top', 'right', 'bottom', 'left']
+const asSide = (h: string | null | undefined): Side | undefined => (h && SIDES.includes(h) ? (h as Side) : undefined)
+/** The side of `id` nearest to a point, as a handle name: a flow dropped on the left half of a task enters by its left. */
+const sideAt = (model: FlowModel, id: string, p: Point): string | null => {
+  const b = model.diagram.shapes[id]
+  return b ? nearestSide(b, p) : null
+}
 
 function elementAt(model: FlowModel, p: Point, page: string | null): string | undefined {
   const shown = shownOn(model, page)
@@ -218,8 +230,10 @@ export function Canvas() {
   const onConnect = (c: Connection) => {
     // A tap on two dots of one shape (touch screens: a tap on a dot starts a connection) is not a flow.
     if (c.source === c.target) return
+    // The dots the flow was drawn between are the sides it leaves and enters by.
+    const sides = { source: asSide(c.sourceHandle), target: asSide(c.targetHandle) }
     let id: string | null = null
-    if (useEditor.getState().apply((m) => void (id = connect(m, c.source, c.target).id)) && id) useEditor.getState().select([id])
+    if (useEditor.getState().apply((m) => void (id = connect(m, c.source, c.target, sides).id)) && id) useEditor.getState().select([id])
   }
 
   // Connect mode: the shape (or pool) tapped ends the flow; a tap on the empty canvas or on the start shape cancels.
@@ -227,7 +241,7 @@ export function Canvas() {
     const from = useEditor.getState().linkFrom
     useEditor.setState({ linkFrom: null, message: null })
     const target = elementAt(model, flow.screenToFlowPosition({ x: clientX, y: clientY }), page)
-    if (from && target && target !== from) onConnect({ source: from, target, sourceHandle: null, targetHandle: null })
+    if (from && target && target !== from) onConnect({ source: from, target, sourceHandle: null, targetHandle: sideAt(model, target, flow.screenToFlowPosition({ x: clientX, y: clientY })) })
   }
 
   // Dropped on a shape but not on one of its dots, or on a pool: connect to what is under the pointer.
@@ -235,7 +249,8 @@ export function Canvas() {
     if (state.isValid || !state.fromNode) return
     const pt = 'changedTouches' in e ? e.changedTouches[0] : e
     const target = elementAt(model, flow.screenToFlowPosition({ x: pt.clientX, y: pt.clientY }), page)
-    if (target && target !== state.fromNode.id) onConnect({ source: state.fromNode.id, target, sourceHandle: null, targetHandle: null })
+    if (target && target !== state.fromNode.id)
+      onConnect({ source: state.fromNode.id, target, sourceHandle: state.fromHandle?.id ?? null, targetHandle: sideAt(model, target, flow.screenToFlowPosition({ x: pt.clientX, y: pt.clientY })) })
   }
 
   // Right-click (as in Bizagi): on a selected element the menu is for the whole selection, on another one
@@ -339,6 +354,7 @@ export function Canvas() {
         proOptions={{ hideAttribution: false }}
       >
         <Background gap={20} size={1} />
+        <FlowGrips elementAt={(p) => elementAt(model, p, page)} />
         <Controls showInteractive={false}>
           <UndoRedo />
         </Controls>

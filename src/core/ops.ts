@@ -8,6 +8,7 @@ import {
   POOL_SIZE,
   SIZES,
   type Bounds,
+  type Side,
   type EventPosition,
   type EventTrigger,
   type Flow,
@@ -288,17 +289,40 @@ export function flowKindBetween(m: FlowModel, source: string, target: string): F
   return sPool !== tPool ? 'message' : 'sequence'
 }
 
-export function connect(m: FlowModel, source: string, target: string): Flow {
+export function connect(m: FlowModel, source: string, target: string, sides: { source?: Side; target?: Side } = {}): Flow {
   if (source === target) throw new ModelError('A flow must join two different elements')
   const kind = flowKindBetween(m, source, target)
   if (m.flows.some((f) => f.source === source && f.target === target && f.kind === kind)) throw new ModelError('These two are already connected')
   const flow: Flow = { id: nextId(m, kind === 'association' ? 'Association' : kind === 'data' ? 'DataAssociation' : kind === 'message' ? 'MessageFlow' : 'Flow'), kind, source, target, name: '' }
+  if (sides.source) flow.sourceSide = sides.source
+  if (sides.target) flow.targetSide = sides.target
   m.flows.push(flow)
   return flow
 }
 
+/**
+ * Sets the route of a flow: the sides it leaves and enters by (undefined = the sides facing each other) and,
+ * with `points`, the exact path; without them the path follows the sides. Moving an end of the flow keeps the sides.
+ */
+export function setFlowRoute(m: FlowModel, flowId: string, route: { source?: Side | null; target?: Side | null; points?: Point[] | null }): void {
+  const f = flowOf(m, flowId)
+  if (!f) throw new ModelError(`No flow ${flowId}`)
+  if (route.source !== undefined) route.source ? (f.sourceSide = route.source) : delete f.sourceSide
+  if (route.target !== undefined) route.target ? (f.targetSide = route.target) : delete f.targetSide
+  if (route.points === null) delete m.diagram.edges[flowId]
+  else if (route.points) {
+    if (route.points.length < 2) throw new ModelError('A route needs at least two points')
+    m.diagram.edges[flowId] = route.points
+  } else if (route.source !== undefined || route.target !== undefined) delete m.diagram.edges[flowId]
+}
+
+/** Back to the automatic route: sides facing each other, no bends of the user's. */
+export function resetFlowRoute(m: FlowModel, flowId: string): void {
+  setFlowRoute(m, flowId, { source: null, target: null, points: null })
+}
+
 /** Moves one end of a flow to another element; the kind follows the new ends. */
-export function reconnect(m: FlowModel, flowId: string, end: 'source' | 'target', to: string): void {
+export function reconnect(m: FlowModel, flowId: string, end: 'source' | 'target', to: string, side?: Side): void {
   const f = flowOf(m, flowId)
   if (!f) throw new ModelError(`No flow ${flowId}`)
   const source = end === 'source' ? to : f.source
@@ -308,6 +332,10 @@ export function reconnect(m: FlowModel, flowId: string, end: 'source' | 'target'
   if (kind !== 'sequence' || f.source !== source) clearDefault(m, flowId)
   Object.assign(f, { source, target, kind })
   if (kind !== 'sequence') delete f.condition
+  // The end moved to another element: its old side means nothing there; the one dropped on is kept.
+  const key = end === 'source' ? 'sourceSide' : 'targetSide'
+  if (side) f[key] = side
+  else delete f[key]
   delete m.diagram.edges[flowId]
 }
 

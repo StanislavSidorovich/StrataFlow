@@ -1832,3 +1832,50 @@ button.link {
 .react-flow.connecting .pool-node .react-flow__handle.bpmn-handle {
   opacity: 1;
 }
+
+/* Handles on the selected flow (src/ui/canvas/FlowGrips.tsx); --k keeps them the same size at any zoom. */
+.flow-grip {
+  position: absolute;
+  z-index: 1000;
+  pointer-events: all;
+  transform: translate(-50%, -50%) scale(var(--k, 1));
+  background: var(--panel-bg);
+  border: 1.5px solid var(--accent);
+  touch-action: none;
+}
+.flow-grip-end {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  cursor: grab;
+}
+.flow-grip-seg {
+  border-radius: 3px;
+}
+.flow-grip-seg.is-horizontal {
+  width: 20px;
+  height: 7px;
+  cursor: ns-resize;
+}
+.flow-grip-seg.is-vertical {
+  width: 7px;
+  height: 20px;
+  cursor: ew-resize;
+}
+.flow-grip:hover {
+  background: var(--accent);
+}
+@media (pointer: coarse) {
+  .flow-grip-end {
+    width: 20px;
+    height: 20px;
+  }
+  .flow-grip-seg.is-horizontal {
+    width: 32px;
+    height: 12px;
+  }
+  .flow-grip-seg.is-vertical {
+    width: 12px;
+    height: 32px;
+  }
+}
