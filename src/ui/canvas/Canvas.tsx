@@ -7,10 +7,12 @@ import {
   Background,
   ConnectionMode,
   ControlButton,
+  getBezierPath,
   Controls,
   ReactFlow,
   useReactFlow,
   type Connection,
+  type ConnectionLineComponentProps,
   type FinalConnectionState,
   type NodeChange,
 } from '@xyflow/react'
@@ -31,6 +33,21 @@ import { registerBounds } from '../exportImage'
 import { Palette } from './Palette'
 
 type AnyNode = ShapeNode | PoolNode
+
+/**
+ * The line shown while a flow is dragged. From a pool's border strip it is the line the flow will have:
+ * straight up or down from the border to the pointer, not a curve from the strip's middle.
+ */
+function ConnectionLine({ fromX, fromY, toX, toY, fromPosition, toPosition, fromHandle, fromNode }: ConnectionLineComponentProps) {
+  const d = fromHandle?.id?.startsWith('edge-')
+    ? `M${Math.min(Math.max(toX, fromNode.internals.positionAbsolute.x + 40), fromNode.internals.positionAbsolute.x + (fromNode.measured.width ?? 0) - 10)} ${fromY}V${toY}`
+    : getBezierPath({ sourceX: fromX, sourceY: fromY, sourcePosition: fromPosition, targetX: toX, targetY: toY, targetPosition: toPosition })[0]
+  return (
+    <g>
+      <path className="react-flow__connection-path" d={d} fill="none" />
+    </g>
+  )
+}
 
 const nodeTypes = { shape: BpmnShape, pool: PoolShape }
 const edgeTypes = { flow: BpmnEdge }
@@ -359,6 +376,7 @@ export function Canvas() {
         onSelectionContextMenu={(e) => openMenu(e, useEditor.getState().selection[0] ?? null)}
         onConnect={onConnect}
         onConnectEnd={onConnectEnd}
+        connectionLineComponent={ConnectionLine}
         connectionMode={ConnectionMode.Loose}
         connectionRadius={24}
         // A tap on a dot must not start a connection (touch): the pad's arrow does that.
