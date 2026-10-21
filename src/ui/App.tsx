@@ -54,7 +54,7 @@ import { hadStoredModel, useEditor } from './store'
 import { startTour, Tour } from './trainer/Tour'
 import { TrainerPane, TrainerVeil } from './trainer/TrainerPane'
 import { useTrainer } from './trainer/trainerStore'
-import { PaneResizer, showSide, useLayout } from './viewport'
+import { PaneResizer, SideResizer, showSide, useLayout } from './viewport'
 import { openWelcome, WelcomeCard, welcomeAtStart } from './Welcome'
 import example from '../data/examples/library-loan.flow.json?raw'
 import expenseAsIs from '../../cases/expense-claim-as-is.flow.json?raw'
@@ -120,6 +120,7 @@ export function App() {
   const trainerOpen = useTrainer((s) => s.open)
   const inTask = useTrainer((s) => s.session !== null)
   const side = useLayout((s) => s.side)
+  const sideW = useLayout((s) => s.sideW)
   const narrow = useLayout((s) => s.narrow)
   const phone = useLayout((s) => s.phone)
   const trainerW = useLayout((s) => s.trainerW)
@@ -196,7 +197,7 @@ export function App() {
   }, [])
 
   return (
-    <div className={`app${phone ? ' is-phone' : ''}`} style={{ '--trainer-w': `${trainerW}px` } as React.CSSProperties}>
+    <div className={`app${phone ? ' is-phone' : ''}`} style={{ '--trainer-w': `${trainerW}px`, ...(sideW ? { '--side-w': `${sideW}px` } : {}) } as React.CSSProperties}>
       <header className="topbar">
         <div className="topbar-left">
           <div className="brand">
@@ -419,6 +420,7 @@ export function App() {
         </ReactFlowProvider>
         {side && (
           <div className={`side-wrap${narrow ? ' is-over' : ''}`}>
+            {!narrow && <SideResizer />}
             {narrow && !help && (
               <button className="side-close" aria-label="Close" title="Close (Esc)" onClick={() => useLayout.getState().setSide(false)} data-testid="side-close">
                 <X size={15} />

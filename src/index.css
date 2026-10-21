@@ -453,7 +453,7 @@ svg.is-ok {
 .side-panel {
   display: flex;
   flex-direction: column;
-  width: 280px;
+  width: var(--side-w, 280px);
   flex: none;
   overflow-y: auto;
   background: var(--panel-bg);
@@ -706,7 +706,7 @@ h2.with-help {
   align-items: center;
 }
 .help-panel {
-  width: 320px;
+  width: var(--side-w, 320px);
 }
 .help-nav {
   display: flex;

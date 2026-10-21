@@ -8,7 +8,18 @@ import { useEditor } from './store'
 export const NARROW = 1000
 const PHONE_OK_KEY = 'strataflow.phone-ok'
 const TRAINER_W_KEY = 'strataflow.trainer.width'
+const SIDE_W_KEY = 'strataflow.side.width'
 const TRAINER_W = 340
+/** The right column's width: 240 to 640 px, and the canvas keeps at least 320 px. null = the default of each panel. */
+export const clampSideWidth = (w: number) => Math.round(Math.max(240, Math.min(w, 640, window.innerWidth - 320)))
+const readSideWidth = (): number | null => {
+  try {
+    const w = Number(localStorage.getItem(SIDE_W_KEY))
+    return w ? clampSideWidth(w) : null
+  } catch {
+    return null
+  }
+}
 
 // Not yet dragged: 340 px, or half the window on a narrow one (a tablet in portrait), so the canvas shows too.
 const defaultWidth = () => Math.min(TRAINER_W, Math.round(window.innerWidth / 2))
@@ -46,6 +57,9 @@ type Layout = {
   /** The trainer column's width (dragged by its edge, kept in this browser). */
   trainerW: number
   setTrainerW: (w: number, keep?: boolean) => void
+  /** The right column's width (dragged by its left edge, kept in this browser); null = default. */
+  sideW: number | null
+  setSideW: (w: number | null, keep?: boolean) => void
   setSide: (side: boolean) => void
   continueOnPhone: () => void
 }
@@ -56,6 +70,18 @@ export const useLayout = create<Layout>((set) => ({
   side: !isNarrow(),
   phoneOk: phoneOk(),
   trainerW: readWidth(),
+  sideW: readSideWidth(),
+  setSideW: (w, keep) => {
+    const sideW = w === null ? null : clampSideWidth(w)
+    if (keep)
+      try {
+        if (sideW === null) localStorage.removeItem(SIDE_W_KEY)
+        else localStorage.setItem(SIDE_W_KEY, String(sideW))
+      } catch {
+        // the width is back to the default next time
+      }
+    set({ sideW })
+  },
   setTrainerW: (w, keep) => {
     const trainerW = clampTrainerWidth(w)
     if (keep)
@@ -157,6 +183,50 @@ export function PaneResizer() {
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
           e.preventDefault()
           set(w + (e.key === 'ArrowLeft' ? -20 : 20), true)
+        }
+      }}
+    />
+  )
+}
+
+/** The right column's left edge: drag it to make Properties and the help cards wider or narrower; double-click: default. */
+export function SideResizer() {
+  const w = useLayout((s) => s.sideW)
+  const set = useLayout.getState().setSideW
+  const current = (el: HTMLElement) => w ?? el.nextElementSibling?.getBoundingClientRect().width ?? 280
+  return (
+    <div
+      className="pane-resizer"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Properties width"
+      tabIndex={0}
+      title="Drag to resize (double-click: default width)"
+      data-testid="side-resizer"
+      onPointerDown={(e) => {
+        e.preventDefault()
+        const el = e.currentTarget
+        el.setPointerCapture(e.pointerId)
+        const x0 = e.clientX
+        const w0 = current(el)
+        el.classList.add('is-dragging')
+        const move = (ev: PointerEvent) => set(w0 - (ev.clientX - x0))
+        const up = (ev: PointerEvent) => {
+          set(w0 - (ev.clientX - x0), true)
+          el.classList.remove('is-dragging')
+          el.removeEventListener('pointermove', move)
+          el.removeEventListener('pointerup', up)
+          el.removeEventListener('pointercancel', up)
+        }
+        el.addEventListener('pointermove', move)
+        el.addEventListener('pointerup', up)
+        el.addEventListener('pointercancel', up)
+      }}
+      onDoubleClick={() => set(null, true)}
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          e.preventDefault()
+          set(current(e.currentTarget) + (e.key === 'ArrowLeft' ? 20 : -20), true)
         }
       }}
     />

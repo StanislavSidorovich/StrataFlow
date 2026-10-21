@@ -16,7 +16,7 @@ export const TOOLS: { tool: Tool; icon: IconName | 'select'; label: string; key:
   { tool: { id: 'dataObject', spec: { type: 'dataObject' } }, icon: 'dataObject', label: 'Data object', key: 'D' },
   { tool: { id: 'dataStore', spec: { type: 'dataStore' } }, icon: 'dataStore', label: 'Data store', key: 'B' },
   { tool: { id: 'annotation', spec: { type: 'annotation' } }, icon: 'annotation', label: 'Text annotation', key: 'N' },
-  { tool: { id: 'pool' }, icon: 'pool', label: 'Pool (add lanes in Properties)', key: 'P' },
+  { tool: { id: 'pool' }, icon: 'pool', label: 'Pool; a click inside a pool adds a lane', key: 'P' },
 ]
 
 export function Palette() {

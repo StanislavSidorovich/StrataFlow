@@ -17,7 +17,7 @@ import {
 import { ArrowLeft, Redo2, Undo2 } from 'lucide-react'
 import type { FlowModel, Point } from '../../core/metamodel'
 import { POOL_HEADER } from '../../core/metamodel'
-import { addNode, addPool, connect, ModelError, moveElements, nodeOf, pageOf, withDescendants } from '../../core/ops'
+import { addLane, addNode, addPool, connect, ModelError, moveElements, nodeOf, pageOf, withDescendants } from '../../core/ops'
 import type { Severity } from '../../core/lint'
 import { useIssues } from '../panels/Check'
 import { useSim } from '../panels/Simulate'
@@ -200,7 +200,16 @@ export function Canvas() {
     const ok = apply((m) => {
       if (tool.id === 'pool') {
         if (page) throw new ModelError('A sub-process has no pools: go back to the process to add one')
-        id = addPool(m, { x: at.x - POOL_HEADER / 2, y: at.y - 20 }).id
+        // A click inside a pool adds a lane to it (two when it has none, so there is a second one to use);
+        // on the empty canvas it starts a new pool.
+        const inside = m.participants.find((p) => {
+          const b = m.diagram.shapes[p.id]
+          return b && at.x >= b.x && at.x <= b.x + b.width && at.y >= b.y && at.y <= b.y + b.height
+        })
+        if (inside) {
+          if (!m.lanes.some((l) => l.participantId === inside.id)) addLane(m, inside.id)
+          id = addLane(m, inside.id).id
+        } else id = addPool(m, { x: at.x - POOL_HEADER / 2, y: at.y - 20 }).id
       } else if ('spec' in tool) id = addNode(m, tool.spec, at, '', page ?? undefined).id
     })
     if (ok && id) useEditor.setState({ selection: [id], focusName: id, ...(keep ? {} : { tool: { id: 'select' } }) })
