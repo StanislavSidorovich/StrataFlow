@@ -73,3 +73,25 @@ export function lookColor(look: Look, which: LookPart, theme: Theme): string {
 export function lookVars(look: Look, theme: Theme): Record<string, string | undefined> {
   return { '--canvas-bg': look.canvas[theme], '--panel-bg': look.panels[theme] }
 }
+
+// Diagram text size (S / M / L / XL in the Aa menu): names in and under the shapes, annotations and flow
+// labels are scaled by --label-scale; the panels keep their size (the browser's zoom does those).
+// Kept under a key of its own, so an older stored look still reads.
+
+export const LABELS_KEY = 'strataflow.labels'
+
+export const LABEL_SIZES = [
+  { id: 'S', scale: 0.9, label: 'Small' },
+  { id: 'M', scale: 1, label: 'Medium (default)' },
+  { id: 'L', scale: 1.2, label: 'Large' },
+  { id: 'XL', scale: 1.45, label: 'Extra large' },
+] as const
+
+export type LabelSize = (typeof LABEL_SIZES)[number]['id']
+
+/** The stored size; anything else is the default M. */
+export function parseLabelSize(v: string | null): LabelSize {
+  return LABEL_SIZES.find((s) => s.id === v)?.id ?? 'M'
+}
+
+export const labelScale = (size: LabelSize): number => LABEL_SIZES.find((s) => s.id === size)!.scale

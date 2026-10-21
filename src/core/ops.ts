@@ -176,19 +176,24 @@ export function addNode(m: FlowModel, spec: NodeSpec, at: Point, name = '', page
   m.nodes.push(node)
   const { width, height } = SIZES[spec.type]
   m.diagram.shapes[id] = { x: Math.round(at.x - width / 2), y: Math.round(at.y - height / 2), width, height }
-  const holder = page ? nodeOf(m, page) : undefined
-  if (holder) {
-    if (holder.type !== 'subProcess' || !holder.collapsed) throw new ModelError(`${page} is not a collapsed sub-process`)
-    // On that page, an expanded sub-process may hold it.
-    const c = centre(m.diagram.shapes[id])
-    const inner = m.nodes
-      .filter((x) => x.type === 'subProcess' && !x.collapsed && pageOf(m, x.id) === page && inside(c, m.diagram.shapes[x.id]))
-      .sort((p, q) => area(m.diagram.shapes[p.id]) - area(m.diagram.shapes[q.id]))[0]
-    node.parentId = inner?.id ?? holder.id
-    node.participantId = holder.participantId
-    node.laneId = holder.laneId
-  } else place(m, id)
+  if (page) putOnPage(m, node.id, page)
+  else place(m, id)
   return nodeOf(m, id)!
+}
+
+/** Places a node on the page of a collapsed sub-process: pool and lane come from it, an expanded sub-process there may hold it. */
+function putOnPage(m: FlowModel, id: string, page: string) {
+  const node = nodeOrThrow(m, id)
+  const holder = nodeOf(m, page)
+  if (holder?.type !== 'subProcess' || !holder.collapsed) throw new ModelError(`${page} is not a collapsed sub-process`)
+  const c = centre(m.diagram.shapes[id])
+  const own = withDescendants(m, id)
+  const inner = m.nodes
+    .filter((x) => x.type === 'subProcess' && !x.collapsed && !own.has(x.id) && pageOf(m, x.id) === page && inside(c, m.diagram.shapes[x.id]))
+    .sort((p, q) => area(m.diagram.shapes[p.id]) - area(m.diagram.shapes[q.id]))[0]
+  node.parentId = inner?.id ?? holder.id
+  node.participantId = holder.participantId
+  node.laneId = holder.laneId
 }
 
 /** Adds a node to the right of `fromId` (below the ones already there) and connects the two. */
@@ -337,11 +342,13 @@ export function flowKindBetween(m: FlowModel, source: string, target: string): F
   return sPool !== tPool ? 'message' : 'sequence'
 }
 
+const FLOW_PREFIX: Record<FlowKind, string> = { sequence: 'Flow', message: 'MessageFlow', association: 'Association', data: 'DataAssociation' }
+
 export function connect(m: FlowModel, source: string, target: string, sides: { source?: Side; target?: Side } = {}): Flow {
   if (source === target) throw new ModelError('A flow must join two different elements')
   const kind = flowKindBetween(m, source, target)
   if (m.flows.some((f) => f.source === source && f.target === target && f.kind === kind)) throw new ModelError('These two are already connected')
-  const flow: Flow = { id: nextId(m, kind === 'association' ? 'Association' : kind === 'data' ? 'DataAssociation' : kind === 'message' ? 'MessageFlow' : 'Flow'), kind, source, target, name: '' }
+  const flow: Flow = { id: nextId(m, FLOW_PREFIX[kind]), kind, source, target, name: '' }
   if (sides.source) flow.sourceSide = sides.source
   if (sides.target) flow.targetSide = sides.target
   m.flows.push(flow)
@@ -699,6 +706,159 @@ function removeLane(m: FlowModel, id: string) {
   m.lanes = m.lanes.filter((l) => l.id !== id)
   delete m.diagram.shapes[id]
   for (const n of m.nodes) if (n.participantId === lane.participantId) place(m, n.id)
+}
+
+// ---------------------------------------------------------------- copy and paste
+
+/** Shapes taken out of a model for the clipboard: nodes with what hangs on them, the flows among them, their drawing. */
+export interface Clip {
+  nodes: FlowNode[]
+  flows: Flow[]
+  shapes: Record<string, Bounds>
+  edges: Record<string, Point[]>
+}
+
+/**
+ * Copies the selected nodes with their boundary events and sub-process content, and the flows whose both
+ * ends are copied. Pools, lanes and flows in the selection are left out, a boundary event without its task too.
+ * Null when nothing can be copied.
+ */
+export function copyElements(m: FlowModel, ids: string[]): Clip | null {
+  const take = new Set<string>()
+  for (const id of ids) {
+    const n = nodeOf(m, id)
+    if (!n || !m.diagram.shapes[id] || (n.type === 'event' && n.attachedTo && !ids.includes(n.attachedTo))) continue
+    for (const x of withDescendants(m, id)) take.add(x)
+  }
+  if (!take.size) return null
+  const clip: Clip = { nodes: m.nodes.filter((n) => take.has(n.id)), flows: m.flows.filter((f) => take.has(f.source) && take.has(f.target)), shapes: {}, edges: {} }
+  for (const n of clip.nodes) if (m.diagram.shapes[n.id]) clip.shapes[n.id] = m.diagram.shapes[n.id]
+  for (const f of clip.flows) if (m.diagram.edges[f.id]) clip.edges[f.id] = m.diagram.edges[f.id]
+  // A plain copy: the model may be an immer draft, and the clipboard outlives it.
+  return JSON.parse(JSON.stringify(clip)) as Clip
+}
+
+/** How far the n-th paste of a clip lands from the original, per step. */
+export const PASTE_STEP = 24
+
+/** The copied shapes that are not inside another copied one or on its border. */
+function clipTop(clip: Clip): FlowNode[] {
+  const ids = new Set(clip.nodes.map((n) => n.id))
+  return clip.nodes.filter((n) => clip.shapes[n.id] && !(n.parentId && ids.has(n.parentId)) && !(n.type === 'event' && n.attachedTo))
+}
+
+const laneAt = (m: FlowModel, p: Point) =>
+  m.lanes.filter((l) => m.diagram.shapes[l.id] && inside(p, m.diagram.shapes[l.id])).sort((a, b) => area(m.diagram.shapes[a.id]) - area(m.diagram.shapes[b.id]))[0]?.id
+
+/** The shift of the n-th paste: down and to the right, else only right, else only down, so each shape stays in its lane. */
+export function pasteOffset(m: FlowModel, clip: Clip, n = 1): Point {
+  const d = PASTE_STEP * n
+  const tries = [
+    { x: d, y: d },
+    { x: d, y: 0 },
+    { x: 0, y: d },
+  ]
+  const keeps = (o: Point) =>
+    clipTop(clip).every((node) => {
+      const c = centre(clip.shapes[node.id])
+      return laneAt(m, c) === laneAt(m, { x: c.x + o.x, y: c.y + o.y })
+    })
+  return tries.find(keeps) ?? tries[0]
+}
+
+/**
+ * Pastes a clip as new elements with new ids, shifted by `offset` or centred on `at`; `page` = the collapsed
+ * sub-process whose page is shown. Pool and lane come from where each shape lands, as after a move.
+ * Returns the ids of the pasted shapes that are not inside another pasted one (to select them).
+ */
+export function pasteClip(m: FlowModel, clip: Clip, opts: { offset?: Point; at?: Point; page?: string } = {}): string[] {
+  const top = clipTop(clip)
+  if (!top.length) throw new ModelError('Nothing to paste')
+  const byId = new Map(clip.nodes.map((n) => [n.id, n]))
+  let d = opts.offset ?? { x: PASTE_STEP, y: PASTE_STEP }
+  if (opts.at) {
+    const box = top.map((n) => clip.shapes[n.id])
+    const x0 = Math.min(...box.map((b) => b.x))
+    const y0 = Math.min(...box.map((b) => b.y))
+    const x1 = Math.max(...box.map((b) => b.x + b.width))
+    const y1 = Math.max(...box.map((b) => b.y + b.height))
+    d = { x: Math.round(opts.at.x - (x0 + x1) / 2), y: Math.round(opts.at.y - (y0 + y1) / 2) }
+  }
+  // The content of a collapsed sub-process is on its own page: it does not move.
+  const hidden = (n: FlowNode) => {
+    for (let p = n.parentId; p && byId.has(p); p = byId.get(p)!.parentId) {
+      const h = byId.get(p)!
+      if (h.type === 'subProcess' && h.collapsed) return true
+    }
+    return false
+  }
+  const newId = new Map<string, string>()
+  for (const n of clip.nodes) {
+    const s = clip.shapes[n.id]
+    if (!s) continue
+    const id = nextId(m, PREFIX[n.type])
+    newId.set(n.id, id)
+    const shift = hidden(n) ? { x: 0, y: 0 } : d
+    m.nodes.push({ ...(JSON.parse(JSON.stringify(n)) as FlowNode), id })
+    m.diagram.shapes[id] = { ...s, x: s.x + shift.x, y: s.y + shift.y }
+  }
+  const pasted = (old: string) => nodeOf(m, newId.get(old)!)!
+  for (const n of clip.nodes) {
+    if (!newId.has(n.id)) continue
+    const c = pasted(n.id)
+    c.parentId = n.parentId && newId.get(n.parentId)
+    if (!c.parentId) delete c.parentId
+    if (c.type === 'event' && c.attachedTo) c.attachedTo = newId.get(c.attachedTo)
+    if (c.type === 'gateway') delete c.defaultFlow
+  }
+  // Shapes on top first, then what they hold (outer before inner), boundary events last.
+  const depth = (n: FlowNode) => {
+    let k = 0
+    for (let p = n.parentId; p && byId.has(p); p = byId.get(p)!.parentId) k++
+    return k
+  }
+  const onBorder = (n: FlowNode) => (n.type === 'event' && n.attachedTo ? 1 : 0)
+  const order = clip.nodes.filter((n) => newId.has(n.id)).sort((a, b) => onBorder(a) - onBorder(b) || depth(a) - depth(b))
+  const put = (id: string) => (opts.page ? putOnPage(m, id, opts.page) : place(m, id))
+  for (const n of order) {
+    const c = pasted(n.id)
+    if (top.includes(n) || onBorder(n)) put(c.id)
+    else if (hidden(n)) {
+      const parent = nodeOf(m, c.parentId!)!
+      c.participantId = parent.participantId
+      c.laneId = parent.laneId
+    } else {
+      // Inside a pasted expanded sub-process: the lane is where it sits, the sub-process stays its parent.
+      const parent = c.parentId
+      put(c.id)
+      c.parentId = parent
+    }
+  }
+  const newFlow = new Map<string, string>()
+  for (const f of clip.flows) {
+    const source = newId.get(f.source)
+    const target = newId.get(f.target)
+    if (!source || !target) continue
+    let kind: FlowKind
+    try {
+      kind = flowKindBetween(m, source, target)
+    } catch {
+      continue
+    }
+    const id = nextId(m, FLOW_PREFIX[kind])
+    newFlow.set(f.id, id)
+    m.flows.push({ ...f, id, kind, source, target })
+    const pts = clip.edges[f.id]
+    const shift = hidden(byId.get(f.source)!) ? { x: 0, y: 0 } : d
+    if (pts) m.diagram.edges[id] = pts.map((p) => ({ x: p.x + shift.x, y: p.y + shift.y }))
+  }
+  for (const n of clip.nodes) {
+    if (n.type !== 'gateway' || !n.defaultFlow || !newId.has(n.id)) continue
+    const g = pasted(n.id)
+    const f = newFlow.get(n.defaultFlow)
+    if (g.type === 'gateway' && f && flowOf(m, f)?.kind === 'sequence') g.defaultFlow = f
+  }
+  return top.map((n) => newId.get(n.id)!)
 }
 
 // ---------------------------------------------------------------- group into / ungroup sub-process

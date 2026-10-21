@@ -5,7 +5,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronRight } from 'lucide-react'
-import { groupSelection, layoutNow, renameElement, ungroupSelection } from '../actions'
+import { canPaste, copySelection, cutSelection, duplicateSelection, groupSelection, layoutNow, pasteClipboard, renameElement, ungroupSelection } from '../actions'
 import { useEditor, type ContextMenuState } from '../store'
 import { helpCardFor, menuFor, typeEntries, type MenuEntry, type MenuItem } from './menu'
 
@@ -35,7 +35,7 @@ export function ContextMenu() {
   }, [state])
 
   if (!state) return null
-  const items = state.kind === 'type' ? typeEntries(model, state.ids[0]) : menuFor(model, state.ids, state.at, page)
+  const items = state.kind === 'type' ? typeEntries(model, state.ids[0]) : menuFor(model, state.ids, state.at, page, canPaste())
   if (!items.length) return null
   return createPortal(
     <div ref={box} className="ctx-menu-root" data-testid="context-menu" onContextMenu={(e) => e.preventDefault()}>
@@ -71,6 +71,14 @@ function pick(e: MenuEntry, state: ContextMenuState) {
       return void layoutNow()
     case 'check':
       return s.setCheckOpen(true)
+    case 'copy':
+      return void copySelection()
+    case 'cut':
+      return void cutSelection()
+    case 'duplicate':
+      return void duplicateSelection()
+    case 'paste':
+      return void pasteClipboard(state.at)
     case 'connect':
       return useEditor.setState({ linkFrom: id, tool: { id: 'select' }, error: null, message: 'Message flow: click the shape to send it to (the empty canvas cancels).' })
   }

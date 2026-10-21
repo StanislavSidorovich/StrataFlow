@@ -26,8 +26,8 @@ import {
 import { cardForElement } from '../../data/help'
 import { GATEWAY_KINDS, LOOP_KINDS, TASK_KINDS, triggerLabel } from '../choices'
 
-/** What the UI does itself: type a name, open a help card, group, ungroup, open a page, lay out, check. */
-export type Command = 'rename' | 'help' | 'group' | 'ungroup' | 'open-page' | 'layout' | 'check' | 'connect'
+/** What the UI does itself: type a name, open a help card, group, ungroup, open a page, lay out, check, the clipboard. */
+export type Command = 'rename' | 'help' | 'group' | 'ungroup' | 'open-page' | 'layout' | 'check' | 'connect' | 'copy' | 'cut' | 'paste' | 'duplicate'
 
 export interface MenuEntry {
   /** Stable key, also the test id (`cm-<id>`). */
@@ -136,10 +136,26 @@ const ADD: { id: string; label: string; spec: NodeSpec }[] = [
 /**
  * The right-click menu. `ids` = what was clicked (the selection when the click was on a selected element);
  * none = the empty canvas, where `at` is the point in model coordinates and `page` the page shown.
+ * `canPaste` = the clipboard holds shapes: the empty canvas, a pool and a lane offer to paste them at `at`.
  */
-export function menuFor(m: FlowModel, ids: string[], at: Point, page: string | null): MenuItem[] {
+export function menuFor(m: FlowModel, ids: string[], at: Point, page: string | null, canPaste = false): MenuItem[] {
+  const paste: MenuItem[] = canPaste ? [{ id: 'paste', label: 'Paste here', keys: 'Ctrl+V', title: 'The copied shapes, centred where you clicked', command: 'paste' }] : []
+  // Copy, cut and duplicate take shapes (with their boundary events and the flows between them), not pools, lanes or lone flows.
+  const shapes = ids.some((x) => {
+    const n = nodeOf(m, x)
+    return n && !(n.type === 'event' && n.attachedTo && !ids.includes(n.attachedTo))
+  })
+  const clipboard: MenuItem[] = shapes
+    ? [
+        { id: 'copy', label: 'Copy', keys: 'Ctrl+C', title: 'With the flows between the copied shapes; paste in this process or another tab', command: 'copy' },
+        { id: 'cut', label: 'Cut', keys: 'Ctrl+X', command: 'cut' },
+        { id: 'duplicate', label: 'Duplicate', keys: 'Ctrl+D', title: 'A copy next to it (the clipboard stays as it is)', command: 'duplicate' },
+        'sep',
+      ]
+    : []
   if (!ids.length)
     return [
+      ...(paste.length ? [...paste, 'sep' as const] : []),
       {
         id: 'add',
         label: 'Add here',
@@ -158,10 +174,11 @@ export function menuFor(m: FlowModel, ids: string[], at: Point, page: string | n
       const n = nodeOf(m, x)
       return n && !isArtifact(n)
     })
-    return [...(steps ? [{ id: 'group', label: 'Group into sub-process', keys: 'Ctrl+G', command: 'group' as const }, 'sep' as const] : []), del]
+    return [...clipboard, ...(steps ? [{ id: 'group', label: 'Group into sub-process', keys: 'Ctrl+G', command: 'group' as const }, 'sep' as const] : []), del]
   }
   const id = ids[0]
   const out: MenuItem[] = [...typeEntries(m, id)]
+  if ((poolOf(m, id) || laneOf(m, id)) && paste.length) out.push(...paste)
   if (poolOf(m, id))
     out.push({ id: 'connect', label: 'Message flow to…', title: 'Then click the shape in another pool to send a message to (the empty canvas cancels)', command: 'connect' })
   if (laneOf(m, id))
@@ -175,6 +192,7 @@ export function menuFor(m: FlowModel, ids: string[], at: Point, page: string | n
     out.push({ id: 'reverse', label: 'Reverse', title: 'Swap source and target', edit: (d) => reverseFlow(d, id) })
   }
   if (out.length) out.push('sep')
+  out.push(...clipboard)
   const named = !f || f.kind === 'sequence' || f.kind === 'message'
   if (named) out.push({ id: 'rename', label: 'Rename', keys: 'F2', command: 'rename' })
   if (helpCardFor(m, id)) out.push({ id: 'help', label: 'Help card', command: 'help' })

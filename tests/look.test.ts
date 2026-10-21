@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { lookColor, lookVars, NO_LOOK, normalColor, parseLook, setLookColor, SWATCHES } from '../src/core/look'
+import { labelScale, LABEL_SIZES, lookColor, lookVars, NO_LOOK, normalColor, parseLabelSize, parseLook, setLookColor, SWATCHES } from '../src/core/look'
 
 describe('appearance (canvas and panel colours)', () => {
   it('reads a stored look and drops anything that is not a #RRGGBB colour', () => {
@@ -36,5 +36,15 @@ describe('appearance (canvas and panel colours)', () => {
       }
     expect(SWATCHES.canvas.light[0]).toBe('#fbfbfc')
     expect(SWATCHES.panels.dark[0]).toBe('#1b1f27')
+  })
+})
+
+describe('diagram text size', () => {
+  it('reads S, M, L or XL and falls back to M', () => {
+    expect(parseLabelSize('XL')).toBe('XL')
+    expect(parseLabelSize(null)).toBe('M')
+    expect(parseLabelSize('huge')).toBe('M')
+    expect(labelScale('M')).toBe(1)
+    expect(LABEL_SIZES.map((s) => labelScale(s.id))).toEqual([...LABEL_SIZES.map((s) => s.scale)].sort((a, b) => a - b))
   })
 })

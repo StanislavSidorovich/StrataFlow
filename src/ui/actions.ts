@@ -1,8 +1,87 @@
 // Actions shared by the top bar, Properties, the context menu and the keys: group into / ungroup sub-process
-// (Ctrl+G, Ctrl+Shift+G), rename (F2), auto layout.
-import { groupIntoSubprocess, NeedsGatewaysError, nodeOf, setCollapsed, ungroupSubprocess } from '../core/ops'
+// (Ctrl+G, Ctrl+Shift+G), rename (F2), auto layout, copy / cut / paste / duplicate (Ctrl+C, X, V, D).
+import type { Point } from '../core/metamodel'
+import { copyElements, deleteElements, groupIntoSubprocess, NeedsGatewaysError, nodeOf, pasteClip, pasteOffset, setCollapsed, ungroupSubprocess, type Clip } from '../core/ops'
 import { layoutModel } from './files'
 import { useEditor } from './store'
+
+// The clipboard is the app's own (not the system one): kept in memory and in the browser, so a copy
+// pastes into another tab of the app and into another browser tab of it too.
+export const CLIP_KEY = 'strataflow.clipboard'
+let clipText: string | null = null
+/** How many times the clip on the clipboard has been pasted: each paste lands one step further. */
+let pastes = 0
+
+function readClip(): Clip | null {
+  try {
+    const stored = globalThis.localStorage?.getItem(CLIP_KEY)
+    if (stored && stored !== clipText) {
+      clipText = stored
+      pastes = 1
+    }
+  } catch {
+    /* private mode: the copy in memory serves this tab */
+  }
+  try {
+    return clipText ? (JSON.parse(clipText) as Clip) : null
+  } catch {
+    return null
+  }
+}
+
+function keepClip(clip: Clip, pasted: number) {
+  clipText = JSON.stringify(clip)
+  pastes = pasted
+  try {
+    localStorage.setItem(CLIP_KEY, clipText)
+  } catch {
+    /* private mode or full: the copy stays in memory */
+  }
+}
+
+export const canPaste = () => readClip() !== null
+
+/** Copies the selected shapes and the flows between them. False when nothing in the selection can be copied. */
+export function copySelection(): boolean {
+  const { model, selection } = useEditor.getState()
+  const clip = copyElements(model, selection)
+  if (!clip) return false
+  keepClip(clip, 1)
+  return true
+}
+
+/** Copy, then delete (one undo step); the first paste puts them back where they were. */
+export function cutSelection(): boolean {
+  const { model, selection, apply } = useEditor.getState()
+  const clip = copyElements(model, selection)
+  if (!clip) return false
+  keepClip(clip, 0)
+  apply((m) => deleteElements(m, selection))
+  return true
+}
+
+/** Pastes the clipboard: shifted from where it was copied (keeping the lane when it fits), or centred on `at`. */
+export function pasteClipboard(at?: Point): boolean {
+  const clip = readClip()
+  if (!clip) return false
+  const { page, apply } = useEditor.getState()
+  let ids: string[] = []
+  const ok = apply((m) => void (ids = pasteClip(m, clip, at ? { at, page: page ?? undefined } : { offset: pasteOffset(m, clip, pastes), page: page ?? undefined })))
+  if (!ok) return true
+  if (!at) pastes++
+  useEditor.setState({ selection: ids })
+  return true
+}
+
+/** A copy of the selection next to it, without touching the clipboard. */
+export function duplicateSelection(): boolean {
+  const { model, selection, page, apply } = useEditor.getState()
+  const clip = copyElements(model, selection)
+  if (!clip) return false
+  let ids: string[] = []
+  if (apply((m) => void (ids = pasteClip(m, clip, { offset: pasteOffset(m, clip), page: page ?? undefined })))) useEditor.setState({ selection: ids })
+  return true
+}
 
 export function groupSelection() {
   const { apply, selection, model } = useEditor.getState()

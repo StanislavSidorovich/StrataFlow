@@ -110,9 +110,9 @@ describe('context menu', () => {
     expect(ids(menuFor(m, ['Flow_1'], { x: 0, y: 0 }, null))).not.toContain('default')
   })
 
-  it('several selected: group and delete; the empty canvas: add here, layout, check', () => {
+  it('several selected: clipboard, group and delete; the empty canvas: add here, layout, check', () => {
     const m = example()
-    expect(ids(menuFor(m, ['Task_check', 'Gateway_valid'], { x: 0, y: 0 }, null))).toEqual(['group', 'delete'])
+    expect(ids(menuFor(m, ['Task_check', 'Gateway_valid'], { x: 0, y: 0 }, null))).toEqual(['copy', 'cut', 'duplicate', 'group', 'delete'])
     run(m, menuFor(m, ['Task_check', 'Gateway_valid'], { x: 0, y: 0 }, null), 'delete')
     expect(nodeOf(m, 'Task_check')).toBeUndefined()
     const pane = menuFor(m, [], { x: 400, y: 120 }, null)
@@ -121,6 +121,17 @@ describe('context menu', () => {
     const s = m.diagram.shapes[id]
     expect([s.x + s.width / 2, s.y + s.height / 2]).toEqual([400, 120])
     expect(nodeOf(m, id)?.participantId).toBe('Participant_library')
+  })
+
+  it('copy, cut and duplicate on shapes; paste here on the canvas, a pool or a lane only with a full clipboard', () => {
+    const m = example()
+    expect(ids(menuFor(m, ['Task_check'], { x: 0, y: 0 }, null))).toEqual(expect.arrayContaining(['copy', 'cut', 'duplicate']))
+    expect(ids(menuFor(m, ['Task_check', 'Task_lend'], { x: 0, y: 0 }, null))).toEqual(expect.arrayContaining(['copy', 'cut', 'duplicate', 'group']))
+    expect(ids(menuFor(m, ['Lane_desk'], { x: 0, y: 0 }, null))).not.toContain('copy')
+    expect(ids(menuFor(m, ['Flow_1'], { x: 0, y: 0 }, null))).not.toContain('copy')
+    expect(ids(menuFor(m, [], { x: 0, y: 0 }, null))).not.toContain('paste')
+    for (const at of [[], ['Lane_stacks'], ['Participant_library']]) expect(ids(menuFor(m, at, { x: 0, y: 0 }, null, true))).toContain('paste')
+    expect(ids(menuFor(m, ['Task_check'], { x: 0, y: 0 }, null, true))).not.toContain('paste')
   })
 
   it('a refused change throws ModelError, which the store shows', () => {

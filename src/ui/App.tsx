@@ -41,7 +41,7 @@ import { parseModel } from '../core/serialize'
 import { applyUpdate, checkForUpdates, DEPLOY_DELAY_NOTE, installApp, updateCheckMessage, useUpdateReady } from '../pwa/register'
 import { Canvas } from './canvas/Canvas'
 import { TOOLS } from './canvas/Palette'
-import { groupSelection, layoutNow, renameElement, ungroupSelection } from './actions'
+import { copySelection, cutSelection, duplicateSelection, groupSelection, layoutNow, pasteClipboard, renameElement, ungroupSelection } from './actions'
 import { exportImage } from './exportImage'
 import { exportBpmn, openText, saveModel, saveModelAs } from './files'
 import { FEEDBACK_URL } from './links'
@@ -174,6 +174,16 @@ export function App() {
       } else if (mod && key === 'y') {
         e.preventDefault()
         s.redo()
+      } else if (mod && (key === 'c' || key === 'x') && !e.shiftKey && !e.altKey) {
+        // Text selected on the page (a help card, a lesson) is copied by the browser as usual.
+        if (!window.getSelection()?.isCollapsed) return
+        if ((key === 'c' ? copySelection() : cutSelection())) e.preventDefault()
+      } else if (mod && key === 'v' && !e.shiftKey && !e.altKey) {
+        if (pasteClipboard()) e.preventDefault()
+      } else if (mod && key === 'd' && !e.shiftKey && !e.altKey) {
+        // No bookmark dialog over the canvas, also when nothing can be duplicated.
+        e.preventDefault()
+        duplicateSelection()
       } else if ((e.key === 'Delete' || e.key === 'Backspace') && s.selection.length) {
         e.preventDefault()
         s.apply((m) => deleteElements(m, s.selection))

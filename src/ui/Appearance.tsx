@@ -1,11 +1,20 @@
-// The "Aa" button in the top bar: light or dark theme, and the background of the canvas and of the panels,
-// each from a few pale tints or any colour, as in StrataSQL and Quaera Lab. Rules and swatches in src/core/look.ts.
+// The "Aa" button in the top bar: light or dark theme, the diagram's text size (S / M / L / XL), and the
+// background of the canvas and of the panels, each from a few pale tints or any colour, as in StrataSQL and
+// Quaera Lab. Rules and swatches in src/core/look.ts.
 import { Moon, Sun } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { applyBorders, readBorders, type Borders } from '../core/borders'
-import { lookColor, lookVars, NO_LOOK, parseLook, setLookColor, SWATCHES, type Look, type LookPart } from '../core/look'
+import { LABEL_SIZES, LABELS_KEY, labelScale, lookColor, lookVars, NO_LOOK, parseLabelSize, parseLook, setLookColor, SWATCHES, type LabelSize, type Look, type LookPart } from '../core/look'
 
 const LOOK_KEY = 'strataflow.look'
+
+function readLabelSize(): LabelSize {
+  try {
+    return parseLabelSize(localStorage.getItem(LABELS_KEY))
+  } catch {
+    return 'M'
+  }
+}
 
 function readLook(): Look {
   try {
@@ -19,6 +28,7 @@ export function AppearanceButton({ dark, onToggleTheme }: { dark: boolean; onTog
   const theme = dark ? 'dark' : 'light'
   const [look, setLook] = useState(readLook)
   const [borders, setBorders] = useState<Borders>(readBorders)
+  const [labels, setLabels] = useState<LabelSize>(readLabelSize)
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
 
@@ -36,6 +46,18 @@ export function AppearanceButton({ dark, onToggleTheme }: { dark: boolean; onTog
   }, [look, theme])
 
   useEffect(() => applyBorders(borders), [borders])
+
+  useEffect(() => {
+    // On the root, so the exported picture and the canvas both read it; index.html sets it before the first paint.
+    if (labels === 'M') document.documentElement.style.removeProperty('--label-scale')
+    else document.documentElement.style.setProperty('--label-scale', String(labelScale(labels)))
+    try {
+      if (labels === 'M') localStorage.removeItem(LABELS_KEY)
+      else localStorage.setItem(LABELS_KEY, labels)
+    } catch {
+      /* private mode: the size is not remembered */
+    }
+  }, [labels])
 
   useEffect(() => {
     if (!open) return
@@ -106,12 +128,23 @@ export function AppearanceButton({ dark, onToggleTheme }: { dark: boolean; onTog
               ))}
             </div>
           </div>
+          <div className="look-row">
+            <div className="look-label">Diagram text</div>
+            <div className="look-theme" role="radiogroup" aria-label="Diagram text size">
+              {LABEL_SIZES.map((s) => (
+                <button key={s.id} type="button" role="radio" aria-checked={labels === s.id} className={labels === s.id ? 'on' : ''} title={`${s.label}: names of shapes, flows and lanes`} data-testid={`label-size-${s.id}`} onClick={() => setLabels(s.id)}>
+                  {s.id}
+                </button>
+              ))}
+            </div>
+          </div>
           {colorRow('canvas', 'Canvas')}
           {colorRow('panels', 'Panels (top bar, side columns)')}
           <div className="look-hint">Colours are kept separately for the light and dark theme, in this browser.</div>
           <button type="button" className="btn look-reset" onClick={() => {
               setLook(NO_LOOK)
               setBorders('strong')
+              setLabels('M')
             }}>
             Reset to default
           </button>
