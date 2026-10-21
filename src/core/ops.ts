@@ -24,6 +24,7 @@ import {
   type SimSettings,
   type TaskKind,
 } from './metamodel'
+import { route } from './routing'
 
 export class ModelError extends Error {}
 
@@ -475,6 +476,163 @@ export function snapToNeighbours(m: FlowModel, id: string, to: Point, tolerance 
     if (Math.abs(oy - cy) <= tolerance && (bestY === undefined || Math.abs(oy - cy) < Math.abs(bestY - cy))) bestY = oy
   }
   return { x: bestX === undefined ? to.x : Math.round(bestX - s.width / 2), y: bestY === undefined ? to.y : Math.round(bestY - s.height / 2) }
+}
+
+// ---------------------------------------------------------------- align, distribute, insert on a flow
+
+export type AlignHow = 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom'
+export type DistributeAxis = 'horizontal' | 'vertical'
+
+/**
+ * The shapes of a selection that align and distribute move: nodes only (no pools, lanes or flows); a boundary
+ * event goes with its task and a node inside a selected sub-process with the sub-process, so neither counts alone.
+ */
+export function arrangeable(m: FlowModel, ids: string[]): string[] {
+  const picked = new Set(ids.filter((id) => nodeOf(m, id) && m.diagram.shapes[id]))
+  return [...picked].filter((id) => {
+    const n = nodeOf(m, id)!
+    if (n.type === 'event' && n.attachedTo) return false
+    for (const other of picked) if (other !== id && withDescendants(m, other).has(id)) return false
+    return true
+  })
+}
+
+/** Lines up the selected shapes on the outermost edge (left, right, top, bottom) or on the middle of their span. */
+export function alignElements(m: FlowModel, ids: string[], how: AlignHow): void {
+  const items = arrangeable(m, ids)
+  if (items.length < 2) throw new ModelError('Select two or more shapes to align')
+  const bs = items.map((id) => m.diagram.shapes[id])
+  const left = Math.min(...bs.map((b) => b.x))
+  const right = Math.max(...bs.map((b) => b.x + b.width))
+  const top = Math.min(...bs.map((b) => b.y))
+  const bottom = Math.max(...bs.map((b) => b.y + b.height))
+  const to: Record<string, Point> = {}
+  for (const id of items) {
+    const b = m.diagram.shapes[id]
+    const x = how === 'left' ? left : how === 'right' ? right - b.width : how === 'center' ? (left + right) / 2 - b.width / 2 : b.x
+    const y = how === 'top' ? top : how === 'bottom' ? bottom - b.height : how === 'middle' ? (top + bottom) / 2 - b.height / 2 : b.y
+    to[id] = { x: Math.round(x), y: Math.round(y) }
+  }
+  moveElements(m, to)
+}
+
+/** Equal gaps between the selected shapes, from left to right (or top to bottom); the first and the last stay. */
+export function distributeElements(m: FlowModel, ids: string[], axis: DistributeAxis): void {
+  const items = arrangeable(m, ids)
+  if (items.length < 3) throw new ModelError('Select three or more shapes to distribute')
+  const [pos, size] = axis === 'horizontal' ? (['x', 'width'] as const) : (['y', 'height'] as const)
+  const bs = items.map((id) => ({ id, b: m.diagram.shapes[id] })).sort((a, b) => a.b[pos] + a.b[size] / 2 - (b.b[pos] + b.b[size] / 2))
+  const first = bs[0].b
+  const last = bs[bs.length - 1].b
+  const span = last[pos] + last[size] - first[pos]
+  const gap = (span - bs.reduce((s, x) => s + x.b[size], 0)) / (bs.length - 1)
+  const to: Record<string, Point> = {}
+  let at = first[pos]
+  for (const { id, b } of bs) {
+    to[id] = axis === 'horizontal' ? { x: Math.round(at), y: b.y } : { x: b.x, y: Math.round(at) }
+    at += b[size] + gap
+  }
+  moveElements(m, to)
+}
+
+/** The path a flow is drawn along: its own bends, else the automatic route. */
+export function flowPath(m: FlowModel, f: Flow): Point[] | undefined {
+  const pts = m.diagram.edges[f.id]
+  if (pts && pts.length >= 2) return pts
+  return route(f, m.diagram.shapes[f.source], m.diagram.shapes[f.target], !!poolOf(m, f.target), !!poolOf(m, f.source))
+}
+
+function nearestOnPath(pts: Point[], p: Point): { dist: number; seg: number } {
+  let best = { dist: Infinity, seg: 0 }
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1]
+    const b = pts[i]
+    const dx = b.x - a.x
+    const dy = b.y - a.y
+    const t = dx || dy ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy))) : 0
+    const dist = Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy))
+    if (dist < best.dist) best = { dist, seg: i - 1 }
+  }
+  return best
+}
+
+/** Shapes that can sit in the middle of a sequence flow: activities, gateways and intermediate events. */
+export function canSitOnFlow(n: Pick<FlowNode, 'type'> & { position?: EventPosition; attachedTo?: string }): boolean {
+  if (n.type === 'task' || n.type === 'subProcess' || n.type === 'gateway') return true
+  return n.type === 'event' && n.position === 'intermediate' && !n.attachedTo
+}
+
+/** The pool and sub-process a point lies in, as place() would find them (`own` = shapes that do not count). */
+function holdersAt(m: FlowModel, p: Point, own: Set<string>, page?: string): { participantId?: string; parentId?: string } {
+  const smallest = <T extends { id: string }>(items: T[]) =>
+    items.filter((i) => m.diagram.shapes[i.id] && inside(p, m.diagram.shapes[i.id])).sort((a, b) => area(m.diagram.shapes[a.id]) - area(m.diagram.shapes[b.id]))[0]
+  const parent = smallest(m.nodes.filter((x) => x.type === 'subProcess' && !x.collapsed && !own.has(x.id) && pageOf(m, x.id) === page))
+  if (page) return { participantId: nodeOf(m, page)?.participantId, parentId: parent?.id ?? page }
+  return { participantId: smallest(m.participants)?.id, parentId: parent?.id }
+}
+
+/**
+ * The sequence flow a shape dropped with its centre at `p` would be inserted on, or undefined: the flow must
+ * pass through the shape (by default within its half height less 4, at least 12 model units of its centre). `nodeId` = an existing shape being moved: it must have no sequence flows yet. Message flows,
+ * associations and flows of another pool or sub-process level do not count. `page` = the collapsed
+ * sub-process whose page is shown (undefined = the main canvas).
+ */
+export function flowUnder(m: FlowModel, p: Point, opts: { nodeId?: string; spec?: NodeSpec; page?: string; tolerance?: number } = {}): string | undefined {
+  const n = opts.nodeId ? nodeOf(m, opts.nodeId) : undefined
+  const size = n ? m.diagram.shapes[n.id] : opts.spec && SIZES[opts.spec.type]
+  const tolerance = opts.tolerance ?? Math.max(12, (size ? Math.min(size.width, size.height) / 2 : 0) - 4)
+  if (n ? !canSitOnFlow(n) : !opts.spec || !canSitOnFlow(opts.spec.type === 'event' ? { type: 'event', position: opts.spec.position ?? 'start' } : opts.spec)) return undefined
+  if (n && m.flows.some((f) => f.kind === 'sequence' && (f.source === n.id || f.target === n.id))) return undefined
+  const own = n ? withDescendants(m, n.id) : new Set<string>()
+  const at = holdersAt(m, p, own, opts.page)
+  let best: { id: string; dist: number } | undefined
+  for (const f of m.flows) {
+    if (f.kind !== 'sequence' || own.has(f.source) || own.has(f.target)) continue
+    const src = nodeOf(m, f.source)
+    if (!src || (pageOf(m, f.source) ?? undefined) !== opts.page) continue
+    // The drop must land in the flow's pool and sub-process.
+    if (src.participantId !== at.participantId || src.parentId !== at.parentId) continue
+    const pts = flowPath(m, f)
+    if (!pts) continue
+    const { dist } = nearestOnPath(pts, p)
+    if (dist <= tolerance && (!best || dist < best.dist)) best = { id: f.id, dist }
+  }
+  return best?.id
+}
+
+/**
+ * Splits a sequence flow A→B with a shape X that has no sequence flows yet: A→X→B. The first part keeps the
+ * flow (its id, name, condition, probability and default mark), the second is new. X is pulled onto the line
+ * of the segment it was dropped on, so both parts come out straight.
+ */
+export function insertOnFlow(m: FlowModel, flowId: string, nodeId: string): Flow {
+  const f = flowOf(m, flowId)
+  if (!f) throw new ModelError(`No flow ${flowId}`)
+  if (f.kind !== 'sequence') throw new ModelError('A shape can be inserted only on a sequence flow')
+  const n = nodeOrThrow(m, nodeId)
+  if (!canSitOnFlow(n)) throw new ModelError('Only a task, a sub-process, a gateway or an intermediate event can sit in the middle of a flow')
+  if (f.source === nodeId || f.target === nodeId) throw new ModelError('The shape is already an end of this flow')
+  if (m.flows.some((x) => x.kind === 'sequence' && (x.source === nodeId || x.target === nodeId))) throw new ModelError('Only a shape without sequence flows can be inserted on a flow')
+  const src = nodeOrThrow(m, f.source)
+  if (n.participantId !== src.participantId || n.parentId !== src.parentId) throw new ModelError('The shape is in another pool or process than the flow')
+  // Onto the line of the segment it lies on.
+  const pts = flowPath(m, f)
+  const s = m.diagram.shapes[nodeId]
+  if (pts && s) {
+    const c = centre(s)
+    const { seg } = nearestOnPath(pts, c)
+    const a = pts[seg]
+    const b = pts[seg + 1]
+    if (a.y === b.y && a.y !== c.y) moveElements(m, { [nodeId]: { x: s.x, y: Math.round(a.y - s.height / 2) } })
+    else if (a.x === b.x && a.x !== c.x) moveElements(m, { [nodeId]: { x: Math.round(a.x - s.width / 2), y: s.y } })
+  }
+  const rest: Flow = { id: nextId(m, FLOW_PREFIX.sequence), kind: 'sequence', source: nodeId, target: f.target, name: '' }
+  if (f.targetSide) rest.targetSide = f.targetSide
+  f.target = nodeId
+  delete f.targetSide
+  delete m.diagram.edges[f.id]
+  m.flows.push(rest)
+  return rest
 }
 
 /** New bounds for a task, sub-process, annotation, data, or a pool (its lanes stretch with it). */

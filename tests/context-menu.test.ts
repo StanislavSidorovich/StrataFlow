@@ -110,9 +110,34 @@ describe('context menu', () => {
     expect(ids(menuFor(m, ['Flow_1'], { x: 0, y: 0 }, null))).not.toContain('default')
   })
 
+  it('align from two shapes, distribute from three; pools, lanes and flows do not count; one edit each', () => {
+    const m = example()
+    expect(ids(menuFor(m, ['Task_check', 'Participant_library'], { x: 0, y: 0 }, null))).not.toContain('align')
+    const three = m.nodes.filter((n) => n.type === 'task').slice(0, 3).map((n) => n.id)
+    const items = menuFor(m, [...three, 'Participant_library'], { x: 0, y: 0 }, null)
+    expect(ids(items)).toEqual(expect.arrayContaining(['align-top', 'distribute-horizontal', 'distribute-vertical']))
+    const pool = { ...m.diagram.shapes.Participant_library }
+    run(m, items, 'align-top')
+    expect(new Set(three.map((id) => m.diagram.shapes[id].y)).size).toBe(1)
+    expect(m.diagram.shapes.Participant_library).toEqual(pool)
+  })
+
   it('several selected: clipboard, group and delete; the empty canvas: add here, layout, check', () => {
     const m = example()
-    expect(ids(menuFor(m, ['Task_check', 'Gateway_valid'], { x: 0, y: 0 }, null))).toEqual(['copy', 'cut', 'duplicate', 'group', 'delete'])
+    expect(ids(menuFor(m, ['Task_check', 'Gateway_valid'], { x: 0, y: 0 }, null))).toEqual([
+      'copy',
+      'cut',
+      'duplicate',
+      'align',
+      'align-left',
+      'align-center',
+      'align-right',
+      'align-top',
+      'align-middle',
+      'align-bottom',
+      'group',
+      'delete',
+    ])
     run(m, menuFor(m, ['Task_check', 'Gateway_valid'], { x: 0, y: 0 }, null), 'delete')
     expect(nodeOf(m, 'Task_check')).toBeUndefined()
     const pane = menuFor(m, [], { x: 400, y: 120 }, null)

@@ -1,13 +1,25 @@
 // The right column: what the selected element is and what it can be changed into. Typing in a field
 // is one undo step per field (coalesced), every other change is one step.
 import { useEffect, useRef } from 'react'
-import { ArrowDown, ArrowLeftRight, ArrowUp, FolderOpen, Group, Plus, Route, Trash2, Ungroup } from 'lucide-react'
+import {
+  AlignCenterHorizontal,
+  AlignCenterVertical,
+  AlignEndHorizontal,
+  AlignEndVertical,
+  AlignHorizontalDistributeCenter,
+  AlignStartHorizontal,
+  AlignStartVertical,
+  AlignVerticalDistributeCenter,
+  ArrowDown, ArrowLeftRight, ArrowUp, FolderOpen, Group, Plus, Route, Trash2, Ungroup } from 'lucide-react'
 import type { EventPosition, EventTrigger, FlowModel, FlowNode, GatewayKind, LoopKind, TaskKind } from '../../core/metamodel'
 import { GATEWAY_KINDS, LOOP_KINDS, TASK_KINDS, triggerLabel } from '../choices'
 import {
   addBoundaryEvent,
   addLane,
+  alignElements,
+  arrangeable,
   canMoveLane,
+  distributeElements,
   moveLane,
   canInterrupt,
   convertActivity,
@@ -29,6 +41,7 @@ import {
 } from '../../core/ops'
 import { canGroup, groupSelection, ungroupSelection } from '../actions'
 import { cardForElement } from '../../data/help'
+import { ALIGN, DISTRIBUTE } from '../canvas/menu'
 import { useEditor } from '../store'
 import { HelpQ } from './Help'
 import { AuthorLinks } from '../AuthorLinks'
@@ -47,6 +60,7 @@ export function Properties() {
         <section>
           <h2>{ids.length} selected</h2>
           <p className="muted">Drag one of them to move them all.</p>
+          <ArrangeButtons model={model} ids={ids} />
           {canGroup(ids) && <GroupButton />}
           <DeleteButton ids={ids} />
         </section>
@@ -392,6 +406,44 @@ function Title({ text, card }: { text: string; card: string }) {
       {text}
       <HelpQ card={card} />
     </h2>
+  )
+}
+
+const ARRANGE_ICONS = {
+  left: AlignStartVertical,
+  center: AlignCenterVertical,
+  right: AlignEndVertical,
+  top: AlignStartHorizontal,
+  middle: AlignCenterHorizontal,
+  bottom: AlignEndHorizontal,
+  horizontal: AlignHorizontalDistributeCenter,
+  vertical: AlignVerticalDistributeCenter,
+}
+
+/** Align (two or more shapes) and distribute (three or more), each one undo step; pools, lanes and flows stay. */
+function ArrangeButtons({ model, ids }: { model: FlowModel; ids: string[] }) {
+  const n = arrangeable(model, ids).length
+  if (n < 2) return null
+  const apply = useEditor.getState().apply
+  return (
+    <div className="arrange-row" role="group" aria-label="Align and distribute">
+      {ALIGN.map(([h, l]) => {
+        const Icon = ARRANGE_ICONS[h]
+        return (
+          <button key={h} className="btn icon" title={`Align ${l.toLowerCase()}`} aria-label={`Align ${l.toLowerCase()}`} data-testid={`align-${h}`} onClick={() => apply((m) => alignElements(m, ids, h))}>
+            <Icon size={16} />
+          </button>
+        )
+      })}
+      {DISTRIBUTE.map(([a, l]) => {
+        const Icon = ARRANGE_ICONS[a]
+        return (
+          <button key={a} className="btn icon" disabled={n < 3} title={n < 3 ? 'Distribute: select three or more shapes' : `Distribute ${l.toLowerCase()} (equal gaps)`} aria-label={`Distribute ${l.toLowerCase()}`} data-testid={`distribute-${a}`} onClick={() => apply((m) => distributeElements(m, ids, a))}>
+            <Icon size={16} />
+          </button>
+        )
+      })}
+    </div>
   )
 }
 

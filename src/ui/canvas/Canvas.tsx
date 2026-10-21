@@ -20,7 +20,7 @@ import { ArrowLeft, Redo2, Undo2 } from 'lucide-react'
 import type { FlowModel, Point, Side } from '../../core/metamodel'
 import { nearestSide } from '../../core/routing'
 import { POOL_HEADER } from '../../core/metamodel'
-import { addLane, addNode, addPool, connect, ModelError, moveElements, nodeOf, pageOf, snapToNeighbours, withDescendants } from '../../core/ops'
+import { addLane, addNode, addPool, connect, flowUnder, insertOnFlow, ModelError, moveElements, nodeOf, pageOf, snapToNeighbours, withDescendants } from '../../core/ops'
 import type { Severity } from '../../core/lint'
 import { useIssues } from '../panels/Check'
 import { useSim } from '../panels/Simulate'
@@ -107,7 +107,7 @@ function toNodes(model: FlowModel, selected: Set<string>, page: string | null, m
   return out
 }
 
-function toEdges(model: FlowModel, selected: Set<string>, page: string | null, passed: Set<string> = new Set()): FlowEdge[] {
+function toEdges(model: FlowModel, selected: Set<string>, page: string | null, passed: Set<string> = new Set(), drop: string | null = null): FlowEdge[] {
   const byId = new Map(model.nodes.map((n) => [n.id, n]))
   const shown = shownOn(model, page)
   return model.flows.filter((f) => shown.has(f.source) && shown.has(f.target)).map((f) => {
@@ -128,6 +128,7 @@ function toEdges(model: FlowModel, selected: Set<string>, page: string | null, p
         isDefault: src?.type === 'gateway' && src.defaultFlow === f.id,
         conditional: !!f.condition && src?.type !== 'gateway',
         passed: passed.has(f.id),
+        drop: f.id === drop,
       },
     }
   })
@@ -184,7 +185,10 @@ export function Canvas() {
   const passed = useMemo(() => new Set(play?.passed ?? []), [play])
   const [nodes, setNodes] = useState<AnyNode[]>(() => toNodes(model, selected, page, marks, tokens))
   useEffect(() => setNodes(toNodes(model, selected, page, marks, tokens)), [model, selected, page, marks, tokens])
-  const edges = useMemo(() => toEdges(model, selected, page, passed), [model, selected, page, passed])
+  // The sequence flow a shape would be inserted on if dropped (or placed by a tool) where the pointer is.
+  const [dropFlow, setDropFlow] = useState<string | null>(null)
+  useEffect(() => setDropFlow(null), [tool])
+  const edges = useMemo(() => toEdges(model, selected, page, passed, dropFlow), [model, selected, page, passed, dropFlow])
   const flow = useReactFlow()
   const fit = useEditor((s) => s.fit)
   useEffect(() => {
@@ -196,6 +200,11 @@ export function Canvas() {
   }, [fit, flow])
   // Start positions of what a drag moves, so followers move by the same delta.
   const drag = useRef<Map<string, Point> | null>(null)
+  /** The flow one dragged shape would be inserted on, its top-left at `at`. */
+  const dropOn = (id: string, at: Point) => {
+    const s = model.diagram.shapes[id]
+    return s ? (flowUnder(model, { x: at.x + s.width / 2, y: at.y + s.height / 2 }, { nodeId: id, page: page ?? undefined }) ?? null) : null
+  }
 
   const onNodesChange = (changes: NodeChange<AnyNode>[]) => {
     // One shape dragged alone is pulled onto the line of a shape it is joined to, so its flow comes out straight.
@@ -244,8 +253,14 @@ export function Canvas() {
           if (!m.lanes.some((l) => l.participantId === inside.id)) addLane(m, inside.id)
           id = addLane(m, inside.id).id
         } else id = addPool(m, { x: at.x - POOL_HEADER / 2, y: at.y - 20 }).id
-      } else if ('spec' in tool) id = addNode(m, tool.spec, at, '', page ?? undefined).id
+      } else if ('spec' in tool) {
+        // Placed on a sequence flow: the flow is split, A→X→B.
+        const on = flowUnder(m, at, { spec: tool.spec, page: page ?? undefined })
+        id = addNode(m, tool.spec, at, '', page ?? undefined).id
+        if (on) insertOnFlow(m, on, id)
+      }
     })
+    setDropFlow(null)
     if (ok && id) useEditor.setState({ selection: [id], focusName: id, ...(keep ? {} : { tool: { id: 'select' } }) })
   }
 
@@ -306,6 +321,11 @@ export function Canvas() {
       // No browser menu anywhere on the canvas: ours opens instead (or nothing, on the controls).
       onContextMenu={(e) => e.preventDefault()}
       className={`canvas-wrap${tool.id !== 'select' || linkFrom ? ' is-placing' : ''}`}
+      onPointerMove={(e) => {
+        // A shape tool over a sequence flow: the flow lights up, a click inserts the shape on it.
+        if ('spec' in tool) setDropFlow(flowUnder(model, flow.screenToFlowPosition({ x: e.clientX, y: e.clientY }), { spec: tool.spec, page: page ?? undefined }) ?? null)
+      }}
+      onPointerLeave={() => 'spec' in tool && setDropFlow(null)}
       onDoubleClick={(e) => {
         // Double-click on the empty canvas adds a task there.
         if (tool.id === 'select' && (e.target as HTMLElement).classList.contains('react-flow__pane')) {
@@ -339,16 +359,24 @@ export function Canvas() {
           for (const n of nodes) start.set(n.id, n.position)
           drag.current = new Map([...start].filter(([id]) => dragged.some((d) => d.id === id || followersOf(model, d.id).includes(id))))
         }}
+        onNodeDrag={(_, __, dragged) => setDropFlow(dragged.length === 1 ? dropOn(dragged[0].id, dragged[0].position) : null)}
         onNodeDragStop={(_, __, dragged) => {
           const start = drag.current
           drag.current = null
+          setDropFlow(null)
           const to: Record<string, Point> = {}
           for (const d of dragged) {
             const from = start?.get(d.id)
             const at = dragged.length === 1 && !followersOf(model, d.id).length ? snapToNeighbours(model, d.id, d.position) : d.position
             if (from && (from.x !== at.x || from.y !== at.y)) to[d.id] = at
           }
-          if (Object.keys(to).length) useEditor.getState().apply((m) => moveElements(m, to))
+          // One unconnected shape dropped on a sequence flow is inserted on it (one undo step with the move).
+          const on = dragged.length === 1 && to[dragged[0].id] ? dropOn(dragged[0].id, to[dragged[0].id]) : null
+          if (Object.keys(to).length)
+            useEditor.getState().apply((m) => {
+              moveElements(m, to)
+              if (on) insertOnFlow(m, on, dragged[0].id)
+            })
           else setNodes(toNodes(model, selected, page, marks))
         }}
         onPaneClick={(e) => {
@@ -369,6 +397,8 @@ export function Canvas() {
           else if (el) useEditor.setState({ selection: [n.id], editing: { id: n.id, caret: caretAt(e.clientX, e.clientY) } })
           else useEditor.setState({ focusName: n.id })
         }}
+        // A shape tool clicked on a flow places the shape there (and splits the flow).
+        onEdgeClick={(e) => tool.id !== 'select' && tool.id !== 'flow' && !linkFrom && place(e.clientX, e.clientY, e.shiftKey)}
         onEdgeDoubleClick={(_, ed) => useEditor.setState({ selection: [ed.id], focusName: ed.id })}
         onNodeContextMenu={(e, n) => openMenu(e, n.id)}
         onEdgeContextMenu={(e, ed) => openMenu(e, ed.id)}

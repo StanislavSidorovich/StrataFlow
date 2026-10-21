@@ -514,6 +514,16 @@ svg.is-ok {
   gap: 6px;
   margin: 0 0 10px;
 }
+.arrange-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 8px 0 10px;
+}
+.arrange-row .btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 .delete-row {
   margin-top: 14px;
   padding-top: 10px;
@@ -1079,6 +1089,12 @@ h2.with-help {
 }
 .react-flow__edge-path.bpmn-edge.is-selected {
   stroke: var(--edge-selected);
+}
+/* The flow a shape will be inserted on when dropped here. */
+.react-flow__edge-path.bpmn-edge.is-drop {
+  stroke: var(--accent);
+  stroke-width: 4;
+  stroke-dasharray: none;
 }
 .bpmn-marker-fill {
   fill: var(--edge);

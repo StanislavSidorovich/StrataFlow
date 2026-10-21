@@ -7,7 +7,10 @@ import {
   addBoundaryEvent,
   addNode,
   addPool,
+  alignElements,
+  arrangeable,
   canInterrupt,
+  distributeElements,
   canMoveLane,
   moveLane,
   convertActivity,
@@ -21,6 +24,8 @@ import {
   setDefaultFlow,
   triggersFor,
   updateNode,
+  type AlignHow,
+  type DistributeAxis,
   type NodeSpec,
 } from '../../core/ops'
 import { cardForElement } from '../../data/help'
@@ -111,6 +116,29 @@ function eventEntries(m: FlowModel, n: Extract<FlowNode, { type: 'event' }>, set
   return out
 }
 
+export const ALIGN: [AlignHow, string][] = [
+  ['left', 'Left'],
+  ['center', 'Centre'],
+  ['right', 'Right'],
+  ['top', 'Top'],
+  ['middle', 'Middle'],
+  ['bottom', 'Bottom'],
+]
+export const DISTRIBUTE: [DistributeAxis, string][] = [
+  ['horizontal', 'Horizontally'],
+  ['vertical', 'Vertically'],
+]
+
+/** Align (two or more shapes) and distribute (three or more) for a selection; pools, lanes and flows stay out. */
+export function arrangeEntries(m: FlowModel, ids: string[]): MenuItem[] {
+  const n = arrangeable(m, ids).length
+  if (n < 2) return []
+  const out: MenuItem[] = [{ id: 'align', label: 'Align', items: ALIGN.map(([h, l]) => ({ id: `align-${h}`, label: l, edit: (d: FlowModel) => alignElements(d, ids, h) })) }]
+  if (n >= 3)
+    out.push({ id: 'distribute', label: 'Distribute', title: 'Equal gaps; the first and the last stay', items: DISTRIBUTE.map(([a, l]) => ({ id: `distribute-${a}`, label: l, edit: (d: FlowModel) => distributeElements(d, ids, a) })) })
+  return [...out, 'sep']
+}
+
 /** The help card for any element: node, pool, lane or flow. */
 export function helpCardFor(m: FlowModel, id: string): string | undefined {
   const n = nodeOf(m, id)
@@ -174,7 +202,7 @@ export function menuFor(m: FlowModel, ids: string[], at: Point, page: string | n
       const n = nodeOf(m, x)
       return n && !isArtifact(n)
     })
-    return [...clipboard, ...(steps ? [{ id: 'group', label: 'Group into sub-process', keys: 'Ctrl+G', command: 'group' as const }, 'sep' as const] : []), del]
+    return [...clipboard, ...arrangeEntries(m, ids), ...(steps ? [{ id: 'group', label: 'Group into sub-process', keys: 'Ctrl+G', command: 'group' as const }, 'sep' as const] : []), del]
   }
   const id = ids[0]
   const out: MenuItem[] = [...typeEntries(m, id)]
