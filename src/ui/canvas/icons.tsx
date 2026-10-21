@@ -1,6 +1,6 @@
 // Small BPMN glyphs for the draw bar and the context pad (18 × 18, drawn in the current text colour).
 
-export type IconName = 'task' | 'subProcess' | 'start' | 'intermediate' | 'end' | 'gateway' | 'parallel' | 'dataObject' | 'dataStore' | 'annotation' | 'pool' | 'boundary'
+export type IconName = 'task' | 'subProcess' | 'start' | 'intermediate' | 'end' | 'gateway' | 'parallel' | 'dataObject' | 'dataStore' | 'annotation' | 'pool' | 'boundary' | 'flow'
 
 export function BpmnIcon({ name, size = 18 }: { name: IconName; size?: number }) {
   return (
@@ -11,6 +11,7 @@ export function BpmnIcon({ name, size = 18 }: { name: IconName; size?: number })
 }
 
 const GLYPHS: Record<IconName, React.ReactNode> = {
+  flow: <path d="M2.5 14.5L14.5 3.5M8.5 3.5h6v6" />,
   task: <rect x={1.5} y={4} width={15} height={10} rx={2.5} />,
   subProcess: (
     <>

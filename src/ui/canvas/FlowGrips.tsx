@@ -88,9 +88,15 @@ export function FlowGrips({ elementAt }: { elementAt: (p: Point) => string | und
       />,
     )
   }
+  // An end's grip sits a little inside the line, so the shape's own dot stays free to start another flow from.
+  const inset = (from: Point, towards: Point): Point => {
+    const len = Math.abs(towards.x - from.x) + Math.abs(towards.y - from.y)
+    const step = Math.min(16 * k, len / 3)
+    return len ? { x: from.x + ((towards.x - from.x) / len) * step, y: from.y + ((towards.y - from.y) / len) * step } : from
+  }
   const ends: ['source' | 'target', Point][] = [
-    ['source', endDrag?.end === 'source' ? endDrag.at : pts[0]],
-    ['target', endDrag?.end === 'target' ? endDrag.at : pts[pts.length - 1]],
+    ['source', endDrag?.end === 'source' ? endDrag.at : inset(pts[0], pts[1])],
+    ['target', endDrag?.end === 'target' ? endDrag.at : inset(pts[pts.length - 1], pts[pts.length - 2])],
   ]
   for (const [end, p] of ends)
     grips.push(

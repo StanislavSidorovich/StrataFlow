@@ -13,7 +13,7 @@ const STORAGE_KEY = 'strataflow.model'
 export const TRAINER_MODEL_KEY = 'strataflow.trainer.model'
 
 /** What a click on the empty canvas does: select (and pan), or place a new element. */
-export type Tool = { id: string; spec: NodeSpec } | { id: 'pool' } | { id: 'select' }
+export type Tool = { id: string; spec: NodeSpec } | { id: 'pool' } | { id: 'flow' } | { id: 'select' }
 
 /**
  * The open context menu: where on screen, for what (no ids = the empty canvas at `at`, model coordinates),

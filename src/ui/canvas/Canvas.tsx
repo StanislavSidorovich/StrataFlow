@@ -206,6 +206,7 @@ export function Canvas() {
   }
 
   const place = (clientX: number, clientY: number, keep: boolean) => {
+    if (tool.id === 'flow') return
     const at = flow.screenToFlowPosition({ x: clientX, y: clientY })
     const { apply } = useEditor.getState()
     let id: string | null = null
@@ -236,12 +237,22 @@ export function Canvas() {
     if (useEditor.getState().apply((m) => void (id = connect(m, c.source, c.target, sides).id)) && id) useEditor.getState().select([id])
   }
 
+  // The Flow tool: the first click names the start (and the side it leaves by), the second the end, as often as wanted.
+  const linkSide = useRef<{ id: string; side: string } | null>(null)
+  const startFlow = (clientX: number, clientY: number) => {
+    const p = flow.screenToFlowPosition({ x: clientX, y: clientY })
+    const from = elementAt(model, p, page)
+    if (!from) return
+    linkSide.current = { id: from, side: sideAt(model, from, p) ?? 'right' }
+    useEditor.setState({ linkFrom: from, selection: [from], error: null, message: 'Flow: now click where it ends (the empty canvas cancels, Esc stops).' })
+  }
+
   // Connect mode: the shape (or pool) tapped ends the flow; a tap on the empty canvas or on the start shape cancels.
   const linkTo = (clientX: number, clientY: number) => {
     const from = useEditor.getState().linkFrom
     useEditor.setState({ linkFrom: null, message: null })
     const target = elementAt(model, flow.screenToFlowPosition({ x: clientX, y: clientY }), page)
-    if (from && target && target !== from) onConnect({ source: from, target, sourceHandle: null, targetHandle: sideAt(model, target, flow.screenToFlowPosition({ x: clientX, y: clientY })) })
+    if (from && target && target !== from) onConnect({ source: from, target, sourceHandle: linkSide.current?.id === from ? linkSide.current.side : null, targetHandle: sideAt(model, target, flow.screenToFlowPosition({ x: clientX, y: clientY })) })
   }
 
   // Dropped on a shape but not on one of its dots, or on a pool: connect to what is under the pointer.
@@ -321,6 +332,7 @@ export function Canvas() {
         }}
         onNodeClick={(e) => {
           if (linkFrom) linkTo(e.clientX, e.clientY)
+          else if (tool.id === 'flow') startFlow(e.clientX, e.clientY)
           // Pools and lanes are clicked by their header: placing there still drops the element at the pointer.
           else if (tool.id !== 'select') place(e.clientX, e.clientY, e.shiftKey)
         }}
