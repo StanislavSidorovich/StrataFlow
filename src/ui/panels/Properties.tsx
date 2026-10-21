@@ -87,6 +87,7 @@ function ProcessProps({ model }: { model: FlowModel }) {
         <li>Double-click the empty canvas: a new task.</li>
         <li>Select a shape: the pad next to it appends the next step.</li>
         <li>Drag from the dots on a shape to another shape to connect, or press the arrow on the pad and tap the other shape (easier with a finger). Between pools it becomes a message flow.</li>
+        <li>Ctrl+click or Shift+drag a box selects several; Ctrl+C, Ctrl+V copy them with the flows between them.</li>
         <li>Del deletes, Ctrl+Z undoes, Ctrl+S saves a file. The model is also kept in this browser.</li>
         <li>Check (top bar) lists what may be wrong; ? next to a field, or F1, opens the help cards.</li>
       </ul>
@@ -449,7 +450,7 @@ function ArrangeButtons({ model, ids }: { model: FlowModel; ids: string[] }) {
 
 function GroupButton() {
   return (
-    <button className="btn" onClick={groupSelection} title="Turn the selected steps into a sub-process (Ctrl+G). Shift+click or drag a box to select several." data-testid="group">
+    <button className="btn" onClick={groupSelection} title="Turn the selected steps into a sub-process (Ctrl+G). Ctrl+click or Shift+drag a box to select several." data-testid="group">
       <Group size={14} /> Group into sub-process
     </button>
   )

@@ -2,7 +2,7 @@
   "name": "strataflow",
   "private": true,
   "license": "Apache-2.0",
-  "version": "0.5.26",
+  "version": "0.5.27",
   "type": "module",
   "scripts": {
     "dev": "vite",

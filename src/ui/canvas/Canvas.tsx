@@ -143,6 +143,8 @@ function followersOf(model: FlowModel, id: string): string[] {
 
 /** The element under a point: the smallest shape, then a pool (a message flow can end on a pool). */
 // Fit view leaves room for the draw bar on the left and the zoom buttons at the bottom, so neither covers the process.
+const clearTextSelection = () => window.getSelection()?.removeAllRanges()
+
 const FIT = { maxZoom: 1, padding: { top: '24px', right: '24px', bottom: '56px', left: '76px' } } as const
 
 const SIDES: string[] = ['top', 'right', 'bottom', 'left']
@@ -415,6 +417,10 @@ export function Canvas() {
         zoomOnDoubleClick={false}
         selectionKeyCode="Shift"
         multiSelectionKeyCode={['Control', 'Meta']}
+        // Shift+drag also stretches the page's text selection (from wherever it last was), and with text
+        // selected Ctrl+C / Ctrl+X go to the browser instead of copying the shapes.
+        onSelectionStart={clearTextSelection}
+        onSelectionEnd={clearTextSelection}
         // A selected expanded sub-process must stay under its steps.
         elevateNodesOnSelect={false}
         fitView
