@@ -1934,3 +1934,8 @@ button.link {
 .check-panel {
   zoom: var(--ui-zoom, 1);
 }
+
+/* Dragging a flow from a dot: the pad of next steps is not needed then and covers the target. */
+.react-flow.connecting .context-pad {
+  display: none;
+}
