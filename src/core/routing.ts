@@ -131,6 +131,42 @@ function crosses(p: Point, q: Point, b: Bounds): boolean {
   return x1 > b.x - CLEAR && x0 < b.x + b.width + CLEAR && y1 > b.y - CLEAR && y0 < b.y + b.height + CLEAR
 }
 
+/** True when a path runs through any of the shapes. */
+export function crossesAny(pts: Point[], obstacles: Bounds[]): boolean {
+  return pts.some((p, i) => i > 0 && obstacles.some((o) => crosses(pts[i - 1], p, o)))
+}
+
+/**
+ * The route of a flow after its ends moved by `ds` (source) and `dt` (target): the owner's route keeps its
+ * shape. The end points move; the neighbouring bend follows across the segment, so every segment stays
+ * horizontal or vertical. Null when that cannot be done sensibly (a straight line, or an end that moved past
+ * its first bend so the flow would turn back on itself): the caller then routes the flow again.
+ */
+export function adaptRoute(pts: Point[], ds: Point, dt: Point): Point[] | null {
+  if (pts.length < 3 || !isOrthogonal(pts)) return null
+  const out = pts.map((p) => ({ ...p }))
+  const last = out.length - 1
+  const sign = (n: number) => Math.sign(n)
+  const dir = (p: Point, q: Point) => ({ x: sign(q.x - p.x), y: sign(q.y - p.y) })
+  const before = [dir(pts[0], pts[1]), dir(pts[last - 1], pts[last])]
+  const shift = (end: number, neighbour: number, d: Point) => {
+    const p = out[end]
+    const q = out[neighbour]
+    const along = p.y === q.y ? 'x' : 'y'
+    const across = along === 'x' ? 'y' : 'x'
+    p.x += d.x
+    p.y += d.y
+    q[across] += d[across]
+  }
+  shift(0, 1, ds)
+  shift(last, last - 1, dt)
+  const after = [dir(out[0], out[1]), dir(out[last - 1], out[last])]
+  const same = (a: Point, b: Point) => a.x === b.x && a.y === b.y
+  if (!same(before[0], after[0]) || !same(before[1], after[1])) return null
+  if (out.some((p, i) => i > 0 && p.x === out[i - 1].x && p.y === out[i - 1].y)) return null
+  return simplify(out)
+}
+
 /**
  * The x of the vertical step of a left-to-right route (a → mid → b, bending at `mid`): the middle if nothing
  * is in the way, else the nearest gap beside a shape the line would run through. The first choice stays when

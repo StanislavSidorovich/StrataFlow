@@ -24,7 +24,7 @@ import {
   type SimSettings,
   type TaskKind,
 } from './metamodel'
-import { route } from './routing'
+import { adaptRoute, crossesAny, route } from './routing'
 
 export class ModelError extends Error {}
 
@@ -441,9 +441,14 @@ export function moveElements(m: FlowModel, to: Record<string, Point>): void {
     if (!pts || !(moved.has(f.source) || moved.has(f.target))) continue
     const ds = delta.get(f.source)
     const dt = delta.get(f.target)
-    // Both ends moved together: the route moves too. Otherwise it is routed again from the new positions.
+    // Both ends moved together: the route moves too. One end moved: the route keeps its shape as far as it
+    // can (the end and the bend next to it follow) and does not run through a shape; else it is routed again.
     if (ds && dt && ds.x === dt.x && ds.y === dt.y) m.diagram.edges[f.id] = pts.map((p) => ({ x: p.x + ds.x, y: p.y + ds.y }))
-    else delete m.diagram.edges[f.id]
+    else {
+      const next = adaptRoute(pts, ds ?? { x: 0, y: 0 }, dt ?? { x: 0, y: 0 })
+      if (next && !crossesAny(next, obstaclesOf(m, f))) m.diagram.edges[f.id] = next
+      else delete m.diagram.edges[f.id]
+    }
   }
   // Sub-processes first, so their content finds them where they now are.
   const order = m.nodes.filter((n) => moved.has(n.id)).sort((a, b) => (a.type === 'subProcess' ? 0 : 1) - (b.type === 'subProcess' ? 0 : 1))

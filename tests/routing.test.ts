@@ -1,8 +1,8 @@
 // Routes between chosen sides and the edits a user makes to a route.
 import { describe, expect, it } from 'vitest'
 import { emptyModel, type Bounds, type Side } from '../src/core/metamodel'
-import { addNode, addPool, connect, reconnect, resetFlowRoute, setFlowRoute } from '../src/core/ops'
-import { anchor, dragSegment, isOrthogonal, nearestSide, route, routeSides, simplify } from '../src/core/routing'
+import { addNode, addPool, connect, moveElements, reconnect, resetFlowRoute, setFlowRoute } from '../src/core/ops'
+import { adaptRoute, anchor, dragSegment, isOrthogonal, nearestSide, route, routeSides, simplify } from '../src/core/routing'
 
 const SIDES: Side[] = ['top', 'right', 'bottom', 'left']
 const a: Bounds = { x: 0, y: 0, width: 100, height: 80 }
@@ -162,5 +162,49 @@ describe('the automatic route keeps clear of other shapes', () => {
   it('keeps the middle when nothing is in the way', () => {
     const far = { x: 120, y: 600, width: 140, height: 80 }
     expect(route({ kind: 'sequence' }, gateway, target, false, false, [far])).toEqual(route({ kind: 'sequence' }, gateway, target))
+  })
+})
+
+describe('a route keeps its shape when one end moves', () => {
+  // Leaves right, goes down at x=230, along y=380, up at x=555, into the target from the left at y=95.
+  const pts = [{ x: 180, y: 313 }, { x: 230, y: 313 }, { x: 230, y: 380 }, { x: 555, y: 380 }, { x: 555, y: 95 }, { x: 614, y: 95 }]
+
+  it('the end and the bend next to it follow; the rest stays', () => {
+    const next = adaptRoute(pts, { x: 0, y: 0 }, { x: 20, y: 10 })!
+    expect(next).toEqual([{ x: 180, y: 313 }, { x: 230, y: 313 }, { x: 230, y: 380 }, { x: 555, y: 380 }, { x: 555, y: 105 }, { x: 634, y: 105 }])
+    expect(isOrthogonal(next)).toBe(true)
+  })
+
+  it('a source end moved sideways drags the first bend with it', () => {
+    const next = adaptRoute(pts, { x: -20, y: -15 }, { x: 0, y: 0 })!
+    expect(next[0]).toEqual({ x: 160, y: 298 })
+    expect(isOrthogonal(next)).toBe(true)
+  })
+
+  it('gives up when the end moves past the bend, or the path is a straight line', () => {
+    expect(adaptRoute(pts, { x: 0, y: 0 }, { x: -100, y: 0 })).toBeNull()
+    expect(adaptRoute([{ x: 0, y: 0 }, { x: 50, y: 0 }], { x: 0, y: 0 }, { x: 10, y: 5 })).toBeNull()
+  })
+})
+
+describe('moving one end of a flow with its own route', () => {
+  it('keeps the route shape; a move that would turn it back re-routes', () => {
+    const m = emptyModel('x')
+    addPool(m, { x: 0, y: 0 })
+    const s = addNode(m, { type: 'task' }, { x: 100, y: 100 }, 'A')
+    const t = addNode(m, { type: 'task' }, { x: 600, y: 300 }, 'B')
+    const f = connect(m, s.id, t.id)
+    const a = m.diagram.shapes[s.id]
+    const b = m.diagram.shapes[t.id]
+    const start = { x: a.x + a.width, y: a.y + a.height / 2 }
+    const end = { x: b.x, y: b.y + b.height / 2 }
+    m.diagram.edges[f.id] = [start, { x: start.x + 40, y: start.y }, { x: start.x + 40, y: end.y }, end]
+    moveElements(m, { [t.id]: { x: b.x - 20, y: b.y + 10 } })
+    const kept = m.diagram.edges[f.id]
+    expect(kept).toBeDefined()
+    expect(isOrthogonal(kept)).toBe(true)
+    expect(kept[1].x).toBe(start.x + 40)
+    moveElements(m, { [t.id]: { x: start.x - 200, y: b.y + 10 } })
+    expect(m.diagram.edges[f.id]).toBeUndefined()
   })
 })
