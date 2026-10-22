@@ -576,3 +576,11 @@ mark.cue {
   justify-content: space-between;
   gap: 8px;
 }
+
+.case-text p.is-heading {
+  margin-top: 10px;
+  font-weight: 700;
+}
+.case-text p.is-heading:first-child {
+  margin-top: 0;
+}

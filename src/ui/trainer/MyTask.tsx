@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CircleCheck, Download, Pencil, Upload } from 'lucide-react'
 import { TAGS, type Tag } from '../../data/cases'
-import { compareTagging, coverage, MY_TASK_CHECKLIST, myTaskToCaseFile, paragraphs, textCues, untaggedCues, type PCue } from '../../data/mytask'
+import { blocks, compareTagging, coverage, MY_TASK_CHECKLIST, myTaskToCaseFile, paragraphs, textCues, untaggedCues, type PCue } from '../../data/mytask'
 import { useEditor } from '../store'
 import { useTrainer } from './trainerStore'
 
@@ -25,7 +25,8 @@ export function MyTaskView() {
   const [showAll, setShowAll] = useState(false)
   /** The phrase a question points at, shown in the text until it is tagged. */
   const [focus, setFocus] = useState<{ p: number; start: number; end: number } | null>(null)
-  const ps = useMemo(() => paragraphs(task.text), [task.text])
+  const bl = useMemo(() => blocks(task.text), [task.text])
+  const ps = useMemo(() => bl.map((b) => b.text), [bl])
   const cues = useMemo(() => textCues(ps), [ps])
   // Recomputed as the student tags, so an answered question goes away.
   const questions = useMemo(() => (compared ? compareTagging(task.marks, cues) : []), [compared, task.marks, cues])
@@ -157,7 +158,7 @@ export function MyTaskView() {
           }
           if (at < text.length) parts.push(text.slice(at))
           return (
-            <p key={p} data-p={p}>
+            <p key={p} data-p={p} className={bl[p]?.heading ? 'is-heading' : undefined}>
               {parts}
             </p>
           )

@@ -1919,3 +1919,11 @@ button.link {
 .react-flow.connecting .pool-edge-handle {
   background: color-mix(in srgb, var(--accent) 30%, transparent);
 }
+
+/* Interface text size (Aa menu): CSS zoom on the panels only, never on the canvas (React Flow breaks). */
+.topbar,
+.trainer-panel,
+.side-wrap,
+.check-panel {
+  zoom: var(--ui-zoom, 1);
+}

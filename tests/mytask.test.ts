@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { emptyModel } from '../src/core/metamodel'
 import { CASES, spanRanges } from '../src/data/cases'
 import { parseCaseFile } from '../src/data/caseFile'
-import { addMark, compareTagging, coverage, mentions, myTaskToCaseFile, paragraphs, remapMarks, textCues, untaggedCues, type Mark, type MyTask } from '../src/data/mytask'
+import { addMark, blocks, compareTagging, coverage, mentions, myTaskToCaseFile, paragraphs, remapMarks, textCues, untaggedCues, type Mark, type MyTask } from '../src/data/mytask'
 
 const library = CASES.find((c) => c.id === 'library-lend')!
 /** The library case typed in as an own task, tagged as the case does. */
@@ -104,5 +104,44 @@ describe('my task: hints and compare', () => {
   it('a role named once is not asked again in the next sentence', () => {
     const q = compareTagging([mark('The clerk', 'role')], cues)
     expect(q.filter((x) => x.cue.tag === 'role')).toEqual([])
+  })
+})
+
+describe('my task: text pasted from a PDF', () => {
+  const pdf = [
+    'Introduction',
+    'The management team suspects that inefficiencies in the',
+    'claims handling process may be',
+    'contributing to these issues. The company requires your',
+    'support.',
+    'The Process',
+    'The scope of this project is to model the',
+    'process followed when a customer',
+    'submits a claim. If all checks are successful, the claim moves to',
+    'the next stage for damage',
+    'evalua-',
+    'tion.',
+    'Claim Validation',
+    'When a claim handler receives a claim, the first task is to verify.',
+  ].join('\n')
+
+  it('joins lines that break mid-sentence and keeps titles as headings', () => {
+    expect(blocks(pdf)).toEqual([
+      { text: 'Introduction', heading: true },
+      { text: 'The management team suspects that inefficiencies in the claims handling process may be contributing to these issues. The company requires your support.', heading: false },
+      { text: 'The Process', heading: true },
+      { text: 'The scope of this project is to model the process followed when a customer submits a claim. If all checks are successful, the claim moves to the next stage for damage evaluation.', heading: false },
+      { text: 'Claim Validation', heading: true },
+      { text: 'When a claim handler receives a claim, the first task is to verify.', heading: false },
+    ])
+  })
+
+  it('blank lines and bullets still separate; Markdown headings are headings', () => {
+    expect(blocks('# Title\n\nfirst line\nsecond\n\n- one\n- two')).toEqual([
+      { text: 'Title', heading: true },
+      { text: 'first line second', heading: false },
+      { text: 'one', heading: false },
+      { text: 'two', heading: false },
+    ])
   })
 })

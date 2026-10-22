@@ -122,6 +122,12 @@ function writeJson(key: string, value: unknown) {
   }
 }
 
+/** The stored task; its tags are matched to the text again (paragraphs are built from the text, and the rule that builds them can change). */
+function readStoredTask(): MyTask {
+  const t = readJson<MyTask>(MY_TASK_KEY, EMPTY_TASK)
+  return t.text ? { ...t, marks: remapMarks(t.marks, t.text) } : t
+}
+
 export const useTrainer = create<TrainerState>()((set, get) => ({
   open: false,
   session: null,
@@ -131,7 +137,7 @@ export const useTrainer = create<TrainerState>()((set, get) => ({
   lesson: null,
   fileCases: 0,
   myTask: false,
-  task: readJson<MyTask>(MY_TASK_KEY, EMPTY_TASK),
+  task: readStoredTask(),
   setTaskText(title, text) {
     const task = { title, text, marks: remapMarks(get().task.marks, text) }
     writeJson(MY_TASK_KEY, task)

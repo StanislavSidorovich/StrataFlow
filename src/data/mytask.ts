@@ -25,19 +25,76 @@ export interface MyTask {
 
 export const EMPTY_TASK: MyTask = { title: '', text: '', marks: [] }
 
-/** Paragraphs of the text: line breaks separate them; Markdown headings, bullets and bold lose their marks. */
+/** A block of the task text: a paragraph, or a heading (a short title line, or a Markdown `#` line). */
+export interface Block {
+  text: string
+  heading: boolean
+}
+
+const SENTENCE_END = /[.!?:;]["”')\]]?$/
+const HEADING_MAX_WORDS = 7
+const HEADING_MAX_CHARS = 60
+
+/** A short line with no closing punctuation, as a title in a pasted document ("The Process", "Claim Validation"). */
+function titleLike(line: string): boolean {
+  return line.length <= HEADING_MAX_CHARS && line.split(/\s+/).length <= HEADING_MAX_WORDS && !/[.,;:!?]$/.test(line) && /^[A-Z0-9]/.test(line)
+}
+
+/**
+ * The blocks of the text. Text copied from a PDF breaks lines where the page ended, not where a sentence
+ * did, so a line that does not end a sentence is joined to the next one (a word hyphenated at the line
+ * end is put back together). A short title line followed by a capital starts a heading and a new
+ * paragraph. Markdown headings, bullets and bold lose their marks; blank lines always separate.
+ */
+export function blocks(text: string): Block[] {
+  const out: Block[] = []
+  let cur: { text: string; lines: number } | null = null
+  const flush = () => {
+    if (cur) out.push({ text: cur.text, heading: false })
+    cur = null
+  }
+  for (const raw of text.replace(/\r\n?/g, '\n').split('\n')) {
+    if (!raw.trim()) {
+      flush()
+      continue
+    }
+    const md = /^\s{0,3}#{1,6}\s+/.test(raw)
+    const bullet = /^\s*(?:[-*+]|\d+[.)])\s+/.test(raw)
+    const line = raw
+      .replace(/^\s{0,3}#{1,6}\s+/, '')
+      .replace(/^\s*(?:[-*+]|\d+[.)])\s+/, '')
+      .replace(/\*\*|__/g, '')
+      .trim()
+    if (!line) continue
+    if (md) {
+      flush()
+      out.push({ text: line, heading: true })
+      continue
+    }
+    if (cur && !bullet) {
+      const open = !SENTENCE_END.test(cur.text)
+      const lower = /^[a-z]/.test(line)
+      if (cur.lines === 1 && titleLike(cur.text) && !lower) {
+        // A title, then the text under it.
+        out.push({ text: cur.text, heading: true })
+        cur = { text: line, lines: 1 }
+        continue
+      }
+      if (open || lower) {
+        cur = { text: /[a-z]-$/.test(cur.text) && lower ? cur.text.slice(0, -1) + line : `${cur.text} ${line}`, lines: cur.lines + 1 }
+        continue
+      }
+    }
+    flush()
+    cur = { text: line, lines: 1 }
+  }
+  flush()
+  return out
+}
+
+/** The paragraphs of the text (headings included). */
 export function paragraphs(text: string): string[] {
-  return text
-    .replace(/\r\n?/g, '\n')
-    .split(/\n+/)
-    .map((l) =>
-      l
-        .replace(/^\s{0,3}#{1,6}\s+/, '')
-        .replace(/^\s*(?:[-*+]|\d+[.)])\s+/, '')
-        .replace(/\*\*|__/g, '')
-        .trim(),
-    )
-    .filter(Boolean)
+  return blocks(text).map((b) => b.text)
 }
 
 /** Adds a mark; marks it overlaps are replaced. */
