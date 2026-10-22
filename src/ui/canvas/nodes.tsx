@@ -2,7 +2,7 @@
 // gateways and data sit under the shape, as in Bizagi and bpmn.io. Dots on the four sides start a
 // connection; the editor decides the flow kind. Resizing ends in one undoable edit.
 import { Handle, NodeResizer, NodeResizeControl, ResizeControlVariant, Position, type Node, type NodeProps } from '@xyflow/react'
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Severity } from '../../core/lint'
 import type { FlowNode, LoopKind } from '../../core/metamodel'
 import { rename, resizeElement, resizeLane } from '../../core/ops'
@@ -86,16 +86,22 @@ function NameEditor({ id, name, caret }: { id: string; name: string; caret: numb
     const frame = requestAnimationFrame(() => document.activeElement !== t && place())
     return () => cancelAnimationFrame(frame)
   }, [])
-  useLayoutEffect(fit, [name])
+  // The text lives here while typing: the model reaches this box a render late (through the canvas nodes), and a
+  // controlled value that lags makes the browser throw the caret to the end after every Backspace or Delete.
+  const [text, setText] = useState(name)
+  useLayoutEffect(fit, [text])
   return (
     <textarea
       ref={ref}
       className="bpmn-name-edit nodrag nowheel nopan"
       rows={1}
-      value={name}
+      value={text}
       aria-label="Name"
       data-testid="name-inline"
-      onChange={(e) => useEditor.getState().apply((m) => rename(m, id, e.target.value), { coalesce: `name:${id}` })}
+      onChange={(e) => {
+        setText(e.target.value)
+        useEditor.getState().apply((m) => rename(m, id, e.target.value), { coalesce: `name:${id}` })
+      }}
       onBlur={() => useEditor.setState({ editing: null })}
       onKeyDown={(e) => {
         e.stopPropagation()
