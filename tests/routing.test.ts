@@ -134,3 +134,12 @@ describe('nearestSide', () => {
     expect(nearestSide(a, { x: 50, y: 78 })).toBe('bottom')
   })
 })
+
+describe('a message from a pool to a shape below it', () => {
+  it('without chosen sides leaves the pool straight above the shape', () => {
+    const pool = { x: 0, y: 0, width: 800, height: 200 }
+    const task = { x: 500, y: 300, width: 100, height: 80 }
+    const pts = route({ kind: 'message' }, pool, task, false, true)!
+    expect(pts).toEqual([{ x: 550, y: 200 }, { x: 550, y: 300 }])
+  })
+})

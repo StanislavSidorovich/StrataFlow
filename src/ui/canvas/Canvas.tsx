@@ -270,7 +270,10 @@ export function Canvas() {
     // A tap on two dots of one shape (touch screens: a tap on a dot starts a connection) is not a flow.
     if (c.source === c.target) return
     // The dots the flow was drawn between are the sides it leaves and enters by.
-    const sides = { source: asSide(c.sourceHandle), target: asSide(c.targetHandle) }
+    // A pool's side dot is not a side to keep: a message to or from a pool runs straight to the other end
+    // (routing.ts meets the pool's border straight above or below it), not round the pool's right side.
+    const isPool = (id: string) => model.participants.some((x) => x.id === id)
+    const sides = { source: isPool(c.source) ? undefined : asSide(c.sourceHandle), target: isPool(c.target) ? undefined : asSide(c.targetHandle) }
     let id: string | null = null
     if (useEditor.getState().apply((m) => void (id = connect(m, c.source, c.target, sides).id)) && id) useEditor.getState().select([id])
   }

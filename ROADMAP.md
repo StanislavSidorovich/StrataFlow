@@ -295,3 +295,7 @@ Built with: Claude Sonnet 5.5 (Claude Code), effort low.
 ### 2026-10-22 · The context pad hides while a flow is dragged from a dot
 Owner: the pad of next steps to the right of a selected shape covered the target when drawing a flow from its dot. While a connection is dragged (React Flow puts `connecting` on the canvas) the pad is hidden (`.react-flow.connecting .context-pad`, `index.css`); a plain click still shows it. Not tried with a real mouse drag (the browser pane was hidden): the class is the same one the dots' own styles already rely on. v0.5.32.
 Built with: Claude Sonnet 5.5 (Claude Code), effort low.
+
+### 2026-10-22 · A message drawn from a pool's side dot runs straight
+Owner: a message flow dragged from the right-hand dot of another pool to a task below it went round the pool's right side instead of straight down. The dot's side was stored as the flow's chosen side. A pool's side dot is no longer kept as a side (`onConnect` in `Canvas.tsx`), so the automatic route applies: straight to the shape above or below, meeting the pool's border straight over the other end (test added in `routing.test.ts`). Flows already drawn that way: right-click → reset the route. Not tried with a real mouse drag (the browser pane was hidden). v0.5.33.
+Built with: Claude Sonnet 5.5 (Claude Code), effort low.
