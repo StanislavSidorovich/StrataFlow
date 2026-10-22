@@ -143,3 +143,24 @@ describe('a message from a pool to a shape below it', () => {
     expect(pts).toEqual([{ x: 550, y: 200 }, { x: 550, y: 300 }])
   })
 })
+
+describe('the automatic route keeps clear of other shapes', () => {
+  const gateway = { x: 0, y: 260, width: 50, height: 40 }
+  const target = { x: 1000, y: 400, width: 100, height: 80 }
+  const task = { x: 120, y: 220, width: 140, height: 120 } // on the line the flow leaves along
+
+  it('bends before a shape that the first leg would run through', () => {
+    const plain = route({ kind: 'sequence' }, gateway, target)!
+    expect(plain[1].x).toBeGreaterThan(task.x + task.width) // the middle is beyond the task
+    const pts = route({ kind: 'sequence' }, gateway, target, false, false, [task])!
+    expect(pts).toHaveLength(4)
+    expect(pts[1].x).toBeLessThan(task.x)
+    expect(pts[1].x).toBeGreaterThan(gateway.x + gateway.width)
+    expect(isOrthogonal(pts)).toBe(true)
+  })
+
+  it('keeps the middle when nothing is in the way', () => {
+    const far = { x: 120, y: 600, width: 140, height: 80 }
+    expect(route({ kind: 'sequence' }, gateway, target, false, false, [far])).toEqual(route({ kind: 'sequence' }, gateway, target))
+  })
+})

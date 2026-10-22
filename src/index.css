@@ -1936,6 +1936,6 @@ button.link {
 }
 
 /* Dragging a flow from a dot: the pad of next steps is not needed then and covers the target. */
-.react-flow.connecting .context-pad {
+.canvas-wrap.is-connecting .context-pad {
   display: none;
 }

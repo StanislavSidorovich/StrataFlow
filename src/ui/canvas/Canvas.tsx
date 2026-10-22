@@ -189,6 +189,8 @@ export function Canvas() {
   useEffect(() => setNodes(toNodes(model, selected, page, marks, tokens)), [model, selected, page, marks, tokens])
   // The sequence flow a shape would be inserted on if dropped (or placed by a tool) where the pointer is.
   const [dropFlow, setDropFlow] = useState<string | null>(null)
+  // A flow is being dragged from a dot: the context pad steps aside (css), it would cover the target.
+  const [connecting, setConnecting] = useState(false)
   useEffect(() => setDropFlow(null), [tool])
   const edges = useMemo(() => toEdges(model, selected, page, passed, dropFlow), [model, selected, page, passed, dropFlow])
   const flow = useReactFlow()
@@ -299,6 +301,7 @@ export function Canvas() {
 
   // Dropped on a shape but not on one of its dots, or on a pool: connect to what is under the pointer.
   const onConnectEnd = (e: MouseEvent | TouchEvent, state: FinalConnectionState) => {
+    setConnecting(false)
     if (state.isValid || !state.fromNode) return
     const pt = 'changedTouches' in e ? e.changedTouches[0] : e
     const target = elementAt(model, flow.screenToFlowPosition({ x: pt.clientX, y: pt.clientY }), page)
@@ -325,7 +328,7 @@ export function Canvas() {
     <div
       // No browser menu anywhere on the canvas: ours opens instead (or nothing, on the controls).
       onContextMenu={(e) => e.preventDefault()}
-      className={`canvas-wrap${tool.id !== 'select' || linkFrom ? ' is-placing' : ''}`}
+      className={`canvas-wrap${tool.id !== 'select' || linkFrom ? ' is-placing' : ''}${connecting ? ' is-connecting' : ''}`}
       onPointerMove={(e) => {
         // A shape tool over a sequence flow: the flow lights up, a click inserts the shape on it.
         if ('spec' in tool) setDropFlow(flowUnder(model, flow.screenToFlowPosition({ x: e.clientX, y: e.clientY }), { spec: tool.spec, page: page ?? undefined }) ?? null)
@@ -415,6 +418,7 @@ export function Canvas() {
         onPaneContextMenu={(e) => openMenu(e, null)}
         onSelectionContextMenu={(e) => openMenu(e, useEditor.getState().selection[0] ?? null)}
         onConnect={onConnect}
+        onConnectStart={() => setConnecting(true)}
         onConnectEnd={onConnectEnd}
         connectionLineComponent={ConnectionLine}
         connectionMode={ConnectionMode.Loose}

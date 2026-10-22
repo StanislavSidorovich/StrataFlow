@@ -12,6 +12,7 @@
 // - a flow without stored waypoints is routed between the facing sides of its ends, as the canvas draws it;
 // - the content of a collapsed sub-process is drawn in a diagram of its own, as bpmn.io does.
 import { BpmnModdle } from 'bpmn-moddle'
+import { obstaclesOf } from '../ops'
 import { route } from '../routing'
 import { isArtifact, type Bounds, type EventTrigger, type FlowModel, type FlowNode, type GatewayKind, type Lane, type LoopKind, type Point, type TaskKind } from '../metamodel'
 
@@ -276,7 +277,7 @@ export async function writeBpmn(m: FlowModel): Promise<string> {
   const boxOf = (id: string): Bounds | undefined => m.diagram.shapes[id]
   for (const f of m.flows) {
     if (!el.has(f.id)) continue
-    const pts = m.diagram.edges[f.id]?.length >= 2 ? m.diagram.edges[f.id] : route(f, boxOf(f.source), boxOf(f.target), !!m.participants.find((p) => p.id === f.target), !!m.participants.find((p) => p.id === f.source))
+    const pts = m.diagram.edges[f.id]?.length >= 2 ? m.diagram.edges[f.id] : route(f, boxOf(f.source), boxOf(f.target), !!m.participants.find((p) => p.id === f.target), !!m.participants.find((p) => p.id === f.source), obstaclesOf(m, f))
     if (!pts) continue
     const ends = [node(f.source), node(f.target)].filter(Boolean).map((n) => hidden(n!))
     const plane = planeOf(ends.find((h) => h !== undefined) && ends.every((h) => h === ends[0]) ? ends[0] : undefined)

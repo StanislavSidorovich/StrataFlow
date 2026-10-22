@@ -539,7 +539,20 @@ export function distributeElements(m: FlowModel, ids: string[], axis: Distribute
 export function flowPath(m: FlowModel, f: Flow): Point[] | undefined {
   const pts = m.diagram.edges[f.id]
   if (pts && pts.length >= 2) return pts
-  return route(f, m.diagram.shapes[f.source], m.diagram.shapes[f.target], !!poolOf(m, f.target), !!poolOf(m, f.source))
+  return route(f, m.diagram.shapes[f.source], m.diagram.shapes[f.target], !!poolOf(m, f.target), !!poolOf(m, f.source), obstaclesOf(m, f))
+}
+
+/** The shapes a flow between its two ends should keep clear of: other tasks, events and gateways (not what holds an end). */
+export function obstaclesOf(m: FlowModel, f: Flow): Bounds[] {
+  const s = m.diagram.shapes[f.source]
+  const t = m.diagram.shapes[f.target]
+  if (!s || !t) return []
+  const inside = (b: Bounds, p: Point) => p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height
+  const ends = [{ x: s.x + s.width, y: s.y + s.height / 2 }, { x: t.x, y: t.y + t.height / 2 }]
+  return m.nodes
+    .filter((n) => n.id !== f.source && n.id !== f.target && n.type !== 'annotation' && m.diagram.shapes[n.id])
+    .map((n) => m.diagram.shapes[n.id])
+    .filter((b) => !ends.some((p) => inside(b, p)))
 }
 
 function nearestOnPath(pts: Point[], p: Point): { dist: number; seg: number } {

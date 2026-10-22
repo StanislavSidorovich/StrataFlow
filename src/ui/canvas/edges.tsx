@@ -1,9 +1,9 @@
 // BPMN connections: sequence (solid, filled arrow), message (dashed, open circle → open arrow),
 // association and data association (dotted). Drawn along DI waypoints; without them (a new flow, or an
 // end has moved) routed orthogonally between the sides of the two shapes that face each other.
-import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, Position, useInternalNode, type Edge, type EdgeProps, type InternalNode } from '@xyflow/react'
-import type { FlowKind, Side } from '../../core/metamodel'
-import { routeSides } from '../../core/routing'
+import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, Position, useInternalNode, useStore, type Edge, type EdgeProps, type InternalNode } from '@xyflow/react'
+import type { Bounds, FlowKind, Side } from '../../core/metamodel'
+import { route, routeSides } from '../../core/routing'
 
 export type FlowData = { kind: FlowKind; name: string; points?: { x: number; y: number }[]; sourceSide?: Side; targetSide?: Side; isDefault?: boolean; conditional?: boolean; passed?: boolean; drop?: boolean }
 export type FlowEdge = Edge<FlowData, 'flow'>
@@ -31,6 +31,8 @@ export function facingSides(s: Box, t: Box, preferVertical: boolean) {
 export function BpmnEdge({ id, source, target, data, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected }: EdgeProps<FlowEdge>) {
   const sb = boxOf(useInternalNode(source))
   const tb = boxOf(useInternalNode(target))
+  // The shapes this flow must not run through (shared by all flows, so one subscription is cheap).
+  const lookup = useStore((s) => s.nodeLookup)
   if (sb && tb) {
     const [sp, tp] = facingSides(sb, tb, data?.kind === 'message')
     ;({ x: sourceX, y: sourceY } = side(sb, sp))
@@ -52,6 +54,22 @@ export function BpmnEdge({ id, source, target, data, sourceX, sourceY, targetX, 
       data.targetSide ?? (targetPosition as Side),
       { source: sb.pool, target: tb.pool },
     )
+  // The automatic route keeps clear of other shapes: the vertical step moves into a gap beside them.
+  if (!(pts && pts.length >= 2) && !data?.sourceSide && !data?.targetSide && sb && tb && !sb.pool && !tb.pool) {
+    const s = { x: sb.x, y: sb.y, width: sb.w, height: sb.h }
+    const t = { x: tb.x, y: tb.y, width: tb.w, height: tb.h }
+    const inside = (b: Bounds, x: number, y: number) => x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height
+    const obstacles: Bounds[] = []
+    for (const n of lookup.values()) {
+      if (n.type !== 'shape' || n.id === source || n.id === target) continue
+      const b = boxOf(n)!
+      const box = { x: b.x, y: b.y, width: b.w, height: b.h }
+      if (!inside(box, s.x + s.width, s.y + s.height / 2) && !inside(box, t.x, t.y + t.height / 2)) obstacles.push(box)
+    }
+    const plain = route({ kind, sourceSide: undefined, targetSide: undefined }, s, t)
+    const clear = route({ kind, sourceSide: undefined, targetSide: undefined }, s, t, false, false, obstacles)
+    if (plain && clear && plain.length === 4 && JSON.stringify(plain) !== JSON.stringify(clear)) pts = clear
+  }
   let path: string
   let labelX: number
   let labelY: number

@@ -120,8 +120,40 @@ export function dragSegment(pts: Point[], i: number, d: Point): Point[] {
   return simplify([...head, ...tail])
 }
 
-/** An orthogonal path between the sides of two shapes that face each other (as edges.tsx draws it). */
-export function route(f: Pick<Flow, 'kind' | 'sourceSide' | 'targetSide'>, s: Bounds | undefined, t: Bounds | undefined, toPool = false, fromPool = false): Point[] | undefined {
+const CLEAR = 4 // how close a line may pass a shape it does not join
+
+/** True when the straight segment p→q crosses the shape (with a little room around it). */
+function crosses(p: Point, q: Point, b: Bounds): boolean {
+  const x0 = Math.min(p.x, q.x)
+  const x1 = Math.max(p.x, q.x)
+  const y0 = Math.min(p.y, q.y)
+  const y1 = Math.max(p.y, q.y)
+  return x1 > b.x - CLEAR && x0 < b.x + b.width + CLEAR && y1 > b.y - CLEAR && y0 < b.y + b.height + CLEAR
+}
+
+/**
+ * The x of the vertical step of a left-to-right route (a → mid → b, bending at `mid`): the middle if nothing
+ * is in the way, else the nearest gap beside a shape the line would run through. The first choice stays when
+ * every choice is blocked.
+ */
+export function clearMid(a: Point, b: Point, mid: number, obstacles: Bounds[]): number {
+  const free = (m: number) => {
+    const path = [a, { x: m, y: a.y }, { x: m, y: b.y }, b]
+    return !obstacles.some((o) => path.some((p, i) => i > 0 && crosses(path[i - 1], p, o)))
+  }
+  if (free(mid)) return mid
+  const lo = Math.min(a.x, b.x) + 10
+  const hi = Math.max(a.x, b.x) - 10
+  const gaps = obstacles.flatMap((o) => [o.x - 15, o.x + o.width + 15]).filter((x) => x > lo && x < hi)
+  gaps.sort((p, q) => Math.abs(p - mid) - Math.abs(q - mid))
+  return gaps.find(free) ?? mid
+}
+
+/**
+ * An orthogonal path between the sides of two shapes that face each other (as edges.tsx draws it). With
+ * `obstacles` (the other shapes) the vertical step moves to a gap, so the line does not run through a shape.
+ */
+export function route(f: Pick<Flow, 'kind' | 'sourceSide' | 'targetSide'>, s: Bounds | undefined, t: Bounds | undefined, toPool = false, fromPool = false, obstacles: Bounds[] = []): Point[] | undefined {
   if (!s || !t) return undefined
   if (f.sourceSide || f.targetSide) {
     // The user chose a side: the same route the canvas draws.
@@ -135,7 +167,7 @@ export function route(f: Pick<Flow, 'kind' | 'sourceSide' | 'targetSide'>, s: Bo
   if (apartX && !(f.kind === 'message' && apartY)) {
     const a = { x: apartX > 0 ? s.x + s.width : s.x, y: cy(s) }
     const b = { x: apartX > 0 ? t.x : t.x + t.width, y: cy(t) }
-    const mid = Math.round((a.x + b.x) / 2)
+    const mid = a.y === b.y ? 0 : Math.round(clearMid(a, b, (a.x + b.x) / 2, obstacles))
     return a.y === b.y ? [a, b] : [a, { x: mid, y: a.y }, { x: mid, y: b.y }, b]
   }
   const down = apartY >= 0
