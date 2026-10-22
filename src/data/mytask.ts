@@ -77,7 +77,79 @@ export interface Coverage {
   /** Named model elements no tagged phrase mentions. */
   unmentioned: { id: string; name: string; what: string }[]
   /** Cue words not inside a tagged phrase. */
-  questions: { p: number; start: number; end: number; text: string; why: string }[]
+  questions: PCue[]
+}
+
+/** A cue word placed in the task text: paragraph, character range and what it suggests. */
+export interface PCue {
+  p: number
+  start: number
+  end: number
+  text: string
+  tag: Tag
+  why: string
+}
+
+const overlaps = (m: { p: number; start: number; end: number }, c: PCue) => m.p === c.p && m.start < c.end && m.end > c.start
+
+/** The cue words of every paragraph. */
+export function textCues(ps: string[]): PCue[] {
+  return ps.flatMap((text, p) => findCues(text).map((c) => ({ p, start: c.start, end: c.end, text: text.slice(c.start, c.end), tag: c.tag, why: c.why })))
+}
+
+/** The cues to mark as dotted hints: only where the student has not tagged anything. */
+export function untaggedCues(cues: PCue[], marks: Mark[]): PCue[] {
+  return cues.filter((c) => !marks.some((m) => overlaps(m, c)))
+}
+
+/** Tags that answer a cue as well as its own (a lane or a pool for a role word; a message for a "sends" task). */
+const COMPATIBLE: Record<Tag, Tag[]> = {
+  participant: ['participant', 'role'],
+  role: ['role', 'participant'],
+  activity: ['activity', 'message'],
+  event: ['event', 'message'],
+  decision: ['decision'],
+  parallel: ['parallel'],
+  message: ['message', 'event', 'activity'],
+  data: ['data', 'message'],
+}
+
+export interface TagQuestion {
+  kind: 'untagged' | 'other-tag'
+  cue: PCue
+  /** The student's tag that overlaps the cue (other-tag). */
+  mark?: Mark
+  text: string
+}
+
+const TAG_WORD: Record<Tag, string> = {
+  participant: 'a pool',
+  role: 'a lane',
+  activity: 'a task',
+  event: 'an event',
+  decision: 'an exclusive gateway',
+  parallel: 'a parallel gateway',
+  message: 'a message',
+  data: 'a data object',
+}
+const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+
+/** Where the student's tags and the cue words differ, as questions. Without tags there are none. */
+export function compareTagging(marks: Mark[], cues: PCue[]): TagQuestion[] {
+  if (marks.length === 0) return []
+  const out: TagQuestion[] = []
+  for (const c of cues) {
+    const here = marks.filter((m) => overlaps(m, c))
+    if (here.length === 0) {
+      // A role or a document named once is enough; later mentions are the same lane or data object.
+      if ((c.tag === 'role' || c.tag === 'data') && marks.some((m) => COMPATIBLE[c.tag].includes(m.tag) && m.text.toLowerCase().includes(c.text.toLowerCase()))) continue
+      out.push({ kind: 'untagged', cue: c, text: `${c.why}. ${capital(TAG_WORD[c.tag])}?` })
+    } else if (!here.some((m) => COMPATIBLE[c.tag].includes(m.tag))) {
+      const m = here[0]
+      out.push({ kind: 'other-tag', cue: c, mark: m, text: `You tagged it ${TAGS.find((t) => t.id === m.tag)!.label}; ${c.why}. ${capital(TAG_WORD[c.tag])} or ${TAG_WORD[m.tag]}?` })
+    }
+  }
+  return out
 }
 
 export function coverage(task: MyTask, model: FlowModel): Coverage {
@@ -120,11 +192,7 @@ export function coverage(task: MyTask, model: FlowModel): Coverage {
         ...[...tasks, ...events, ...data].map((n) => ({ id: n.id, name: n.name, what: what(n.type) })),
       ].filter((x) => x.name && !task.marks.some((m) => mentions(m.text, x.name)))
     : []
-  const questions: Coverage['questions'] = []
-  ps.forEach((text, p) => {
-    for (const c of findCues(text))
-      if (!task.marks.some((m) => m.p === p && m.start < c.end && m.end > c.start)) questions.push({ p, start: c.start, end: c.end, text: text.slice(c.start, c.end), why: c.why })
-  })
+  const questions = untaggedCues(textCues(ps), task.marks)
   return { missing, unmentioned, questions }
 }
 

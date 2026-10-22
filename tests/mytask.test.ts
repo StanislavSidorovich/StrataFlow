@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { emptyModel } from '../src/core/metamodel'
 import { CASES, spanRanges } from '../src/data/cases'
 import { parseCaseFile } from '../src/data/caseFile'
-import { addMark, coverage, mentions, myTaskToCaseFile, paragraphs, remapMarks, type Mark, type MyTask } from '../src/data/mytask'
+import { addMark, compareTagging, coverage, mentions, myTaskToCaseFile, paragraphs, remapMarks, textCues, untaggedCues, type Mark, type MyTask } from '../src/data/mytask'
 
 const library = CASES.find((c) => c.id === 'library-lend')!
 /** The library case typed in as an own task, tagged as the case does. */
@@ -61,5 +61,48 @@ describe('my task', () => {
     expect(left).toBeLessThanOrEqual(2)
     expect(c.spans.length).toBe(libraryTask().marks.length - left)
     expect(c.reference()).toEqual(library.reference())
+  })
+})
+
+describe('my task: hints and compare', () => {
+  const text = 'The clerk checks the card. If it is valid, the clerk sends a letter.'
+  const cues = textCues(paragraphs(text))
+  const mark = (phrase: string, tag: Mark['tag']): Mark => {
+    const start = text.indexOf(phrase)
+    return { p: 0, start, end: start + phrase.length, tag, text: phrase }
+  }
+
+  it('finds cues with their paragraph and tag', () => {
+    expect(cues.map((c) => [c.text, c.tag])).toEqual(expect.arrayContaining([['If', 'decision'], ['checks', 'activity']]))
+  })
+
+  it('hints skip cues the student has tagged', () => {
+    const marks = [mark('checks the card', 'activity')]
+    const left = untaggedCues(cues, marks).map((c) => c.text)
+    expect(left).not.toContain('checks')
+    expect(left).toContain('If')
+    expect(untaggedCues(cues, [])).toHaveLength(cues.length)
+  })
+
+  it('compare is empty until something is tagged', () => {
+    expect(compareTagging([], cues)).toEqual([])
+  })
+
+  it('asks about untagged cues and about tags that disagree', () => {
+    const q = compareTagging([mark('checks the card', 'activity'), mark('If', 'parallel')], cues)
+    expect(q.find((x) => x.cue.text === 'If')).toMatchObject({ kind: 'other-tag' })
+    expect(q.find((x) => x.cue.text === 'If')!.text).toMatch(/exclusive gateway/)
+    expect(q.find((x) => x.cue.text === 'sends')).toMatchObject({ kind: 'untagged' })
+    expect(q.some((x) => x.cue.text === 'checks')).toBe(false)
+  })
+
+  it('accepts a compatible tag: a pool for a role word, a message for a send', () => {
+    const q = compareTagging([mark('The clerk', 'participant'), mark('sends a letter', 'message')], cues)
+    expect(q.some((x) => x.kind === 'other-tag')).toBe(false)
+  })
+
+  it('a role named once is not asked again in the next sentence', () => {
+    const q = compareTagging([mark('The clerk', 'role')], cues)
+    expect(q.filter((x) => x.cue.tag === 'role')).toEqual([])
   })
 })

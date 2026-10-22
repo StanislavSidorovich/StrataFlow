@@ -538,3 +538,41 @@ mark.cue {
 .cue-questions {
   padding-left: 18px;
 }
+
+/* My task: dotted hints, compare, text dialog */
+.case-text .span.is-hint {
+  border-bottom: 2px dotted var(--tag, var(--muted));
+}
+.case-text .span.is-hint:hover,
+.link-btn.span.is-hint:hover {
+  background: var(--accent-soft);
+}
+.link-btn.span.is-hint {
+  border: 0;
+  border-bottom: 2px dotted var(--tag, var(--muted));
+  background: none;
+  color: inherit;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+.my-task-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0;
+}
+.my-task-dialog {
+  display: grid;
+  gap: 8px;
+}
+.my-task-dialog textarea,
+.my-task-dialog input:not([type='file']) {
+  width: 100%;
+  box-sizing: border-box;
+}
+.my-task-dialog-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}

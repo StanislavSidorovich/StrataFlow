@@ -44,7 +44,7 @@ Done: an editor that draws every BPMN element the course uses (also loop and mul
 ## Ideas backlog (owner, 2026-10-14)
 
 - Generate processes on request: Claude writes `*.flow.json` / `*.flow-case.json` / `*.flow-story.json`, the app opens them (as in StrataSQL). In-app generation with an API key = stage 7.
-- Text tasks with highlighted key words (what is a task, which gateway, which event, which flow).
+- ~~Text tasks with highlighted key words (what is a task, which gateway, which event, which flow).~~ Done in v0.5.28: My task has dotted hints in the text.
 - Theory part (help cards + Learn lessons) and an intro/tour on how to use the app.
 - Format conversion (BPMN XML; Bizagi `.bpm` only if cheap; PNG/SVG; later a documentation export).
 - One click: a full process skeleton from start to end (template + auto layout).
@@ -54,6 +54,8 @@ Done: an editor that draws every BPMN element the course uses (also loop and mul
 - **Phone "learn" mode** (2026-10-15): on a phone, what needs no drawing: lessons, help cards, Watch it built with its predict-first questions, a model to look at (pan and zoom, no editing). Decide by the analytics: build it if phones are a real share of visits. Now a phone gets a notice (best on a laptop or a tablet) with Help cards, Lessons and Continue anyway.
 
 ## Decisions
+
+- 2026-10-22 ✱ **My task: the list of untagged cue words under the text is gone.** Dotted hints in the text (Show hints) and Compare my tagging show the same cue words in place and with a question; keeping a third copy as a list only repeated them. `coverage().questions` stays in the code (tested).
 
 - 2026-10-17 ✱ **Appearance as in StrataSQL**: canvas and panel tints per theme with StrataSQL's swatches, so all Quaera apps offer the same colours; the theme choice is remembered.
 - 2026-10-14 ✱ Name **StrataFlow**, subdomain **flow.quaera.app**, public repo github.com/StanislavSidorovich/StrataFlow (owner's choice).
@@ -273,3 +275,7 @@ Built with: Claude Opus 5.5 (Claude Code), effort low.
 ### 2026-10-21 · Box selection no longer blocks Ctrl+C / Ctrl+X; how to select several
 Found while checking v0.5.26 on the live site. Shift+drag (box selection) also stretched the page's text selection from wherever it last was (the status bar, a panel), and with text selected Ctrl+C / Ctrl+X go to the browser (`App.tsx`), so a box-selected group could not be copied or cut. The canvas now clears the page's text selection when a box selection starts and ends (`onSelectionStart` / `onSelectionEnd` in `Canvas.tsx`). The Group into sub-process button said "Shift+click" selects several, but Shift is the box key and Ctrl+click adds to a selection: the tooltip now says "Ctrl+click or Shift+drag a box", and How to draw has a line on selecting several and copying them. Checked with Playwright on the dev server: a stray text selection in the status bar, then a box over Fetch book and Lend book (7 selected with flows and the data object), Ctrl+X 10 → 7 shapes, Ctrl+V back to 10 with the flows between them, Undo twice restores 10 shapes and 11 flows. 469 tests. v0.5.27.
 Built with: Claude Opus 5.5 (Claude Code), effort low.
+
+### 2026-10-22 · My task from Model: text dialog, dotted hints, Compare my tagging
+Ported three features of StrataSQL's My task (agreed with the owner, ahead of the practical assignment on 2026-11-01). (a) **Text dialog**: write, paste or load the task text from a `.txt` / `.md` file (title taken from the file name, 200 KB limit); an empty My task opens with "Add my text…", the pencil edits (tags whose words stay are kept). (b) **Show hints**: a toggle marks Flow's cue words dotted in the text, coloured by tag, the `why` on hover, only where nothing is tagged; a click opens tagging for that phrase (keys 1–8 as before). (c) **Compare my tagging**: disabled until something is tagged; lists cue words with no tag ("An exclusive gateway?") and tags that disagree with a cue ("You tagged it Pool; … a lane or a pool?"), compatible tags pass (lane/pool, task/message), a role or document named once is not asked again; a click shows the phrase in the text, ready to tag, and answered questions go away. Pure logic in `src/data/mytask.ts` (`textCues`, `untaggedCues`, `compareTagging`), 6 new tests; the cue-word list under the text was dropped (see Decisions). Not ported: "Draft from my tags" (to discuss). Checked in the dev server: load a .md, hints, tag a hint, Compare, click a question, no console errors, dark theme styles. Full suite and build green. v0.5.28.
+Built with: Claude Opus 5.5 then Sonnet 5.5 (Claude Code), effort low.
