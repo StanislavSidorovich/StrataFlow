@@ -4,6 +4,8 @@ import { contrastVars, parseContrast, parseUiSize, uiScale } from '../src/core/r
 describe('readability settings', () => {
   it('reads stored values, anything else is the default', () => {
     expect(parseUiSize('XL')).toBe('XL')
+    expect(parseUiSize('M+')).toBe('M+')
+    expect(uiScale('M+')).toBeGreaterThan(uiScale('M'))
     expect(parseUiSize('huge')).toBe('M')
     expect(parseUiSize(null)).toBe('M')
     expect(uiScale('M')).toBe(1)

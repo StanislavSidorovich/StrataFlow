@@ -118,7 +118,8 @@
   padding: 8px 10px;
   border: 1px solid var(--panel-border);
   border-radius: 8px;
-  background: var(--canvas-bg);
+  /* Not the canvas colour: the column belongs to the panels, whose tint is chosen separately. */
+  background: var(--shape-fill);
   color: var(--text);
   line-height: 1.65;
 }
@@ -528,7 +529,7 @@ mark.cue {
   padding: 5px 7px;
   border: 1px solid var(--panel-border);
   border-radius: 5px;
-  background: var(--canvas-bg);
+  background: var(--shape-fill);
   color: var(--text);
   resize: vertical;
 }

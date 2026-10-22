@@ -385,6 +385,11 @@ export function Canvas() {
           if (linkFrom) linkTo(e.clientX, e.clientY)
           else if (tool.id === 'flow') startFlow(e.clientX, e.clientY)
           else if (tool.id !== 'select') place(e.clientX, e.clientY, e.shiftKey)
+          else {
+            // Pools let clicks through their body, so a click inside one that hits no shape selects the pool (to move or resize it).
+            const id = elementAt(model, flow.screenToFlowPosition({ x: e.clientX, y: e.clientY }), page)
+            if (id && model.participants.some((x) => x.id === id)) useEditor.getState().select(e.ctrlKey || e.metaKey ? [...new Set([...selection, id])] : [id])
+          }
         }}
         onNodeClick={(e) => {
           if (linkFrom) linkTo(e.clientX, e.clientY)

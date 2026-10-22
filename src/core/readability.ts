@@ -8,6 +8,7 @@ export const CONTRAST_KEY = 'strataflow.contrast'
 export const UI_SIZES = [
   { id: 'S', scale: 0.92, label: 'Small' },
   { id: 'M', scale: 1, label: 'Medium (default)' },
+  { id: 'M+', scale: 1.07, label: 'Medium plus' },
   { id: 'L', scale: 1.15, label: 'Large' },
   { id: 'XL', scale: 1.3, label: 'Extra large' },
 ] as const
@@ -26,16 +27,17 @@ export type Contrast = (typeof CONTRASTS)[number]['id']
 export const parseContrast = (v: string | null): Contrast => (v === '1' ? 1 : v === '2' ? 2 : 0)
 
 /** The text colours for a contrast level: darker text on the light theme, brighter on the dark one. Level 0 sets nothing. */
-export function contrastVars(level: Contrast, theme: 'light' | 'dark'): { '--text'?: string; '--muted'?: string } {
+export function contrastVars(level: Contrast, theme: 'light' | 'dark'): { '--text'?: string; '--muted'?: string; '--ui-weight'?: string } {
   if (level === 0) return {}
   const table = {
+    // Level 2 also makes the text a little heavier (--ui-weight, read by the body): thin strokes are what tires the eye.
     light: [
-      { '--text': '#0b0f18', '--muted': '#454d5f' },
-      { '--text': '#000000', '--muted': '#2c3342' },
+      { '--text': '#000000', '--muted': '#323948' },
+      { '--text': '#000000', '--muted': '#000000', '--ui-weight': '500' },
     ],
     dark: [
-      { '--text': '#f4f6fa', '--muted': '#b9c0d0' },
-      { '--text': '#ffffff', '--muted': '#d4d9e5' },
+      { '--text': '#ffffff', '--muted': '#d0d5e1' },
+      { '--text': '#ffffff', '--muted': '#ffffff', '--ui-weight': '500' },
     ],
   }
   return table[theme][level - 1]

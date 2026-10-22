@@ -4,12 +4,15 @@
 // "Save" writes to that file until another document is loaded; other browsers download the file.
 import { isCaseFile } from '../data/caseFile'
 import { parseModel, serializeModel, FILE_EXTENSION } from '../core/serialize'
-import { openProcess } from './docs'
+import { openProcess, useDocs } from './docs'
+import { deleteHandle, getHandle, handleTabs, putHandle } from './fileStore'
 import { useEditor } from './store'
 import { useTrainer } from './trainer/trainerStore'
 
 export interface WritableFile {
   name: string
+  queryPermission?: (d: { mode: 'readwrite' }) => Promise<PermissionState>
+  requestPermission?: (d: { mode: 'readwrite' }) => Promise<PermissionState>
   createWritable: () => Promise<{ write: (data: string | Blob) => Promise<void>; close: () => Promise<void> }>
 }
 type SavePicker = (opts: object) => Promise<WritableFile>
@@ -21,6 +24,51 @@ let current: { file: WritableFile; doc: number } | null = null
 
 export type SavedFile = WritableFile
 
+// After a reload the "Save as" files come back from IndexedDB (fileStore.ts). A tab's stored file belongs to
+// its document only until another document is loaded into the tab, so the tab leaves `restorable` then.
+const restorable = new Set<string>()
+const ready = handleTabs().then((ids) => ids.forEach((id) => restorable.add(id)))
+let switching = false
+
+/** Runs a change of the canvas that only swaps the open tabs (their files stay with them). */
+export function swappingTabs(f: () => void) {
+  switching = true
+  try {
+    f()
+  } finally {
+    switching = false
+  }
+}
+
+useEditor.subscribe((s, prev) => {
+  if (s.doc === prev.doc || switching) return
+  const tab = useDocs.getState().active
+  restorable.delete(tab)
+  void deleteHandle(tab)
+})
+
+function remember(file: WritableFile) {
+  const tab = useDocs.getState().active
+  restorable.add(tab)
+  void putHandle(tab, file)
+}
+
+/** The stored file of the active tab, if the browser still lets this page write to it (asks once per visit). */
+async function restoreFile(): Promise<WritableFile | null> {
+  await ready
+  const tab = useDocs.getState().active
+  if (!restorable.has(tab)) return null
+  const file = await getHandle(tab)
+  if (!file) return null
+  try {
+    const mode = { mode: 'readwrite' } as const
+    if ((await file.queryPermission?.(mode)) !== 'granted' && (await file.requestPermission?.(mode)) !== 'granted') return null
+    return file
+  } catch {
+    return null
+  }
+}
+
 /** The "Save as" file of the process on the canvas (null if none): taken when its tab is parked. */
 export function takeSavedFile(): SavedFile | null {
   return current && current.doc === useEditor.getState().doc ? current.file : null
@@ -29,6 +77,7 @@ export function takeSavedFile(): SavedFile | null {
 /** Gives the process now on the canvas its "Save as" file back (or none). */
 export function setSavedFile(file: SavedFile | null) {
   current = file ? { file, doc: useEditor.getState().doc } : null
+  if (file) remember(file)
 }
 
 export function fileBaseName(name: string): string {
@@ -104,6 +153,12 @@ export async function saveModel(): Promise<string> {
     await write(current.file)
     return `Saved to ${current.file.name}`
   }
+  const back = await restoreFile()
+  if (back && useEditor.getState().doc === doc) {
+    await write(back)
+    current = { file: back, doc }
+    return `Saved to ${back.name}`
+  }
   const name = download()
   return picker() ? `Downloaded ${name}. Save as picks a folder; Ctrl+S then saves there.` : `Downloaded ${name}`
 }
@@ -125,6 +180,7 @@ export async function saveModelAs(): Promise<string | null> {
   }
   await write(file)
   current = { file, doc }
+  remember(file)
   return `Saved to ${file.name}. Ctrl+S now saves to this file.`
 }
 

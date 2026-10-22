@@ -82,7 +82,7 @@ export function AppearanceButton({ dark, onToggleTheme }: { dark: boolean; onTog
     const style = document.documentElement.style
     const vars = contrastVars(contrast, theme)
     // After the look effect above, so the contrast wins over the panel tint's text colours.
-    for (const name of ['--text', '--muted'] as const) {
+    for (const name of ['--text', '--muted', '--ui-weight'] as const) {
       if (vars[name]) style.setProperty(name, vars[name]!)
       else style.removeProperty(name)
     }

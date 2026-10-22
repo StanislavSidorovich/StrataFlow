@@ -65,6 +65,13 @@ body {
   color: var(--text);
   font-family: var(--q-font-sans);
   font-size: 13px;
+  font-weight: var(--ui-weight, 400);
+}
+button,
+input,
+textarea,
+select {
+  font-weight: inherit;
 }
 
 /* ------------------------------------------------------------ frame */

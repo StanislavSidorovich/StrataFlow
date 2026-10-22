@@ -5,7 +5,7 @@
 import { create } from 'zustand'
 import { emptyModel, type FlowModel } from '../core/metamodel'
 import { ModelFormatError, parseModel, serializeModel } from '../core/serialize'
-import { takeSavedFile, setSavedFile, type SavedFile } from './files'
+import { takeSavedFile, setSavedFile, swappingTabs, type SavedFile } from './files'
 import { useEditor } from './store'
 
 export const DOCS_KEY = 'strataflow.docs'
@@ -73,7 +73,7 @@ function park(): Parked {
 
 /** Puts a process on the canvas as the active one (a new document for the canvas, so the view fits again). */
 function show(p: Parked) {
-  useEditor.setState((s) => ({
+  swappingTabs(() => useEditor.setState((s) => ({
     model: p.model,
     past: p.past,
     future: p.future,
@@ -87,7 +87,7 @@ function show(p: Parked) {
     editing: null,
     lastEdit: null,
     error: null,
-  }))
+  })))
   setSavedFile(p.file)
 }
 
