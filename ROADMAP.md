@@ -299,3 +299,7 @@ Built with: Claude Sonnet 5.5 (Claude Code), effort low.
 ### 2026-10-22 · A message drawn from a pool's side dot runs straight
 Owner: a message flow dragged from the right-hand dot of another pool to a task below it went round the pool's right side instead of straight down. The dot's side was stored as the flow's chosen side. A pool's side dot is no longer kept as a side (`onConnect` in `Canvas.tsx`), so the automatic route applies: straight to the shape above or below, meeting the pool's border straight over the other end (test added in `routing.test.ts`). Flows already drawn that way: right-click → reset the route. Not tried with a real mouse drag (the browser pane was hidden). v0.5.33.
 Built with: Claude Sonnet 5.5 (Claude Code), effort low.
+
+### 2026-10-22 · Arrow keys move shapes in the model, not only on screen
+Owner: shapes nudged with the arrow keys jumped back to the old place on the next click on the canvas. React Flow's own arrow-key move changed the shapes on screen only (no drag stop, so the editor never got an edit). `App.tsx` now takes the arrows first (capture phase): the selected shapes move by 5 px (Shift: 20) as one edit, so Undo works and the move stays; lanes and flows are not moved, a pool takes its lanes and content, and the keys are left alone in text fields, menus and dialogs. Not tried live: the browser pane was hidden and synthetic clicks would not select a shape; `moveElements` itself is covered by the ops tests. v0.5.34.
+Built with: Claude Sonnet 5.5 (Claude Code), effort low.

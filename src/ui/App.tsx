@@ -36,7 +36,7 @@ import { summarize } from '../core/lint'
 import { isArtifact } from '../core/metamodel'
 import { closeTab, newProcess, openProcess, reopenClosed, useDocs } from './docs'
 import { Tabs } from './Tabs'
-import { deleteElements, nodeOf } from '../core/ops'
+import { deleteElements, moveElements, nodeOf } from '../core/ops'
 import { parseModel } from '../core/serialize'
 import { applyUpdate, checkForUpdates, DEPLOY_DELAY_NOTE, installApp, updateCheckMessage, useUpdateReady } from '../pwa/register'
 import { Canvas } from './canvas/Canvas'
@@ -202,8 +202,30 @@ export function App() {
         if (t) s.setTool(t.tool)
       }
     }
+    // Arrow keys nudge the selected shapes. React Flow would move them on its own, but only on screen: the
+    // model never heard of it and the next click put them back. Here the move is an edit (one undo step).
+    const onArrow = (e: KeyboardEvent) => {
+      const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key]
+      if (!d || e.ctrlKey || e.metaKey || e.altKey || typing(e.target) || useEditor.getState().editing || useEditor.getState().menu) return
+      if (e.target instanceof Element && e.target.closest('[role=menu], [role=dialog], [role=radiogroup], [role=tablist], .look-panel')) return
+      const s = useEditor.getState()
+      const step = e.shiftKey ? 20 : 5
+      const to: Record<string, { x: number; y: number }> = {}
+      for (const id of s.selection) {
+        const b = s.model.diagram.shapes[id]
+        if (b && !s.model.lanes.some((l) => l.id === id)) to[id] = { x: b.x + d[0] * step, y: b.y + d[1] * step }
+      }
+      if (!Object.keys(to).length) return
+      e.preventDefault()
+      e.stopPropagation()
+      s.apply((m) => moveElements(m, to))
+    }
+    window.addEventListener('keydown', onArrow, true)
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onArrow, true)
+      window.removeEventListener('keydown', onKey)
+    }
   }, [])
 
   return (
