@@ -14,6 +14,7 @@ import { walkthroughOf, type WalkStep } from '../../data/walkthrough'
 import { loadStoredModel, TRAINER_MODEL_KEY, useEditor } from '../store'
 
 const SESSION_KEY = 'strataflow.trainer.session'
+const UI_KEY = 'strataflow.trainer.ui'
 const PROGRESS_KEY = 'strataflow.trainer.progress'
 const CUES_KEY = 'strataflow.trainer.cues'
 const FILE_CASES_KEY = 'strataflow.trainer.fileCases'
@@ -354,8 +355,12 @@ if (stored && caseById(stored.caseId)) {
     useTrainer.setState({ session: { ...stored, hint: null }, open: true })
   }
 }
+// The column itself (open or closed, My task shown) also survives a reload, so the text stays beside the model.
+const ui = readJson<{ open?: boolean; myTask?: boolean }>(UI_KEY, {})
+if (ui.open) useTrainer.setState({ open: true, myTask: !useTrainer.getState().session && !!ui.myTask })
 useTrainer.subscribe((st, prev) => {
   if (st.session !== prev.session) writeJson(SESSION_KEY, st.session)
+  if (st.open !== prev.open || st.myTask !== prev.myTask) writeJson(UI_KEY, { open: st.open, myTask: st.myTask })
 })
 // New or Open during a task ends it (the editor drops the backup): the session goes too.
 useEditor.subscribe((st, prev) => {
