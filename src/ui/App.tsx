@@ -150,7 +150,9 @@ export function App() {
     const onKey = (e: KeyboardEvent) => {
       const s = useEditor.getState()
       const mod = e.ctrlKey || e.metaKey
-      const key = e.key.toLowerCase()
+      // Shortcuts follow the physical key when the layout is not Latin (Russian: Ctrl+Ы is Ctrl+S).
+      const lower = e.key.toLowerCase()
+      const key = /^[a-z]$/.test(lower) || !/^Key[A-Z]$/.test(e.code) ? lower : e.code.slice(3).toLowerCase()
       if (mod && key === 's') {
         e.preventDefault()
         void save(e.shiftKey)

@@ -166,6 +166,8 @@ function elementAt(model: FlowModel, p: Point, page: string | null): string | un
   return nodes[0]?.id ?? model.participants.find((x) => hit(x.id))?.id
 }
 
+const FINE_POINTER = typeof matchMedia === 'function' && matchMedia('(pointer: fine)').matches
+
 export function Canvas() {
   const model = useEditor((s) => s.model)
   const selection = useEditor((s) => s.selection)
@@ -428,6 +430,11 @@ export function Canvas() {
         deleteKeyCode={null}
         zoomOnDoubleClick={false}
         selectionKeyCode="Shift"
+        // With a mouse a drag on empty canvas draws the selection box; the canvas pans with the wheel,
+        // the middle or right button, or Space + drag. Touch keeps drag-to-pan.
+        selectionOnDrag={FINE_POINTER}
+        panOnDrag={FINE_POINTER ? [1, 2] : true}
+        panActivationKeyCode="Space"
         multiSelectionKeyCode={['Control', 'Meta']}
         // Shift+drag also stretches the page's text selection (from wherever it last was), and with text
         // selected Ctrl+C / Ctrl+X go to the browser instead of copying the shapes.
