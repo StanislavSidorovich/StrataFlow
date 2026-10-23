@@ -260,9 +260,26 @@ export async function writeBpmn(m: FlowModel): Promise<string> {
   const shift = poolX.length ? -Math.min(...poolX) : 0
   const bounds = (b: Bounds) => make('dc:Bounds', { x: b.x + shift, y: b.y, width: b.width, height: b.height })
   const label = (b: Bounds | undefined) => (b ? { label: make('bpmndi:BPMNLabel', { bounds: bounds(b) }) } : {})
+  // A larger or bold annotation gets a BPMN label style (dc:Font); a viewer that ignores it shows the usual text.
+  const labelStyles: El[] = []
+  const styleOf = (n: FlowNode | undefined) => {
+    if (n?.type !== 'annotation' || (!n.size && !n.bold)) return undefined
+    const size = n.size === 'XL' ? 20 : n.size === 'L' ? 16 : 13
+    const style = make('bpmndi:BPMNLabelStyle', { id: fresh(`${n.id}_font`), font: make('dc:Font', { size, ...(n.bold ? { isBold: true } : {}) }) })
+    labelStyles.push(style)
+    return style
+  }
   const shape = (id: string, b: Bounds, extra: object = {}) => {
     const n = node(id)
-    return make('bpmndi:BPMNShape', { id: fresh(`${id}_di`), bpmnElement: el.get(id), bounds: bounds(b), ...(n ? label(outerLabel(n, b)) : {}), ...extra })
+    const style = styleOf(n)
+    return make('bpmndi:BPMNShape', {
+      id: fresh(`${id}_di`),
+      bpmnElement: el.get(id),
+      bounds: bounds(b),
+      ...(n ? label(outerLabel(n, b)) : {}),
+      ...(style ? { label: make('bpmndi:BPMNLabel', { labelStyle: style }) } : {}),
+      ...extra,
+    })
   }
 
   for (const p of m.participants) if (m.diagram.shapes[p.id]) planeOf().push(shape(p.id, m.diagram.shapes[p.id], { isHorizontal: true }))
@@ -289,7 +306,7 @@ export async function writeBpmn(m: FlowModel): Promise<string> {
   for (const [holder, elements] of planes) {
     const owner = holder ? el.get(holder) : (collaboration ?? processOf.get(undefined))
     const plane = make('bpmndi:BPMNPlane', { id: fresh(`${owner.id}_plane`), bpmnElement: owner, planeElement: elements })
-    defs.diagrams.push(make('bpmndi:BPMNDiagram', { id: fresh(holder ? `${holder}_diagram` : 'Diagram_1'), name: holder ? undefined : m.name || undefined, plane }))
+    defs.diagrams.push(make('bpmndi:BPMNDiagram', { id: fresh(holder ? `${holder}_diagram` : 'Diagram_1'), name: holder ? undefined : m.name || undefined, plane, ...(holder ? {} : { labelStyle: labelStyles }) }))
   }
 
   const { xml } = await moddle.toXML(defs, { format: true })

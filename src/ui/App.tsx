@@ -76,7 +76,11 @@ const save = async (as: boolean) => {
 
 const exportNow = async () => {
   try {
-    useEditor.getState().say(await exportBpmn())
+    const done = await exportBpmn()
+    if (!done) return
+    const { say } = useEditor.getState()
+    say(done.problems ? `${done.note} ${done.problems} ${done.problems === 1 ? 'problem' : 'problems'}: Bizagi may reject the file.` : done.note)
+    if (done.problems) useEditor.setState({ goCheck: true })
   } catch (e) {
     useEditor.getState().showError(`Not exported: ${(e as Error).message}`)
   }
@@ -113,6 +117,7 @@ export function App() {
   const hasContent = useEditor((s) => s.model.nodes.length + s.model.participants.length > 0)
   const error = useEditor((s) => s.error)
   const message = useEditor((s) => s.message)
+  const goCheck = useEditor((s) => s.goCheck)
   const help = useEditor((s) => s.help)
   const checkOpen = useEditor((s) => s.checkOpen)
   const simOpen = useSim((s) => s.open)
@@ -432,6 +437,11 @@ export function App() {
         <div className={`notice${error ? ' is-error' : ''}`} role="status" data-testid="notice">
           {error && <TriangleAlert size={14} />}
           <span>{error || message}</span>
+          {!error && goCheck && (
+            <button className="link" data-testid="notice-check" onClick={() => useEditor.setState({ checkOpen: true, message: null, goCheck: false })}>
+              Open Check
+            </button>
+          )}
           <button className="notice-close" aria-label="Close" onClick={() => useEditor.setState({ error: null, message: null })}>
             <X size={14} />
           </button>

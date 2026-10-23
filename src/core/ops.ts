@@ -7,6 +7,7 @@ import {
   POOL_HEADER,
   POOL_SIZE,
   SIZES,
+  type AnnotationSize,
   type Bounds,
   type Side,
   type EventPosition,
@@ -727,6 +728,9 @@ export type NodePatch = {
   interrupting?: boolean
   state?: string
   collapsed?: boolean
+  /** Text of an annotation: a larger size ('M' = the default) and bold, for the few labels that must be read first (days of the week). */
+  textSize?: 'M' | AnnotationSize
+  bold?: boolean
   /** Loop or multi-instance marker of a task or sub-process; 'none' removes it. */
   loop?: LoopKind | 'none'
 }
@@ -787,6 +791,11 @@ export function updateNode(m: FlowModel, id: string, patch: NodePatch): void {
     if (patch.interrupting !== undefined && n.position === 'boundary') n.interrupting = patch.interrupting
     // A start event interrupts unless marked otherwise (as BPMN XML keeps it): only "false" is stored.
     if (patch.interrupting !== undefined && n.position === 'start') n.interrupting = patch.interrupting ? undefined : false
+  } else if (n.type === 'annotation') {
+    if (patch.textSize === 'M') delete n.size
+    else if (patch.textSize) n.size = patch.textSize
+    if (patch.bold === false) delete n.bold
+    else if (patch.bold) n.bold = true
   } else if (n.type === 'dataObject' && patch.state !== undefined) n.state = patch.state.trim() || undefined
   else if (n.type === 'subProcess' && patch.collapsed !== undefined) n.collapsed = patch.collapsed
 }

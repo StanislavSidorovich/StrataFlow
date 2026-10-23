@@ -14,6 +14,8 @@ export type EventTrigger =
   | 'terminate'
   | 'link'
   | 'compensation'
+/** Text size of an annotation beyond the default; the default is not stored. */
+export type AnnotationSize = 'L' | 'XL'
 export type GatewayKind = 'exclusive' | 'parallel' | 'inclusive' | 'eventBased' | 'complex'
 /** Repeats of an activity: a loop (while a condition holds) or multi-instance, all at once (parallel) or one after another (sequential). */
 export type LoopKind = 'standard' | 'parallel' | 'sequential'
@@ -58,7 +60,7 @@ export type FlowNode = NodeBase &
     | { type: 'gateway'; kind: GatewayKind; defaultFlow?: string }
     | { type: 'dataObject'; state?: string }
     | { type: 'dataStore' }
-    | { type: 'annotation' }
+    | { type: 'annotation'; size?: AnnotationSize; bold?: boolean }
   )
 
 export interface Participant {

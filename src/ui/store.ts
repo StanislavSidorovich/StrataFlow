@@ -44,6 +44,8 @@ interface EditorState {
   error: string | null
   /** A short note for the user (saved, opened…), cleared by the next one. */
   message: string | null
+  /** The notice offers a button that opens the Check panel (set after the message, by the export warning). */
+  goCheck: boolean
   lastEdit: { key: string; at: number } | null
   /** An element whose name field should take the focus (type the name right away). */
   focusName: string | null
@@ -90,6 +92,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   linkFrom: null,
   error: null,
   message: null,
+  goCheck: false,
   lastEdit: null,
   focusName: null,
   editing: null,
@@ -158,7 +161,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   select: (selection) => set((s) => (same(s.selection, selection) ? s : { selection })),
   setTool: (tool) => set({ tool, linkFrom: null }),
   showError: (error) => set({ error }),
-  say: (message) => set({ message }),
+  say: (message) => set({ message, goCheck: false }),
 }))
 
 const same = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i])

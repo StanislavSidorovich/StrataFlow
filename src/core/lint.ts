@@ -309,7 +309,9 @@ export function lintModel(m: FlowModel, opts: LintOptions = {}): Issue[] {
     if (j.type !== 'gateway' || g.inc.get(j.id)!.length < 2) continue
     const split = matchingSplit(j.id, g, byId)
     // A loop back into a parallel join waits forever for the token that is still in the loop.
-    if (j.kind === 'parallel' && reach(g.out.get(j.id)!, (id) => g.out.get(id)!).has(j.id)) {
+    // Not when it is a fork and join inside the loop: the branches all start at the join's own split and the
+    // way back enters the loop above that split, so every iteration brings one token per branch.
+    if (j.kind === 'parallel' && reach(g.out.get(j.id)!, (id) => g.out.get(id)!).has(j.id) && !(split && forkInsideLoop(j.id, split, g))) {
       add('P07', `${cap(label(j))} is a parallel (AND) join on a loop: it waits for every branch, and the one going back never comes. A rework loop needs an exclusive (XOR) join.`, [j.id])
       continue
     }
@@ -335,7 +337,8 @@ export function lintModel(m: FlowModel, opts: LintOptions = {}): Issue[] {
   for (const n of steps) {
     const kind = isActivity(n) ? 'activity' : n.type === 'event' && n.position === 'end' ? 'end' : null
     if (!kind || !n.name.trim()) continue
-    const k = `${n.participantId ?? ''}|${kind}|${norm(n.name)}`
+    // The same step in two lanes of one pool is two roles doing the same thing, not a duplicate.
+    const k = `${n.participantId ?? ''}|${n.laneId ?? ''}|${kind}|${norm(n.name)}`
     groups.set(k, [...(groups.get(k) ?? []), n])
   }
   for (const same of groups.values())
@@ -422,6 +425,18 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 function splitKind(n: FlowNode): string | undefined {
   if (n.type === 'gateway') return n.kind
   return 'parallel'
+}
+
+/**
+ * A join and its split inside a loop are a proper fork and join when no flow of the loop enters a branch
+ * between them from outside (a way back that skips the split would bring a token that no branch waits for).
+ */
+function forkInsideLoop(joinId: string, splitId: string, g: Graph): boolean {
+  const after = reach(g.out.get(joinId)!, (id) => (id === splitId || id === joinId ? [] : g.out.get(id)!))
+  const fromSplit = reach(g.out.get(splitId)!, (id) => (id === joinId ? [] : g.out.get(id)!))
+  const toJoin = reach(g.inc.get(joinId)!, (id) => (id === splitId || id === joinId ? [] : g.inc.get(id)!))
+  for (const id of after) if (id !== splitId && id !== joinId && fromSplit.has(id) && toJoin.has(id)) return false
+  return true
 }
 
 /**

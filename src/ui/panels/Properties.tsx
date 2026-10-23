@@ -289,6 +289,21 @@ function NodeProps({ model, n }: { model: FlowModel; n: FlowNode }) {
         </Field>
       )}
 
+      {n.type === 'annotation' && (
+        <>
+          <Field label="Text size">
+            <select value={n.size ?? 'M'} onChange={(e) => patch({ textSize: e.target.value as 'M' | 'L' | 'XL' })} data-testid="annotation-size">
+              <option value="M">Normal</option>
+              <option value="L">Large</option>
+              <option value="XL">Extra large</option>
+            </select>
+          </Field>
+          <label className="check">
+            <input type="checkbox" checked={!!n.bold} onChange={(e) => patch({ bold: e.target.checked })} data-testid="annotation-bold" /> Bold
+          </label>
+        </>
+      )}
+
       {n.type === 'dataObject' && (
         <Field label="State" help="data-object">
           <input value={n.state ?? ''} placeholder="e.g. approved" onChange={(e) => apply((m) => updateNode(m, n.id, { state: e.target.value }), { coalesce: `state:${n.id}` })} />

@@ -3,6 +3,7 @@
 // Same pattern as StrataSQL's fileSave.ts: "Save as" picks the folder and name (Chrome, Edge), after which
 // "Save" writes to that file until another document is loaded; other browsers download the file.
 import { isCaseFile } from '../data/caseFile'
+import { lintModel } from '../core/lint'
 import { parseModel, serializeModel, FILE_EXTENSION } from '../core/serialize'
 import { openProcess, useDocs } from './docs'
 import { deleteHandle, getHandle, handleTabs, putHandle } from './fileStore'
@@ -99,18 +100,26 @@ function download(): string {
   return name
 }
 
-/** Export: BPMN 2.0 XML with the diagram, as a download (the writer loads on first use). */
-export async function exportBpmn(): Promise<string> {
-  const { writeBpmn } = await import('../core/bpmn/write')
+/** The rules Bizagi complains about when it opens a file: the export tells the owner before the file goes there. */
+const BIZAGI_RULES = ['P05', 'P07', 'P10']
+
+/** Export: BPMN 2.0 XML with the diagram, saved beside the process's own file (a download where there is no file dialog). */
+export async function exportBpmn(): Promise<{ note: string; problems: number } | null> {
   const { model } = useEditor.getState()
-  const name = `${fileBaseName(model.name)}.bpmn`
-  downloadText(name, await writeBpmn(model), 'application/xml')
-  return `Exported ${name}: BPMN 2.0 XML. In Bizagi Modeler use Import, BPMN; bpmn.io opens it directly.`
+  // The dialog opens first (it needs the click), the writer loads while it is open.
+  const name = await saveExport(`${fileBaseName(model.name)}.bpmn`, 'bpmn', async () => {
+    const { writeBpmn } = await import('../core/bpmn/write')
+    return new Blob([await writeBpmn(model)], { type: 'application/xml' })
+  })
+  if (!name) return null
+  const problems = lintModel(model).filter((i) => BIZAGI_RULES.includes(i.rule)).length
+  return { note: `Exported ${name}: BPMN 2.0 XML. In Bizagi Modeler use Import, BPMN; bpmn.io opens it directly.`, problems }
 }
 
 const IMAGE_KINDS = {
   png: { description: 'PNG image', accept: { 'image/png': ['.png'] } },
   svg: { description: 'SVG image', accept: { 'image/svg+xml': ['.svg'] } },
+  bpmn: { description: 'BPMN 2.0 XML', accept: { 'application/xml': ['.bpmn'] } },
 }
 
 /**
@@ -129,7 +138,9 @@ export async function saveExport(name: string, kind: keyof typeof IMAGE_KINDS, m
   }
   let file: WritableFile
   try {
-    file = await show({ suggestedName: name, types: [IMAGE_KINDS[kind]] })
+    // The dialog opens in the folder of the process's own file, so the exports end up together with it.
+    const beside = await ownFile()
+    file = await show({ suggestedName: name, types: [IMAGE_KINDS[kind]], id: 'flow-export', ...(beside ? { startIn: beside } : {}) })
   } catch (e) {
     if ((e as Error).name === 'AbortError') return null
     throw e
@@ -138,6 +149,15 @@ export async function saveExport(name: string, kind: keyof typeof IMAGE_KINDS, m
   await out.write(await make())
   await out.close()
   return file.name
+}
+
+/** The file this process was saved to or opened from, without asking the browser for write access. */
+async function ownFile(): Promise<WritableFile | null> {
+  const { doc } = useEditor.getState()
+  if (current && current.doc === doc) return current.file
+  await ready
+  const tab = useDocs.getState().active
+  return restorable.has(tab) ? ((await getHandle(tab)) ?? null) : null
 }
 
 async function write(file: WritableFile) {
