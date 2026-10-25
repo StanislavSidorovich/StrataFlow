@@ -5,6 +5,7 @@ import { fileBaseName, saveExport } from './files'
 import { useEditor } from './store'
 
 const PADDING = 32
+const MAX_SIDE = 6000
 
 // The shapes and flows are styled by CSS classes and variables; inside the exported picture those do not apply
 // to SVG parts, which then come out black or invisible. So while exporting, each SVG part carries its look inline.
@@ -42,6 +43,9 @@ export async function exportImage(format: 'png' | 'svg'): Promise<string | null>
   const { toPng, toSvg } = await import('html-to-image')
   const width = Math.ceil(b.width + PADDING * 2)
   const height = Math.ceil(b.height + PADDING * 2)
+  // Sharp enough for slides and chat (2x), but a very wide diagram is capped at about 6000 px on its long side:
+  // an 8000 px picture can stall the browser while it draws.
+  const pixelRatio = Math.min(2, Math.max(1, MAX_SIDE / Math.max(width, height)))
   const options = {
     backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--canvas-bg').trim() || '#ffffff',
     width,
@@ -52,7 +56,7 @@ export async function exportImage(format: 'png' | 'svg'): Promise<string | null>
   return saveExport(name, format, async () => {
     const restore = inlineSvgStyles(viewport)
     try {
-      const url = format === 'png' ? await toPng(viewport, { ...options, pixelRatio: 2 }) : await toSvg(viewport, options)
+      const url = format === 'png' ? await toPng(viewport, { ...options, pixelRatio }) : await toSvg(viewport, options)
       return await (await fetch(url)).blob()
     } finally {
       restore()

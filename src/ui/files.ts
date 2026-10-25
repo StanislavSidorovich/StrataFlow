@@ -7,6 +7,7 @@ import { lintModel } from '../core/lint'
 import { parseModel, serializeModel, FILE_EXTENSION } from '../core/serialize'
 import { openProcess, useDocs } from './docs'
 import { deleteHandle, getHandle, handleTabs, putHandle } from './fileStore'
+import { PREPARE_TIMEOUT_MS, slowMessage, withTimeout, writePrepared, type PreparedWritable } from './safeWrite'
 import { useEditor } from './store'
 import { useTrainer } from './trainer/trainerStore'
 
@@ -14,7 +15,8 @@ export interface WritableFile {
   name: string
   queryPermission?: (d: { mode: 'readwrite' }) => Promise<PermissionState>
   requestPermission?: (d: { mode: 'readwrite' }) => Promise<PermissionState>
-  createWritable: () => Promise<{ write: (data: string | Blob) => Promise<void>; close: () => Promise<void> }>
+  createWritable: () => Promise<PreparedWritable>
+  remove?: () => Promise<void>
 }
 type SavePicker = (opts: object) => Promise<WritableFile>
 
@@ -130,7 +132,7 @@ export async function saveExport(name: string, kind: keyof typeof IMAGE_KINDS, m
   const show = picker()
   if (!show) {
     const a = document.createElement('a')
-    a.href = URL.createObjectURL(await make())
+    a.href = URL.createObjectURL(await withTimeout(make(), PREPARE_TIMEOUT_MS, slowMessage(name, PREPARE_TIMEOUT_MS)))
     a.download = name
     a.click()
     setTimeout(() => URL.revokeObjectURL(a.href), 1000)
@@ -145,9 +147,7 @@ export async function saveExport(name: string, kind: keyof typeof IMAGE_KINDS, m
     if ((e as Error).name === 'AbortError') return null
     throw e
   }
-  const out = await file.createWritable()
-  await out.write(await make())
-  await out.close()
+  await writePrepared(file, make)
   return file.name
 }
 
