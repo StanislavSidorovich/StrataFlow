@@ -4,8 +4,9 @@
 import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, Position, useInternalNode, useStore, type Edge, type EdgeProps, type InternalNode } from '@xyflow/react'
 import type { Bounds, FlowKind, Side } from '../../core/metamodel'
 import { route, routeSides } from '../../core/routing'
+import { ChangeBadge, type ChangeMark } from './nodes'
 
-export type FlowData = { kind: FlowKind; name: string; points?: { x: number; y: number }[]; sourceSide?: Side; targetSide?: Side; isDefault?: boolean; conditional?: boolean; passed?: boolean; drop?: boolean }
+export type FlowData = { kind: FlowKind; name: string; points?: { x: number; y: number }[]; sourceSide?: Side; targetSide?: Side; isDefault?: boolean; conditional?: boolean; passed?: boolean; drop?: boolean; change?: ChangeMark }
 export type FlowEdge = Edge<FlowData, 'flow'>
 
 type Box = { x: number; y: number; w: number; h: number; pool: boolean }
@@ -91,10 +92,17 @@ export function BpmnEdge({ id, source, target, data, sourceX, sourceY, targetX, 
       <BaseEdge
         id={id}
         path={path}
-        className={`bpmn-edge bpmn-edge-${kind}${selected ? ' is-selected' : ''}${data?.passed ? ' is-passed' : ''}${data?.drop ? ' is-drop' : ''}`}
+        className={`bpmn-edge bpmn-edge-${kind}${selected ? ' is-selected' : ''}${data?.passed ? ' is-passed' : ''}${data?.drop ? ' is-drop' : ''}${data?.change ? ` chg-${data.change.status}` : ''}`}
         markerEnd={marker}
         markerStart={kind === 'message' ? 'url(#bpmn-open-circle)' : data?.isDefault ? 'url(#bpmn-default-slash)' : data?.conditional ? 'url(#bpmn-cond-diamond)' : undefined}
       />
+      {data?.change && (
+        <EdgeLabelRenderer>
+          <div className="chg-edge-badge nodrag nopan" style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY + (data.name ? 12 : 0)}px)` }}>
+            <ChangeBadge change={data.change} where="edge" />
+          </div>
+        </EdgeLabelRenderer>
+      )}
       {data?.name && (
         <EdgeLabelRenderer>
           <div className="bpmn-edge-label nodrag nopan" style={{ transform: vertical ? `translate(4px, -50%) translate(${labelX}px, ${labelY}px)` : `translate(-50%, -100%) translate(${labelX}px, ${labelY - 2}px)` }}>

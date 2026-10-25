@@ -28,11 +28,13 @@ import { useEditor } from '../store'
 import { ContextMenu } from './ContextMenu'
 import { BpmnEdge, EdgeMarkers, type FlowEdge } from './edges'
 import { FlowGrips } from './FlowGrips'
-import { BpmnShape, PoolShape, type PoolNode, type ShapeNode } from './nodes'
+import { BpmnShape, GhostShape, PoolShape, type ChangeMark, type GhostNode, type PoolNode, type ShapeNode } from './nodes'
+import { useDiff, useReviewUi } from '../panels/Changes'
+import type { ModelDiff } from '../../core/diff'
 import { registerBounds } from '../exportImage'
 import { Palette } from './Palette'
 
-type AnyNode = ShapeNode | PoolNode
+type AnyNode = ShapeNode | PoolNode | GhostNode
 
 /**
  * The line shown while a flow is dragged. From a pool's border strip it is the line the flow will have:
@@ -49,7 +51,7 @@ function ConnectionLine({ fromX, fromY, toX, toY, fromPosition, toPosition, from
   )
 }
 
-const nodeTypes = { shape: BpmnShape, pool: PoolShape }
+const nodeTypes = { shape: BpmnShape, pool: PoolShape, ghost: GhostShape }
 const edgeTypes = { flow: BpmnEdge }
 
 /** What is drawn on a page: the main process (page null) or a collapsed sub-process's steps, as in Bizagi. */
@@ -66,7 +68,43 @@ function shownOn(model: FlowModel, page: string | null): Set<string> {
 
 const RANK: Record<Severity, number> = { error: 0, warning: 1, info: 2 }
 
-function toNodes(model: FlowModel, selected: Set<string>, page: string | null, marks: Map<string, Severity> = new Map(), tokens: Set<string> = new Set()): AnyNode[] {
+/** The changes drawn on this page: by element id, a change inside a collapsed sub-process on the sub-process (its first number). */
+function changeMarks(model: FlowModel, diff: ModelDiff | null, page: string | null): Map<string, ChangeMark> {
+  const out = new Map<string, ChangeMark>()
+  if (!diff) return out
+  const shown = shownOn(model, page)
+  for (const c of diff.changes) {
+    if (!c.id) continue
+    const mark: ChangeMark = { status: c.status, n: c.n, ...(c.uncertain ? { uncertain: true } : {}) }
+    if (model.flows.some((f) => f.id === c.id)) {
+      out.set(c.id, mark)
+      continue
+    }
+    let at: string | undefined = c.id
+    while (at && !shown.has(at)) at = pageOf(model, at)
+    if (at && !out.has(at)) out.set(at, at === c.id ? mark : { ...mark, status: 'changed' })
+  }
+  return out
+}
+
+/** Removed steps of the earlier version, where they stood (only when this model is a copy of it: same drawing). */
+function ghosts(model: FlowModel, diff: ModelDiff | null, page: string | null): GhostNode[] {
+  const base = model.review?.base
+  if (!diff || !base || !diff.sameDrawing) return []
+  const out: GhostNode[] = []
+  for (const c of diff.changes) {
+    if (c.status !== 'removed' || c.kind !== 'node' || !c.baseId) continue
+    const el = base.nodes.find((n) => n.id === c.baseId)
+    const s = base.diagram.shapes[c.baseId]
+    if (!el || !s) continue
+    const bp = el.type === 'event' && el.attachedTo ? pageOf(base, el.attachedTo) : pageOf(base, el.id)
+    if ((bp ? (diff.map[bp] ?? '?') : null) !== page) continue
+    out.push({ id: `ghost:${el.id}`, type: 'ghost', position: { x: s.x, y: s.y }, width: s.width, height: s.height, data: { el, change: { status: 'removed', n: c.n } }, selectable: false, draggable: false, connectable: false, zIndex: 1 })
+  }
+  return out
+}
+
+function toNodes(model: FlowModel, selected: Set<string>, page: string | null, marks: Map<string, Severity> = new Map(), tokens: Set<string> = new Set(), changes: Map<string, ChangeMark> = new Map(), removed: GhostNode[] = []): AnyNode[] {
   const { shapes } = model.diagram
   const shown = shownOn(model, page)
   const out: AnyNode[] = []
@@ -90,24 +128,25 @@ function toNodes(model: FlowModel, selected: Set<string>, page: string | null, m
     if (!s) continue
     const lanes = model.lanes.filter((l) => l.participantId === p.id && !l.parentLaneId && shapes[l.id])
     const header = lanes.length ? Math.max(POOL_HEADER, s.width - Math.max(...lanes.map((l) => shapes[l.id].width))) : POOL_HEADER
-    out.push({ id: p.id, type: 'pool', position: { x: s.x, y: s.y }, width: s.width, height: s.height, data: { name: p.name, header, empty: !model.nodes.some((n) => n.participantId === p.id) }, dragHandle: '.bpmn-pool-header', selected: selected.has(p.id), className: 'pool-node', zIndex: 0 })
+    out.push({ id: p.id, type: 'pool', position: { x: s.x, y: s.y }, width: s.width, height: s.height, data: { name: p.name, header, empty: !model.nodes.some((n) => n.participantId === p.id), change: changes.get(p.id) }, dragHandle: '.bpmn-pool-header', selected: selected.has(p.id), className: 'pool-node', zIndex: 0 })
   }
   for (const l of model.lanes) {
     const s = shapes[l.id]
     if (!s || !shown.has(l.id)) continue
-    out.push({ id: l.id, type: 'pool', position: { x: s.x, y: s.y }, width: s.width, height: s.height, data: { name: l.name, header: POOL_HEADER, lane: true }, draggable: false, selected: selected.has(l.id), className: 'pool-node', zIndex: 0 })
+    out.push({ id: l.id, type: 'pool', position: { x: s.x, y: s.y }, width: s.width, height: s.height, data: { name: l.name, header: POOL_HEADER, lane: true, change: changes.get(l.id) }, draggable: false, selected: selected.has(l.id), className: 'pool-node', zIndex: 0 })
   }
   for (const el of model.nodes) {
     const s = shapes[el.id]
     if (!s || !shown.has(el.id)) continue
     // An expanded sub-process sits under its content.
     const z = el.type === 'event' && el.position === 'boundary' ? 4 : el.type === 'subProcess' && !el.collapsed ? 1 : 2
-    out.push({ id: el.id, type: 'shape', position: { x: s.x, y: s.y }, width: s.width, height: s.height, data: { el, issue: mark.get(el.id), token: token.has(el.id) }, selected: selected.has(el.id), zIndex: z })
+    out.push({ id: el.id, type: 'shape', position: { x: s.x, y: s.y }, width: s.width, height: s.height, data: { el, issue: mark.get(el.id), token: token.has(el.id), change: changes.get(el.id) }, selected: selected.has(el.id), zIndex: z })
   }
+  out.push(...removed)
   return out
 }
 
-function toEdges(model: FlowModel, selected: Set<string>, page: string | null, passed: Set<string> = new Set(), drop: string | null = null): FlowEdge[] {
+function toEdges(model: FlowModel, selected: Set<string>, page: string | null, passed: Set<string> = new Set(), drop: string | null = null, changes: Map<string, ChangeMark> = new Map()): FlowEdge[] {
   const byId = new Map(model.nodes.map((n) => [n.id, n]))
   const shown = shownOn(model, page)
   return model.flows.filter((f) => shown.has(f.source) && shown.has(f.target)).map((f) => {
@@ -129,6 +168,7 @@ function toEdges(model: FlowModel, selected: Set<string>, page: string | null, p
         conditional: !!f.condition && src?.type !== 'gateway',
         passed: passed.has(f.id),
         drop: f.id === drop,
+        change: changes.get(f.id),
       },
     }
   })
@@ -187,14 +227,19 @@ export function Canvas() {
   const play = useSim((s) => (s.open ? s.play : null))
   const tokens = useMemo(() => new Set(play ? [...play.tokens.map((t) => t.at), ...Object.keys(play.waiting)] : []), [play])
   const passed = useMemo(() => new Set(play?.passed ?? []), [play])
-  const [nodes, setNodes] = useState<AnyNode[]>(() => toNodes(model, selected, page, marks, tokens))
-  useEffect(() => setNodes(toNodes(model, selected, page, marks, tokens)), [model, selected, page, marks, tokens])
+  // Compared with an earlier version: the changes' numbers and colours, and ghosts of what was removed.
+  const diff = useDiff()
+  const showChanges = useReviewUi((s) => s.marks)
+  const changes = useMemo(() => (showChanges ? changeMarks(model, diff, page) : new Map<string, ChangeMark>()), [showChanges, model, diff, page])
+  const removed = useMemo(() => (showChanges ? ghosts(model, diff, page) : []), [showChanges, model, diff, page])
+  const [nodes, setNodes] = useState<AnyNode[]>(() => toNodes(model, selected, page, marks, tokens, changes, removed))
+  useEffect(() => setNodes(toNodes(model, selected, page, marks, tokens, changes, removed)), [model, selected, page, marks, tokens, changes, removed])
   // The sequence flow a shape would be inserted on if dropped (or placed by a tool) where the pointer is.
   const [dropFlow, setDropFlow] = useState<string | null>(null)
   // A flow is being dragged from a dot: the context pad steps aside (css), it would cover the target.
   const [connecting, setConnecting] = useState(false)
   useEffect(() => setDropFlow(null), [tool])
-  const edges = useMemo(() => toEdges(model, selected, page, passed, dropFlow), [model, selected, page, passed, dropFlow])
+  const edges = useMemo(() => toEdges(model, selected, page, passed, dropFlow, changes), [model, selected, page, passed, dropFlow, changes])
   const flow = useReactFlow()
   const fit = useEditor((s) => s.fit)
   useEffect(() => {
@@ -387,7 +432,7 @@ export function Canvas() {
               moveElements(m, to)
               if (on) insertOnFlow(m, on, dragged[0].id)
             })
-          else setNodes(toNodes(model, selected, page, marks))
+          else setNodes(toNodes(model, selected, page, marks, tokens, changes, removed))
         }}
         onPaneClick={(e) => {
           if (linkFrom) linkTo(e.clientX, e.clientY)
@@ -406,6 +451,7 @@ export function Canvas() {
           else if (tool.id !== 'select') place(e.clientX, e.clientY, e.shiftKey)
         }}
         onNodeDoubleClick={(e, n) => {
+          if (n.type === 'ghost') return
           // A collapsed sub-process opens its page (Bizagi: Edit Sub-Process); anything else: type its name.
           const el = nodeOf(model, n.id)
           if (el?.type === 'subProcess' && el.collapsed) useEditor.getState().openPage(el.id)
@@ -415,7 +461,7 @@ export function Canvas() {
         // A shape tool clicked on a flow places the shape there (and splits the flow).
         onEdgeClick={(e) => tool.id !== 'select' && tool.id !== 'flow' && !linkFrom && place(e.clientX, e.clientY, e.shiftKey)}
         onEdgeDoubleClick={(_, ed) => useEditor.setState({ selection: [ed.id], focusName: ed.id })}
-        onNodeContextMenu={(e, n) => openMenu(e, n.id)}
+        onNodeContextMenu={(e, n) => (n.type === 'ghost' ? e.preventDefault() : openMenu(e, n.id))}
         onEdgeContextMenu={(e, ed) => openMenu(e, ed.id)}
         onPaneContextMenu={(e) => openMenu(e, null)}
         onSelectionContextMenu={(e) => openMenu(e, useEditor.getState().selection[0] ?? null)}

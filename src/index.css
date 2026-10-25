@@ -18,6 +18,15 @@
   --error: #d0342c;
   --error-soft: #fdecea;
 
+  /* Compared models (Changes): the same colours as Quaera Model's changes; amber is the check's warning. */
+  --chg-added: #15803d;
+  --chg-added-soft: #e3f6e9;
+  --chg-changed: #7c3aed;
+  --chg-changed-soft: #efe7fd;
+  --chg-removed: #6b7385;
+  --chg-removed-soft: #eef0f3;
+  --chg-comment: #0d9488;
+  --chg-comment-soft: #e0f4f1;
   --canvas-bg: #fbfbfc;
   --shape-fill: #ffffff;
   --shape-stroke: #4b5568;
@@ -40,6 +49,14 @@
   --error: #ff7b72;
   --error-soft: #3d1c1a;
 
+  --chg-added: #4ade80;
+  --chg-added-soft: #15301f;
+  --chg-changed: #b99cff;
+  --chg-changed-soft: #2c2347;
+  --chg-removed: #98a0b3;
+  --chg-removed-soft: #262b35;
+  --chg-comment: #2dd4bf;
+  --chg-comment-soft: #12302c;
   --canvas-bg: #171a21;
   --shape-fill: #20252f;
   --shape-stroke: #a9b2c6;
@@ -1947,4 +1964,245 @@ button.link {
 /* Dragging a flow from a dot: the pad of next steps is not needed then and covers the target. */
 .canvas-wrap.is-connecting .context-pad {
   display: none;
+}
+
+/* Changes against an earlier version: numbers on the elements, colours, ghosts of what was removed. */
+.bpmn-shape.chg-added .bpmn-stroke {
+  stroke: var(--chg-added);
+  stroke-width: 2.6;
+}
+.bpmn-shape.chg-changed .bpmn-stroke {
+  stroke: var(--chg-changed);
+  stroke-width: 2.6;
+}
+.bpmn-shape.is-selected.chg-added .bpmn-stroke,
+.bpmn-shape.is-selected.chg-changed .bpmn-stroke {
+  stroke: var(--edge-selected);
+}
+.bpmn-shape.is-ghost {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.bpmn-shape.is-ghost .bpmn-stroke {
+  stroke: var(--chg-removed);
+  stroke-dasharray: 5 4;
+}
+.bpmn-shape.is-ghost .bpmn-fill,
+.bpmn-shape.is-ghost .bpmn-event-start,
+.bpmn-shape.is-ghost .bpmn-event-end {
+  fill: none;
+}
+.bpmn-shape.is-ghost .bpmn-inner-label,
+.bpmn-shape.is-ghost .bpmn-outer-label {
+  color: var(--chg-removed);
+  text-decoration: line-through;
+}
+.react-flow__node-ghost {
+  pointer-events: none !important;
+}
+.bpmn-pool.chg-added,
+.bpmn-lane.chg-added {
+  outline: 2.5px solid var(--chg-added);
+  outline-offset: -2px;
+}
+.bpmn-pool.chg-changed .bpmn-pool-header,
+.bpmn-lane.chg-changed .bpmn-pool-header {
+  box-shadow: inset 0 0 0 2.5px var(--chg-changed);
+}
+.react-flow__edge-path.bpmn-edge.chg-added {
+  stroke: var(--chg-added);
+  stroke-width: 2.4;
+}
+.react-flow__edge-path.bpmn-edge.chg-changed {
+  stroke: var(--chg-changed);
+  stroke-width: 2.4;
+}
+.chg-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--chg-changed);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1;
+  flex: none;
+}
+.chg-badge.chg-added {
+  background: var(--chg-added);
+}
+.chg-badge.chg-removed {
+  background: var(--chg-removed);
+}
+.chg-badge.chg-comment {
+  background: var(--chg-comment);
+}
+.chg-badge.is-uncertain {
+  outline: 2px dashed var(--chg-changed);
+  outline-offset: 2px;
+}
+.dark .chg-badge {
+  color: #111318;
+}
+.chg-badge.on-shape {
+  position: absolute;
+  top: -11px;
+  left: -11px;
+  z-index: 3;
+  pointer-events: auto;
+  box-shadow: 0 0 0 2px var(--canvas-bg);
+}
+.chg-badge.on-pool {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 3;
+  box-shadow: 0 0 0 2px var(--canvas-bg);
+}
+.chg-edge-badge {
+  position: absolute;
+  pointer-events: all;
+}
+.chg-edge-badge .chg-badge {
+  box-shadow: 0 0 0 2px var(--canvas-bg);
+}
+.btn .count.is-changes {
+  background: var(--chg-changed);
+}
+.dark .btn .count.is-changes {
+  color: #111318;
+}
+
+/* The Changes panel (same dock as Check). */
+.changes-panel {
+  max-height: 42%;
+}
+.chg-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.changes-panel li {
+  display: block;
+}
+.chg-row {
+  margin: 3px 0;
+  border-left: 3px solid var(--chg-changed);
+  border-radius: 4px;
+  background: var(--chg-changed-soft);
+}
+.chg-row-added {
+  border-left-color: var(--chg-added);
+  background: var(--chg-added-soft);
+}
+.chg-row-removed {
+  border-left-color: var(--chg-removed);
+  background: var(--chg-removed-soft);
+}
+.chg-row-comment {
+  border-left-color: var(--chg-comment);
+  background: var(--chg-comment-soft);
+}
+.chg-row.is-focused {
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+.chg-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding-right: 6px;
+}
+.chg-main {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  padding: 5px 8px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.chg-main .chg-badge {
+  align-self: center;
+}
+.chg-word {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--chg-changed);
+}
+.chg-word-added {
+  color: var(--chg-added);
+}
+.chg-word-removed {
+  color: var(--chg-removed);
+}
+.chg-word-comment {
+  color: var(--chg-comment);
+}
+.chg-label {
+  font-weight: 600;
+}
+.chg-row-removed .chg-label {
+  text-decoration: line-through;
+  text-decoration-color: var(--chg-removed);
+}
+.chg-details {
+  flex-basis: 100%;
+  color: var(--muted);
+  padding-left: 28px;
+}
+.chg-head .btn {
+  margin-top: 3px;
+  white-space: nowrap;
+}
+.chg-notes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 0 8px 7px 36px;
+}
+.chg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.chg-field-label {
+  font-size: 11px;
+  color: var(--muted);
+}
+.chg-field textarea {
+  resize: none;
+  min-height: 28px;
+  padding: 4px 6px;
+  border: 1px solid var(--panel-border);
+  border-radius: 5px;
+  background: var(--panel-bg);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.35;
+  overflow: hidden;
+}
+.chg-general {
+  padding: 4px 8px 6px;
+}
+.chg-empty,
+.chg-comment-hint {
+  padding: 6px 8px;
+}
+@media (max-width: 700px) {
+  .chg-notes {
+    grid-template-columns: 1fr;
+    padding-left: 8px;
+  }
 }

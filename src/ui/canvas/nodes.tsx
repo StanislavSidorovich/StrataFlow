@@ -9,11 +9,48 @@ import { rename, resizeElement, resizeLane } from '../../core/ops'
 import { useEditor } from '../store'
 import { ContextPad } from './ContextPad'
 
-export type ShapeData = { el: FlowNode; issue?: Severity; token?: boolean }
+/** A numbered change of a compared model (File → Review this model / Compare with), drawn on its element. */
+export type ChangeMark = { status: 'added' | 'changed' | 'removed' | 'comment'; n: number; uncertain?: boolean }
+export type ShapeData = { el: FlowNode; issue?: Severity; token?: boolean; change?: ChangeMark }
 /** `empty`: a pool with no steps (a black box: the contractor); its dots start message flows. */
-export type PoolData = { name: string; header: number; lane?: boolean; empty?: boolean }
+export type PoolData = { name: string; header: number; lane?: boolean; empty?: boolean; change?: ChangeMark }
+/** An element of the earlier version that is gone: drawn dashed and faded where it stood. */
+export type GhostData = { el: FlowNode; change: ChangeMark }
 export type ShapeNode = Node<ShapeData, 'shape'>
 export type PoolNode = Node<PoolData, 'pool'>
+export type GhostNode = Node<GhostData, 'ghost'>
+
+const CHANGE_WORD = { added: 'Added', changed: 'Changed', removed: 'Removed', comment: 'A comment' }
+
+/** The change's number on an element: the list under the canvas has the same number. */
+export function ChangeBadge({ change, where }: { change: ChangeMark; where: string }) {
+  return (
+    <span
+      className={`chg-badge chg-${change.status}${change.uncertain ? ' is-uncertain' : ''} on-${where}`}
+      title={`${CHANGE_WORD[change.status]}${change.uncertain ? ' (paired by its place only: the same step?)' : ''}: see number ${change.n} in the Changes panel`}
+      data-testid={`chg:${change.n}`}
+    >
+      {change.n}
+    </span>
+  )
+}
+
+export function GhostShape({ data, width = 0, height = 0 }: NodeProps<GhostNode>) {
+  const el = data.el
+  return (
+    <div className={`bpmn-shape bpmn-${el.type} is-ghost`} style={{ width, height }} data-testid={`ghost:${el.name}`} title="Removed: it was here in the earlier version">
+      <ChangeBadge change={data.change} where="shape" />
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} overflow="visible">
+        <Figure el={el} w={width} h={height} />
+      </svg>
+      {el.type === 'task' || el.type === 'subProcess' || el.type === 'annotation' ? (
+        <div className={el.type === 'annotation' ? 'bpmn-annotation-text' : 'bpmn-inner-label'}>{el.name}</div>
+      ) : (
+        el.name && <div className="bpmn-outer-label">{el.name}</div>
+      )}
+    </div>
+  )
+}
 
 const SIDES = [Position.Top, Position.Right, Position.Bottom, Position.Left]
 
@@ -31,10 +68,11 @@ const resized = (id: string) => (_: unknown, p: { x: number; y: number; width: n
 
 export function PoolShape({ id, data, width = 0, height = 0, selected }: NodeProps<PoolNode>) {
   return (
-    <div className={`${data.lane ? 'bpmn-lane' : 'bpmn-pool'}${selected ? ' is-selected' : ''}`} style={{ width, height }} data-testid={data.lane ? `lane:${data.name}` : `pool:${data.name}`}>
+    <div className={`${data.lane ? 'bpmn-lane' : 'bpmn-pool'}${selected ? ' is-selected' : ''}${data.change ? ` chg-${data.change.status}` : ''}`} style={{ width, height }} data-testid={data.lane ? `lane:${data.name}` : `pool:${data.name}`}>
       <div className="bpmn-pool-header" style={{ width: data.header }} title={data.lane ? 'Lane: click to select' : 'Pool: drag here to move, click to select'}>
         <span>{data.name}</span>
       </div>
+      {data.change && <ChangeBadge change={data.change} where="pool" />}
       {data.lane ? (
         // Always there, so the lower edge can be grabbed without selecting the lane first.
         <NodeResizeControl
@@ -121,7 +159,8 @@ export function BpmnShape({ data, width = 0, height = 0, selected }: NodeProps<S
   const el = data.el
   const editing = useEditor((s) => (s.editing?.id === el.id ? s.editing : null))
   return (
-    <div className={`bpmn-shape bpmn-${el.type}${selected ? ' is-selected' : ''}`} style={{ width, height }} data-testid={`${el.type}:${el.name}`}>
+    <div className={`bpmn-shape bpmn-${el.type}${selected ? ' is-selected' : ''}${data.change ? ` chg-${data.change.status}` : ''}`} style={{ width, height }} data-testid={`${el.type}:${el.name}`}>
+      {data.change && <ChangeBadge change={data.change} where="shape" />}
       {(el.type === 'task' || el.type === 'subProcess' || el.type === 'annotation') && (
         <NodeResizer isVisible={selected} minWidth={40} minHeight={30} lineClassName="bpmn-resize-line" handleClassName="bpmn-resize-handle" onResizeEnd={resized(el.id)} />
       )}

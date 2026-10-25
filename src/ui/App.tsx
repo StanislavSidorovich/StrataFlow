@@ -16,6 +16,7 @@ import {
   FileText,
   FilePlus2,
   FolderOpen,
+  GitCompareArrows,
   GraduationCap,
   Info,
   LayoutDashboard,
@@ -47,6 +48,8 @@ import { exportBpmn, openText, saveModel, saveModelAs } from './files'
 import { FEEDBACK_URL } from './links'
 import { Menu } from './Menu'
 import { CheckPanel, issueSummary, useIssues } from './panels/Check'
+import { ChangesButton, ChangesPanel } from './panels/Changes'
+import { compareWith, compareWithText, otherTabs, reviewThisModel, useReviewUi } from './review'
 import { HelpPanel } from './panels/Help'
 import { Properties } from './panels/Properties'
 import { SimulatePanel, useSim } from './panels/Simulate'
@@ -133,6 +136,10 @@ export function App() {
   const trainerW = useLayout((s) => s.trainerW)
   const [dark, setDark] = useState(initialDark)
   const input = useRef<HTMLInputElement>(null)
+  const compareInput = useRef<HTMLInputElement>(null)
+  const changesOpen = useReviewUi((s) => s.open)
+  const reviewed = useEditor((s) => !!s.model.review)
+  useDocs((s) => s.parked) // the "Compare with" entries list the other tabs
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark)
@@ -261,6 +268,13 @@ export function App() {
               { label: 'Export PNG', icon: <ImageIcon size={15} />, title: 'The whole diagram as a PNG picture, for slides and reports', testid: 'export-png', onPick: () => void exportPicture('png') },
               { label: 'Export SVG', icon: <ImageIcon size={15} />, title: 'The whole diagram as an SVG picture (sharp at any size)', testid: 'export-svg', onPick: () => void exportPicture('svg') },
               'sep',
+              { label: 'Review this model…', icon: <GitCompareArrows size={15} />, title: 'Correct a copy of this model (a classmate’s draft): each change is numbered on the diagram, with a note', testid: 'review-copy', onPick: reviewThisModel },
+              { label: 'Compare with a file…', icon: <GitCompareArrows size={15} />, title: 'Show what changed since another version: the file you pick (.flow.json or a Bizagi .bpmn) is the “before”, this process the “after”', testid: 'compare-file', onPick: () => compareInput.current?.click() },
+              ...otherTabs()
+                .slice(0, 4)
+                .map((t) => ({ label: `Compare with “${t.name.length > 28 ? `${t.name.slice(0, 26)}…` : t.name}”`, title: `What changed since the process in the tab “${t.name}” (the “before”)`, testid: `compare-tab:${t.name}`, onPick: () => compareWith(t.model, `“${t.name}”`) })),
+              ...(reviewed ? [{ label: 'Changes panel', title: 'The numbered changes with their notes', testid: 'changes-open', onPick: () => useReviewUi.setState({ open: true }) }] : []),
+              'sep',
               {
                 label: 'Open the example',
                 icon: <BookOpen size={15} />,
@@ -307,10 +321,23 @@ export function App() {
               e.target.value = ''
             }}
           />
+          <input
+            ref={compareInput}
+            type="file"
+            accept=".json,.bpmn,.xml"
+            hidden
+            data-testid="compare-input"
+            onChange={async (e) => {
+              const f = e.target.files?.[0]
+              if (f) await compareWithText(await f.text(), f.name)
+              e.target.value = ''
+            }}
+          />
           <button className="btn" onClick={() => void layoutNow()} title="Auto layout: steps left to right, each in its own lane (Undo puts everything back)" data-testid="auto-layout">
             <LayoutDashboard size={15} /> <span className="btn-label">Auto layout</span>
           </button>
           <CheckButton />
+          <ChangesButton />
           <button
             className={`btn${simOpen ? ' is-open' : ''}`}
             onClick={() => useSim.getState().setOpen(!simOpen)}
@@ -461,6 +488,7 @@ export function App() {
             <Canvas />
             <TrainerVeil />
             {checkOpen && <CheckPanel />}
+            {changesOpen && reviewed && <ChangesPanel />}
             {simOpen && <SimulatePanel />}
           </div>
         </ReactFlowProvider>

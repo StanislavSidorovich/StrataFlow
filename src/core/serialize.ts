@@ -1,6 +1,6 @@
 // `*.flow.json`: the model as JSON (SPEC §10). Reading checks the shape and every reference, so a
 // hand-written or generated file that would break the canvas is refused with a clear message.
-import type { FlowModel } from './metamodel'
+import type { FlowModel, Review, ReviewNote } from './metamodel'
 
 export const FILE_EXTENSION = '.flow.json'
 
@@ -66,5 +66,29 @@ export function parseModel(text: string): FlowModel {
     f.name ??= ''
     for (const end of [f.source, f.target]) if (!nodes.has(end) && !pools.has(end)) fail(`Flow ${f.id}: no element ${end}`)
   }
+  if (m.review !== undefined) m.review = parseReview(m.review, fail)
   return m
+}
+
+function parseReview(r: unknown, fail: (msg: string) => never): Review {
+  const x = r as Review
+  if (!x || typeof x !== 'object' || !x.base) fail('"review" must have the earlier version as "base"')
+  let base: FlowModel
+  try {
+    base = parseModel(JSON.stringify(x.base))
+  } catch (e) {
+    return fail(`The earlier version in "review": ${(e as Error).message}`)
+  }
+  delete base.review
+  const notes: Record<string, ReviewNote> = {}
+  for (const [k, v] of Object.entries(x.notes ?? {})) {
+    if (!v || typeof v !== 'object') continue
+    const note: ReviewNote = {}
+    if (typeof v.text === 'string' && v.text) note.text = v.text
+    if (typeof v.quote === 'string' && v.quote) note.quote = v.quote
+    if (note.text || note.quote) notes[k] = note
+  }
+  const out: Review = { base, notes }
+  if (Array.isArray(x.unpair) && x.unpair.length) out.unpair = x.unpair.filter((u) => typeof u === 'string')
+  return out
 }

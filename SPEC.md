@@ -31,6 +31,7 @@ Status: draft v0.1 (2026-10-14). Owner: Stanislav Sidorovich. Everything here ma
 3. **Trainer**: cases with levels (see §9), lessons (Learn), "My task" (own text).
 4. **Story**: a process told beat by beat for presenting and recording (see §10.1).
 5. **Simulate** (later): token play-through, then time/resource analysis for AS-IS vs TO-BE.
+6. **Compare** (v0.6.0): what changed between two versions of a process (a classmate's draft and its corrected copy, AS-IS and TO-BE, two attempts), numbered on the diagram and listed with a note and a quote from the task text per change; a review sheet to print or save as PDF. `core/diff.ts`; the earlier version is kept in the file (`review`, §10).
 
 ## 4. Scope
 
@@ -153,7 +154,7 @@ Pedagogy as in StrataSQL: worked example → completion → faded scaffolding �
 Cases live in `cases/<id>.md` (human source) and `src/data/examples/<id>.ts` (machine form). Sections: meta (id, title, difficulty, concepts), case text (verbatim), text → model mapping (phrase → element, why), reference process, key decisions and alternatives, AS-IS problems / TO-BE ideas (where relevant), hints per level, synonyms.
 
 Claude can generate files the app opens with File → Open:
-- `*.flow.json`: a model (`format: "strata-flow"`).
+- `*.flow.json`: a model (`format: "strata-flow"`). A compared model also has `review: { base, notes, unpair? }`: the earlier version (a full model without a review of its own), notes by change key (`r:<id>` an element of this model, `b:<id>` one only in the base, `general`) as `{ text?, quote? }`, and the elements the user unpaired ("Not the same"). The BPMN export leaves it out.
 - `*.flow-case.json`: a case with text, tagged phrases and reference (opens its walkthrough). The trainer keeps it in the browser under "Case files"; My task → Save as case file writes one from an own text, its tags and the current model.
 
 ```json

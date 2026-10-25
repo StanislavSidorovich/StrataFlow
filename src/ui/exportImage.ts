@@ -35,8 +35,8 @@ export function registerBounds(fn: (() => Rect) | null) {
   bounds = fn
 }
 
-/** Saves the drawing as an image. Returns the file name, or null when cancelled. */
-export async function exportImage(format: 'png' | 'svg'): Promise<string | null> {
+/** Draws the diagram as it is on the canvas (cropped, current theme) and gives back the picture's maker. */
+export async function prepareImage(format: 'png' | 'svg'): Promise<() => Promise<Blob>> {
   const b = bounds?.()
   const viewport = document.querySelector<HTMLElement>('.react-flow__viewport')
   if (!b || !viewport || b.width === 0) throw new Error('Nothing to export: draw something first')
@@ -52,8 +52,7 @@ export async function exportImage(format: 'png' | 'svg'): Promise<string | null>
     height,
     style: { width: `${width}px`, height: `${height}px`, transform: `translate(${PADDING - b.x}px, ${PADDING - b.y}px) scale(1)` },
   }
-  const name = `${fileBaseName(useEditor.getState().model.name)}.${format}`
-  return saveExport(name, format, async () => {
+  return async () => {
     const restore = inlineSvgStyles(viewport)
     try {
       const url = format === 'png' ? await toPng(viewport, { ...options, pixelRatio }) : await toSvg(viewport, options)
@@ -61,5 +60,12 @@ export async function exportImage(format: 'png' | 'svg'): Promise<string | null>
     } finally {
       restore()
     }
-  })
+  }
+}
+
+/** Saves the drawing as an image. Returns the file name, or null when cancelled. */
+export async function exportImage(format: 'png' | 'svg'): Promise<string | null> {
+  const make = await prepareImage(format)
+  const name = `${fileBaseName(useEditor.getState().model.name)}.${format}`
+  return saveExport(name, format, make)
 }

@@ -119,6 +119,23 @@ export interface FlowModel {
   flows: Flow[]
   diagram: Diagram
   sim?: SimSettings
+  /** Compared with an earlier version (her draft, the AS-IS): what changed is numbered on the canvas. */
+  review?: Review
+}
+
+/** A note on one change: what to change and why, and what the task text says about it. */
+export interface ReviewNote {
+  text?: string
+  quote?: string
+}
+
+export interface Review {
+  /** The model before: a classmate's draft, the AS-IS, an earlier version. Never has a review of its own. */
+  base: FlowModel
+  /** Notes by change key (`r:<id>` an element of this model, `b:<id>` one only in the base) and `general`. */
+  notes: Record<string, ReviewNote>
+  /** Elements of this model paired with the base by their place only, that the user says are not the same. */
+  unpair?: string[]
 }
 
 export type ElementType = FlowNode['type']
