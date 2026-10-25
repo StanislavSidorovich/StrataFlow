@@ -16,8 +16,11 @@ export interface PreparedFile {
   remove?: () => Promise<void>
 }
 
-/** How long a picture may take to draw before we give up. A big diagram needs a few seconds, not a minute. */
-export const PREPARE_TIMEOUT_MS = 60_000
+/**
+ * How long a picture may take to draw before we give up. A wide diagram took 2-3 minutes on the owner's machine
+ * (the file stays at 0 KB until the end), so the limit must be well above that.
+ */
+export const PREPARE_TIMEOUT_MS = 6 * 60_000
 
 export function withTimeout<T>(work: Promise<T>, ms: number, message: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -27,8 +30,10 @@ export function withTimeout<T>(work: Promise<T>, ms: number, message: string): P
   return Promise.race([work, late]).finally(() => clearTimeout(timer))
 }
 
+const spell = (ms: number) => (ms >= 120_000 ? `${Math.round(ms / 60_000)} minutes` : `${Math.round(ms / 1000)} s`)
+
 export const slowMessage = (name: string, ms: number) =>
-  `${name} took longer than ${Math.round(ms / 1000)} s to prepare. Close other tabs and try again; Export SVG is lighter for a big diagram.`
+  `${name} took longer than ${spell(ms)} to prepare. Close other tabs and try again; Export SVG is lighter for a big diagram.`
 
 /** Writes what `make` prepares into `file`; on any failure the file is discarded and the error passes on. */
 export async function writePrepared(file: PreparedFile, make: () => Promise<Blob>, ms = PREPARE_TIMEOUT_MS): Promise<void> {

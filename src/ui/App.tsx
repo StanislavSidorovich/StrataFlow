@@ -88,8 +88,10 @@ const exportNow = async () => {
 
 const exportPicture = async (format: 'png' | 'svg') => {
   try {
+    // The file shows 0 KB until the picture is drawn, which takes a minute or two for a wide diagram.
+    if (format === 'png') useEditor.getState().say('Drawing the picture: a wide diagram can take a minute or two. The file stays empty until it is done.')
     const name = await exportImage(format)
-    if (name) useEditor.getState().say(`Exported ${name}: the whole diagram as an image, ready for slides and reports.`)
+    useEditor.getState().say(name ? `Exported ${name}: the whole diagram as an image, ready for slides and reports.` : 'Export cancelled.')
   } catch (e) {
     useEditor.getState().showError(`Not exported: ${(e as Error).message}`)
   }
