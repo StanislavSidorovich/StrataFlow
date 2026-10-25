@@ -81,7 +81,8 @@ h1 { font-size: 20px; margin: 0 0 2px; }
 .sub { color: #5b6577; margin: 0 0 14px; }
 .bar { display: flex; gap: 8px; margin-bottom: 14px; }
 .bar button { font: inherit; padding: 6px 12px; border: 1px solid #c6ccd8; border-radius: 6px; background: #f4f6fa; cursor: pointer; }
-.diagram { width: 100%; height: auto; border: 1px solid #dfe3ea; border-radius: 6px; }
+.diagram { display: block; width: auto; max-width: 100%; max-height: 165mm; margin: 0 auto; border: 1px solid #dfe3ea; border-radius: 6px; }
+.picture { break-after: page; }
 .wait { padding: 40px; text-align: center; color: #5b6577; border: 1px dashed #c6ccd8; border-radius: 6px; }
 .overall { margin: 14px 0 0; padding: 10px 12px; border-left: 4px solid #15803d; background: #e3f6e9; }
 table { width: 100%; border-collapse: collapse; margin-top: 16px; }
@@ -118,12 +119,13 @@ export function printReview() {
     })
     .join('')
   const overall = notes.general?.text?.trim()
-  const title = `Review: ${model.name || 'process'}`
+  // A review copy is named "X (review)": the sheet says it once.
+  const title = `Review: ${(model.name || 'process').replace(/\s*\(review\)\s*$/i, '') || 'process'}`
   w.document.write(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${SHEET_CSS}</style></head><body>
 <div class="bar"><button onclick="window.print()">Print or save as PDF</button><button onclick="window.close()">Close</button></div>
 <h1>${esc(title)}</h1>
 <p class="sub">Compared with “${esc(model.review.base.name || 'the earlier version')}”: ${(['added', 'changed', 'removed'] as const).filter((s) => diff.counts[s]).map((s) => `${diff.counts[s]} ${s}`).join(', ') || 'no changes'}${diff.kept ? `, ${diff.kept} kept` : ''}. Green = added, violet = changed, grey dashed = removed; the numbers match the table.</p>
-<div id="diagram" class="wait">Drawing the diagram…</div>
+<div class="picture"><div id="diagram" class="wait">Drawing the diagram…</div></div>
 ${overall ? `<p class="overall">${para(overall)}</p>` : ''}
 <table><thead><tr><th class="n">#</th><th>What changed</th><th>Note</th><th>What the task says</th></tr></thead><tbody>${rows || '<tr><td></td><td>No changes</td><td></td><td></td></tr>'}</tbody></table>
 <p class="foot">Made with Quaera Flow, flow.quaera.app</p>
@@ -132,6 +134,12 @@ ${overall ? `<p class="overall">${para(overall)}</p>` : ''}
   // The numbers must be on the diagram for the picture.
   const marks = useReviewUi.getState().marks
   if (!marks) useReviewUi.setState({ marks: true })
+  // Numbers that read on the printed page: about 16 px there, so the wider the diagram, the bigger on the canvas.
+  const xs = Object.values(model.diagram.shapes)
+  const span = xs.length ? Math.max(...xs.map((s) => s.x + s.width)) - Math.min(...xs.map((s) => s.x)) : 1000
+  const root = document.documentElement
+  root.style.setProperty('--sheet-badge', `${Math.round(Math.min(72, Math.max(20, (span / 1000) * 17)))}px`)
+  root.classList.add('sheet-picture')
   void (async () => {
     const box = w.document.getElementById('diagram')
     try {
@@ -144,6 +152,8 @@ ${overall ? `<p class="overall">${para(overall)}</p>` : ''}
     } catch (e) {
       if (box) box.textContent = `The diagram could not be drawn: ${(e as Error).message}`
     } finally {
+      root.classList.remove('sheet-picture')
+      root.style.removeProperty('--sheet-badge')
       if (!marks) useReviewUi.setState({ marks: false })
     }
   })()

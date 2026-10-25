@@ -6,7 +6,7 @@ import type { Bounds, FlowKind, Side } from '../../core/metamodel'
 import { route, routeSides } from '../../core/routing'
 import { ChangeBadge, type ChangeMark } from './nodes'
 
-export type FlowData = { kind: FlowKind; name: string; points?: { x: number; y: number }[]; sourceSide?: Side; targetSide?: Side; isDefault?: boolean; conditional?: boolean; passed?: boolean; drop?: boolean; change?: ChangeMark }
+export type FlowData = { kind: FlowKind; name: string; points?: { x: number; y: number }[]; sourceSide?: Side; targetSide?: Side; isDefault?: boolean; conditional?: boolean; passed?: boolean; drop?: boolean; change?: ChangeMark; ghost?: boolean }
 export type FlowEdge = Edge<FlowData, 'flow'>
 
 type Box = { x: number; y: number; w: number; h: number; pool: boolean }
@@ -92,7 +92,7 @@ export function BpmnEdge({ id, source, target, data, sourceX, sourceY, targetX, 
       <BaseEdge
         id={id}
         path={path}
-        className={`bpmn-edge bpmn-edge-${kind}${selected ? ' is-selected' : ''}${data?.passed ? ' is-passed' : ''}${data?.drop ? ' is-drop' : ''}${data?.change ? ` chg-${data.change.status}` : ''}`}
+        className={`bpmn-edge bpmn-edge-${kind}${selected ? ' is-selected' : ''}${data?.passed ? ' is-passed' : ''}${data?.drop ? ' is-drop' : ''}${data?.change ? ` chg-${data.change.status}` : ''}${data?.ghost ? ' is-ghost-edge' : ''}`}
         markerEnd={marker}
         markerStart={kind === 'message' ? 'url(#bpmn-open-circle)' : data?.isDefault ? 'url(#bpmn-default-slash)' : data?.conditional ? 'url(#bpmn-cond-diamond)' : undefined}
       />

@@ -76,6 +76,10 @@ export function ChangesPanel() {
       // A removed step is drawn on the page its sub-process now has.
       const bp = pageOf(review.base, c.baseId)
       page = bp ? (diff.map[bp] ?? null) : null
+      // A removed flow is drawn on the page of the steps it joined.
+      const bf = c.kind === 'flow' ? review.base.flows.find((f) => f.id === c.baseId) : undefined
+      const at = bf && diff.map[bf.source]
+      if (at) page = pageOf(m, at) ?? null
     }
     if (page !== s.page) s.openPage(page)
     if (c.id) s.select([c.id])
@@ -83,7 +87,8 @@ export function ChangesPanel() {
     const id = canvasId(c)
     const onCanvas = id && (nodeOf(m, id) || m.participants.some((p) => p.id === id) || m.lanes.some((l) => l.id === id) || id.startsWith('ghost:'))
     const flowEnds = !onCanvas && c.id ? m.flows.find((f) => f.id === c.id) : undefined
-    const ids = onCanvas ? [id!] : flowEnds ? [flowEnds.source, flowEnds.target] : []
+    const goneFlow = !c.id && c.kind === 'flow' ? review.base.flows.find((f) => f.id === c.baseId) : undefined
+    const ids = onCanvas ? [id!] : flowEnds ? [flowEnds.source, flowEnds.target] : goneFlow ? [diff.map[goneFlow.source], diff.map[goneFlow.target]].filter(Boolean) : []
     if (ids.length) requestAnimationFrame(() => void flow.fitView({ nodes: ids.map((x) => ({ id: x })), maxZoom: 1.2, padding: 0.4, duration: 300 }))
   }
   // Only a click on "+ Note" takes the focus: selecting the element on the canvas must leave it there (typing a name).

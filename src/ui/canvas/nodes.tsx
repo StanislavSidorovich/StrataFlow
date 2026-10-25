@@ -44,7 +44,7 @@ export function GhostShape({ data, width = 0, height = 0 }: NodeProps<GhostNode>
         <Figure el={el} w={width} h={height} />
       </svg>
       {el.type === 'task' || el.type === 'subProcess' || el.type === 'annotation' ? (
-        <div className={el.type === 'annotation' ? 'bpmn-annotation-text' : 'bpmn-inner-label'}>{el.name}</div>
+        <div className={el.type === 'annotation' ? 'bpmn-annotation-text' : `bpmn-inner-label${el.type === 'subProcess' && !el.collapsed ? ' is-title' : ''}`}>{el.name}</div>
       ) : (
         el.name && <div className="bpmn-outer-label">{el.name}</div>
       )}
@@ -175,7 +175,7 @@ export function BpmnShape({ data, width = 0, height = 0, selected }: NodeProps<S
         <Figure el={el} w={width} h={height} />
       </svg>
       {el.type === 'task' || el.type === 'subProcess' || el.type === 'annotation' ? (
-        <div className={el.type === 'annotation' ? `bpmn-annotation-text${el.size ? ` size-${el.size}` : ''}${el.bold ? ' is-bold' : ''}` : 'bpmn-inner-label'}>
+        <div className={el.type === 'annotation' ? `bpmn-annotation-text${el.size ? ` size-${el.size}` : ''}${el.bold ? ' is-bold' : ''}` : `bpmn-inner-label${el.type === 'subProcess' && !el.collapsed ? ' is-title' : ''}`}>
           {editing ? <NameEditor id={el.id} name={el.name} caret={editing.caret} /> : el.name}
         </div>
       ) : editing ? (

@@ -1077,6 +1077,12 @@ h2.with-help {
   line-height: 1.2;
   overflow: hidden;
 }
+/* An expanded sub-process holds its steps: its name is the title at the top of the box, as in Bizagi. */
+.bpmn-inner-label.is-title {
+  inset: 4px 6px auto;
+  align-items: flex-start;
+  font-weight: 600;
+}
 .bpmn-outer-label {
   position: absolute;
   top: calc(100% + 3px);
@@ -2017,6 +2023,13 @@ button.link {
   stroke: var(--chg-changed);
   stroke-width: 2.4;
 }
+.react-flow__edge-path.bpmn-edge.is-ghost-edge {
+  stroke: var(--chg-removed);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  opacity: 0.75;
+  pointer-events: none;
+}
 .chg-badge {
   display: inline-flex;
   align-items: center;
@@ -2047,6 +2060,24 @@ button.link {
 }
 .dark .chg-badge {
   color: #111318;
+}
+/* While the review sheet's picture is drawn: numbers sized so that they read when the whole diagram is printed on one page. */
+.sheet-picture .chg-badge {
+  --b: var(--sheet-badge, 20px);
+  min-width: var(--b);
+  height: var(--b);
+  border-radius: calc(var(--b) / 2);
+  font-size: calc(var(--b) * 0.6);
+  padding: 0 calc(var(--b) * 0.25);
+}
+.sheet-picture .chg-badge.on-shape {
+  top: calc(var(--b) * -0.5);
+  left: calc(var(--b) * -0.5);
+}
+.sheet-picture .bpmn-edge.chg-removed,
+.sheet-picture .bpmn-edge.chg-added,
+.sheet-picture .bpmn-edge.chg-changed {
+  stroke-width: 3.2;
 }
 .chg-badge.on-shape {
   position: absolute;

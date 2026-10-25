@@ -102,10 +102,64 @@ describe('a copy edited in Flow', () => {
     connect(m, stamp, rec)
     connect(m, rec, hand)
     expect(lines(diffModels(base, m))).toEqual([
-      '1 changed “Stamp due date”: Now after “Fetch book” (was after “Record loan”)',
-      '2 changed “Record loan”: Now after “Stamp due date” (was after “Fetch book”)',
-      '3 changed “Hand over book”: Now after “Record loan” (was after “Stamp due date”)',
+      '1 removed Flow from “Fetch book” to “Record loan”: ',
+      '2 changed “Stamp due date”: Now after “Fetch book” (was after “Record loan”)',
+      '3 removed Flow from “Record loan” to “Stamp due date”: ',
+      '4 removed Flow from “Stamp due date” to “Hand over book”: ',
+      '5 changed “Record loan”: Now after “Stamp due date” (was after “Fetch book”)',
+      '6 changed “Hand over book”: Now after “Record loan” (was after “Stamp due date”)',
     ])
+  })
+
+  it('a removed sequence flow between steps that stay is listed; one with a removed step or an inserted step is not', () => {
+    const base = library.reference()
+    const m = copy(base)
+    const rec = idOf(m, 'Record loan')
+    const hand = idOf(m, 'Hand over book')
+    const stamp = idOf(m, 'Stamp due date')
+    const gone = flowBetween(m, stamp, hand)
+    deleteElements(m, [gone])
+    connect(m, rec, hand)
+    const d = diffModels(base, m)
+    const f = d.changes.find((c) => c.kind === 'flow')!
+    expect(f).toMatchObject({ status: 'removed', baseId: gone, label: 'Flow from “Stamp due date” to “Hand over book”' })
+    expect(f.id).toBeUndefined()
+    expect(d.counts.removed).toBe(1)
+  })
+
+  it('"was after" names the direct steps before, not those behind a removed step, and never the container', () => {
+    const base = library.reference()
+    const m = copy(base)
+    const rec = idOf(m, 'Record loan')
+    const stamp = idOf(m, 'Stamp due date')
+    const hand = idOf(m, 'Hand over book')
+    // Stamp is removed and Hand over now follows Record loan: it was after Stamp, not after Record loan.
+    deleteElements(m, [stamp])
+    connect(m, rec, hand)
+    const d = diffModels(base, m)
+    expect(d.changes.find((c) => c.id === hand)).toBeUndefined()
+    expect(lines(d)).toEqual(['1 removed “Stamp due date”: Task (was in lane “Front desk”, after “Record loan”)'])
+  })
+
+  it('"was after" says the removed step it directly followed', () => {
+    const base = library.reference()
+    const m = copy(base)
+    const fetch = idOf(m, 'Fetch book')
+    const stamp = idOf(m, 'Stamp due date')
+    const hand = idOf(m, 'Hand over book')
+    deleteElements(m, [stamp])
+    connect(m, fetch, hand)
+    expect(lines(diffModels(base, m)).find((l) => l.includes('changed “Hand over book”'))).toBe('2 changed “Hand over book”: Now after “Fetch book” (was after “Stamp due date”)')
+  })
+
+  it('an unnamed sub-process is told by its lane', () => {
+    const base = library.reference()
+    const m = copy(base)
+    const sub = addNode(m, { type: 'subProcess' }, { x: 900, y: 60 })
+    const lane = m.lanes.find((l) => l.name === 'Front desk')!
+    sub.laneId = lane.id
+    const d = diffModels(base, m)
+    expect(d.changes[0].label).toBe('Unnamed sub-process in lane “Front desk”')
   })
 
   it('a step moved to another lane, a flow label, a task type', () => {

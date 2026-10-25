@@ -3,7 +3,7 @@
 // with a finger) or change the type (the wrench opens the "change type" part of the right-click menu, for
 // touch screens and for people who do not know about right-click). A new step is selected with its name
 // field focused.
-import { NodeToolbar, Position } from '@xyflow/react'
+import { NodeToolbar, Position, useStore } from '@xyflow/react'
 import { MoveUpRight, Trash2, Wrench } from 'lucide-react'
 import type { FlowNode } from '../../core/metamodel'
 import { addBoundaryEvent, appendNode, deleteElements, type NodeSpec } from '../../core/ops'
@@ -18,10 +18,37 @@ const APPEND: { icon: IconName; spec: NodeSpec; title: string }[] = [
   { icon: 'end', spec: { type: 'event', position: 'end' }, title: 'Append an end event' },
 ]
 
+// The pad keeps its screen size while the diagram zooms out, so at a small zoom it lies over the next shapes and a
+// click meant for one of them lands on a pad button (an appended gateway). Its room, in screen pixels.
+const PAD_W = 96
+const PAD_H = 170
+
 export function ContextPad({ el }: { el: FlowNode }) {
   const only = useEditor((s) => s.selection.length === 1 && s.selection[0] === el.id)
   const linking = useEditor((s) => s.linkFrom === el.id)
-  if (!only) return null
+  // Another shape under the pad's place: the pad stays away (zoom in to use it).
+  const covers = useStore((s) => {
+    if (!only) return false
+    const me = s.nodeLookup.get(el.id)
+    if (!me) return false
+    const z = s.transform[2]
+    const { x, y } = me.internals.positionAbsolute
+    const w = me.measured.width ?? me.width ?? 0
+    const h = me.measured.height ?? me.height ?? 0
+    const x0 = x + w + 10 / z
+    const x1 = x0 + PAD_W / z
+    const y1 = y + PAD_H / z
+    for (const n of s.nodeLookup.values()) {
+      if (n.id === el.id || n.type !== 'shape') continue
+      const p = n.internals.positionAbsolute
+      const nw = n.measured.width ?? n.width ?? 0
+      const nh = n.measured.height ?? n.height ?? 0
+      if (p.x <= x && p.y <= y && p.x + nw >= x + w && p.y + nh >= y + h) continue // the sub-process it sits in
+      if (p.x < x1 && p.x + nw > x0 && p.y < y1 && p.y + nh > y) return true
+    }
+    return false
+  })
+  if (!only || covers) return null
   const canAppend = !(el.type === 'event' && el.position === 'end') && el.type !== 'dataObject' && el.type !== 'dataStore' && el.type !== 'annotation'
   const canCarry = el.type === 'task' || el.type === 'subProcess'
 

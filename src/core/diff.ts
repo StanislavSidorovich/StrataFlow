@@ -283,9 +283,15 @@ export function diffModels(base: FlowModel, rev: FlowModel, opts: DiffOptions = 
   const unit = rev.sim?.unit ?? base.sim?.unit ?? 'h'
   const laneName = (m: FlowModel, id?: string) => (id ? m.lanes.find((l) => l.id === id)?.name : undefined)
   const poolName = (m: FlowModel, id?: string) => (id ? m.participants.find((p) => p.id === id)?.name : undefined)
+  /** A node by name; an unnamed sub-process says where it is (several can look alike). */
+  const L = (m: FlowModel, n: FlowNode) => {
+    if (n.type !== 'subProcess' || n.name.trim()) return nodeLabel(n)
+    const where = laneName(m, n.laneId) ? ` in lane ${q(laneName(m, n.laneId)!)}` : poolName(m, n.participantId) ? ` in pool ${q(poolName(m, n.participantId)!)}` : ''
+    return `Unnamed sub-process${where}`
+  }
   const endName = (m: FlowModel, id: string) => {
     const n = m.nodes.find((x) => x.id === id)
-    if (n) return nodeLabel(n)
+    if (n) return L(m, n)
     const p = m.participants.find((x) => x.id === id)
     return p ? `pool ${q(p.name || 'without a name')}` : '?'
   }
@@ -293,7 +299,7 @@ export function diffModels(base: FlowModel, rev: FlowModel, opts: DiffOptions = 
     const lane = laneName(m, n.laneId)
     const pool = poolName(m, n.participantId)
     const parent = n.parentId ? m.nodes.find((x) => x.id === n.parentId) : undefined
-    return [lane ? `lane ${q(lane)}` : pool ? `pool ${q(pool)}` : '', parent ? `inside ${nodeLabel(parent)}` : ''].filter(Boolean).join(', ')
+    return [lane ? `lane ${q(lane)}` : pool ? `pool ${q(pool)}` : '', parent ? `inside ${L(m, parent)}` : ''].filter(Boolean).join(', ')
   }
 
   // --- pools and lanes
@@ -319,14 +325,19 @@ export function diffModels(base: FlowModel, rev: FlowModel, opts: DiffOptions = 
   for (const l of base.lanes) if (!map.has(l.id)) put({ key: `b:${l.id}`, status: 'removed', kind: 'lane', baseId: l.id, label: `Lane ${q(l.name || 'without a name')}`, details: ['No longer drawn'] })
 
   // --- nodes
-  const stepsBefore = (m: Links, id: string, through: Set<string>) => [...m.before(id, through)]
+  /** The steps right before a node (never the sub-process it sits in). */
+  const stepsBefore = (m: Links, id: string, through: Set<string>) => {
+    const inside = new Set<string>()
+    for (let p = m.byId.get(id)?.parentId; p && !inside.has(p); p = m.byId.get(p)?.parentId) inside.add(p)
+    return [...m.before(id, through)].filter((x) => !inside.has(x))
+  }
   for (const r of rev.nodes) {
     const key = `r:${r.id}`
     if (added.has(r.id)) {
-      const before = stepsBefore(R, r.id, added).map((x) => nodeLabel(rNode(x)!))
+      const before = stepsBefore(R, r.id, added).map((x) => L(rev, rNode(x)!))
       const host = r.type === 'event' && r.attachedTo ? rNode(r.attachedTo) : undefined
-      const at = [where(rev, r), host ? `on ${nodeLabel(host)}` : before.length ? `after ${list(before)}` : ''].filter(Boolean).join(', ')
-      put({ key, status: 'added', kind: 'node', id: r.id, label: nodeLabel(r), details: [`${cap(kindWords(r))}${at ? ` in ${at}` : ''}`.replace(' in on ', ' on ').replace(' in after ', ' after ')] })
+      const at = [where(rev, r), host ? `on ${L(rev, host)}` : before.length ? `after ${list(before)}` : ''].filter(Boolean).join(', ')
+      put({ key, status: 'added', kind: 'node', id: r.id, label: L(rev, r), details: [`${cap(kindWords(r))}${at ? ` in ${at}` : ''}`.replace(' in on ', ' on ').replace(' in after ', ' after ')] })
       continue
     }
     const b = bNode(back.get(r.id)!)!
@@ -338,30 +349,30 @@ export function diffModels(base: FlowModel, rev: FlowModel, opts: DiffOptions = 
       d.push(`Moved from pool ${q(poolName(base, b.participantId) ?? '?')} to ${q(poolName(rev, r.participantId) ?? '?')}`)
     const wantParent = b.parentId ? map.get(b.parentId) : undefined
     if (wantParent !== r.parentId)
-      d.push(r.parentId ? `Moved into ${nodeLabel(rNode(r.parentId)!)}` : `Moved out of ${nodeLabel(bNode(b.parentId!)!)}`)
+      d.push(r.parentId ? `Moved into ${L(rev, rNode(r.parentId)!)}` : `Moved out of ${L(base, bNode(b.parentId!)!)}`)
     if (b.type === 'event' && r.type === 'event' && (b.attachedTo ? map.get(b.attachedTo) : undefined) !== r.attachedTo)
-      d.push(r.attachedTo ? `Now on ${nodeLabel(rNode(r.attachedTo)!)}${b.attachedTo ? ` (was on ${nodeLabel(bNode(b.attachedTo)!)})` : ''}` : 'No longer on the border of an activity')
+      d.push(r.attachedTo ? `Now on ${L(rev, rNode(r.attachedTo)!)}${b.attachedTo ? ` (was on ${L(base, bNode(b.attachedTo)!)})` : ''}` : 'No longer on the border of an activity')
     // What comes before it: the order of the steps.
     if (!isArtifact(r) && r.type !== 'gateway' && !(r.type === 'event' && r.attachedTo)) {
       const was = stepsBefore(B, b.id, removed)
       const now = stepsBefore(R, r.id, added)
       const wasMapped = new Set(was.map((x) => map.get(x) ?? `b:${x}`))
       if (was.length !== now.length || now.some((x) => !wasMapped.has(x))) {
-        const nowNames = now.map((x) => nodeLabel(rNode(x)!))
-        const wasNames = was.map((x) => nodeLabel(bNode(x)!))
+        const nowNames = now.map((x) => L(rev, rNode(x)!))
+        const wasNames = stepsBefore(B, b.id, new Set()).map((x) => L(base, bNode(x)!))
         d.push(now.length ? `Now after ${list(nowNames)}${was.length ? ` (was after ${list(wasNames)})` : ''}` : `Nothing leads to it now (was after ${list(wasNames)})`)
       }
     }
     const fig = figureDetails(b, r, unit)
     d.push(...fig)
-    if (d.length) put({ key, status: 'changed', kind: 'node', id: r.id, baseId: b.id, label: nodeLabel(r), details: d, ...(uncertain.has(r.id) ? { uncertain: true } : {}) })
+    if (d.length) put({ key, status: 'changed', kind: 'node', id: r.id, baseId: b.id, label: L(rev, r), details: d, ...(uncertain.has(r.id) ? { uncertain: true } : {}) })
   }
   for (const b of base.nodes) {
     if (!removed.has(b.id)) continue
-    const before = stepsBefore(B, b.id, removed).map((x) => nodeLabel(bNode(x)!))
+    const before = stepsBefore(B, b.id, new Set()).map((x) => L(base, bNode(x)!))
     const host = b.type === 'event' && b.attachedTo ? bNode(b.attachedTo) : undefined
-    const at = [where(base, b), host ? `on ${nodeLabel(host)}` : before.length ? `after ${list(before)}` : ''].filter(Boolean).join(', ')
-    put({ key: `b:${b.id}`, status: 'removed', kind: 'node', baseId: b.id, label: nodeLabel(b), details: [`${cap(kindWords(b))}${at ? ` (was in ${at})` : ''}`.replace('was in on ', 'was on ').replace('was in after ', 'was after ')] })
+    const at = [where(base, b), host ? `on ${L(base, host)}` : before.length ? `after ${list(before)}` : ''].filter(Boolean).join(', ')
+    put({ key: `b:${b.id}`, status: 'removed', kind: 'node', baseId: b.id, label: L(base, b), details: [`${cap(kindWords(b))}${at ? ` (was in ${at})` : ''}`.replace('was in on ', 'was on ').replace('was in after ', 'was after ')] })
   }
 
   // --- flows: labels, conditions, defaults, shares; messages; data links
@@ -388,7 +399,7 @@ export function diffModels(base: FlowModel, rev: FlowModel, opts: DiffOptions = 
         // A data link or a note's line between elements that were there: a change of the data or note.
         const art = [f.source, f.target].find((x) => rNode(x) && isArtifact(rNode(x)!)) ?? f.source
         const to = art === f.source ? f.target : f.source
-        put({ key: `r:${art}`, status: 'changed', kind: 'node', id: art, baseId: back.get(art), label: nodeLabel(rNode(art)!), details: [`Now linked to ${endName(rev, to)}`] })
+        put({ key: `r:${art}`, status: 'changed', kind: 'node', id: art, baseId: back.get(art), label: L(rev, rNode(art)!), details: [`Now linked to ${endName(rev, to)}`] })
       }
       continue
     }
@@ -403,7 +414,23 @@ export function diffModels(base: FlowModel, rev: FlowModel, opts: DiffOptions = 
       if (!near(bf.probability, f.probability)) d.push(`Share ${pct(bf.probability)} → ${pct(f.probability)}`)
     if (d.length) put({ key: `r:${f.id}`, status: 'changed', kind: 'flow', id: f.id, baseId: bf.id, label, details: d })
   }
+  /** Does the flow now run through added steps only (a step inserted in it)? Then the added step says so. */
+  const detoured = (from: string | undefined, to: string | undefined) => {
+    if (!from || !to) return false
+    const seen = new Set<string>()
+    const stack = [from]
+    while (stack.length) {
+      for (const f of R.out.get(stack.pop()!) ?? []) {
+        if (f.target === to) return true
+        if (added.has(f.target) && !seen.has(f.target)) (seen.add(f.target), stack.push(f.target))
+      }
+    }
+    return false
+  }
   for (const f of base.flows) {
+    // A sequence flow that is gone between two steps that stay (one that went with a removed step is part of its change).
+    if (f.kind === 'sequence' && !map.has(f.id) && !removed.has(f.source) && !removed.has(f.target) && !detoured(map.get(f.source), map.get(f.target)))
+      put({ key: `b:${f.id}`, status: 'removed', kind: 'flow', baseId: f.id, label: `Flow from ${endName(base, f.source)} to ${endName(base, f.target)}`, details: [] })
     if (map.has(f.id) || f.kind === 'sequence') continue
     const ride = [f.source, f.target].find((x) => removed.has(x))
     const other = ride === f.source ? endName(base, f.target) : endName(base, f.source)
@@ -413,7 +440,7 @@ export function diffModels(base: FlowModel, rev: FlowModel, opts: DiffOptions = 
       const art = [f.source, f.target].find((x) => bNode(x) && isArtifact(bNode(x)!)) ?? f.source
       const to = art === f.source ? f.target : f.source
       const r = map.get(art)
-      if (r) put({ key: `r:${r}`, status: 'changed', kind: 'node', id: r, baseId: art, label: nodeLabel(rNode(r)!), details: [`No longer linked to ${endName(base, to)}`] })
+      if (r) put({ key: `r:${r}`, status: 'changed', kind: 'node', id: r, baseId: art, label: L(rev, rNode(r)!), details: [`No longer linked to ${endName(base, to)}`] })
     }
   }
 
@@ -425,7 +452,7 @@ export function diffModels(base: FlowModel, rev: FlowModel, opts: DiffOptions = 
     const p = rev.participants.find((x) => x.id === id)
     const l = rev.lanes.find((x) => x.id === id)
     const f = rev.flows.find((x) => x.id === id)
-    const label = n ? nodeLabel(n) : p ? `Pool ${q(p.name)}` : l ? `Lane ${q(l.name)}` : f ? `${endName(rev, f.source)} → ${endName(rev, f.target)}` : null
+    const label = n ? L(rev, n) : p ? `Pool ${q(p.name)}` : l ? `Lane ${q(l.name)}` : f ? `${endName(rev, f.source)} → ${endName(rev, f.target)}` : null
     if (label) put({ key: k, status: 'comment', kind: n ? 'node' : p ? 'pool' : l ? 'lane' : 'flow', id, baseId: back.get(id), label, details: [] })
   }
 

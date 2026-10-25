@@ -17,7 +17,7 @@ import {
   type NodeChange,
 } from '@xyflow/react'
 import { ArrowLeft, Redo2, Undo2 } from 'lucide-react'
-import type { FlowModel, Point, Side } from '../../core/metamodel'
+import type { Bounds, FlowModel, Point, Side } from '../../core/metamodel'
 import { nearestSide } from '../../core/routing'
 import { POOL_HEADER } from '../../core/metamodel'
 import { addLane, addNode, addPool, connect, flowUnder, insertOnFlow, ModelError, moveElements, nodeOf, pageOf, snapToNeighbours, withDescendants } from '../../core/ops'
@@ -104,6 +104,26 @@ function ghosts(model: FlowModel, diff: ModelDiff | null, page: string | null): 
   return out
 }
 
+/** Sequence flows of the earlier version that are gone, dashed and grey between the steps that stay. */
+function ghostEdges(model: FlowModel, diff: ModelDiff | null, page: string | null): FlowEdge[] {
+  const base = model.review?.base
+  if (!diff || !base) return []
+  const shown = shownOn(model, page)
+  const same = (a: Bounds | undefined, b: Bounds | undefined) => !!a && !!b && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
+  const out: FlowEdge[] = []
+  for (const c of diff.changes) {
+    if (c.status !== 'removed' || c.kind !== 'flow' || !c.baseId) continue
+    const bf = base.flows.find((f) => f.id === c.baseId)
+    const source = bf && diff.map[bf.source]
+    const target = bf && diff.map[bf.target]
+    if (!bf || !source || !target || !shown.has(source) || !shown.has(target)) continue
+    // Where it ran, when both ends still stand where they stood; else routed like any new flow.
+    const stays = same(base.diagram.shapes[bf.source], model.diagram.shapes[source]) && same(base.diagram.shapes[bf.target], model.diagram.shapes[target])
+    out.push({ id: `ghost:${bf.id}`, type: 'flow', source, target, selectable: false, focusable: false, zIndex: 2, data: { kind: 'sequence', name: bf.name, points: stays ? base.diagram.edges[bf.id] : undefined, ghost: true, change: { status: 'removed', n: c.n } } })
+  }
+  return out
+}
+
 function toNodes(model: FlowModel, selected: Set<string>, page: string | null, marks: Map<string, Severity> = new Map(), tokens: Set<string> = new Set(), changes: Map<string, ChangeMark> = new Map(), removed: GhostNode[] = []): AnyNode[] {
   const { shapes } = model.diagram
   const shown = shownOn(model, page)
@@ -146,10 +166,10 @@ function toNodes(model: FlowModel, selected: Set<string>, page: string | null, m
   return out
 }
 
-function toEdges(model: FlowModel, selected: Set<string>, page: string | null, passed: Set<string> = new Set(), drop: string | null = null, changes: Map<string, ChangeMark> = new Map()): FlowEdge[] {
+function toEdges(model: FlowModel, selected: Set<string>, page: string | null, passed: Set<string> = new Set(), drop: string | null = null, changes: Map<string, ChangeMark> = new Map(), removed: FlowEdge[] = []): FlowEdge[] {
   const byId = new Map(model.nodes.map((n) => [n.id, n]))
   const shown = shownOn(model, page)
-  return model.flows.filter((f) => shown.has(f.source) && shown.has(f.target)).map((f) => {
+  const real: FlowEdge[] = model.flows.filter((f) => shown.has(f.source) && shown.has(f.target)).map((f) => {
     const src = byId.get(f.source)
     return {
       id: f.id,
@@ -172,6 +192,7 @@ function toEdges(model: FlowModel, selected: Set<string>, page: string | null, p
       },
     }
   })
+  return [...real, ...removed]
 }
 
 /** What moves along with a dragged element: a pool's lanes and content, a task's boundary events, a sub-process's content. */
@@ -232,6 +253,7 @@ export function Canvas() {
   const showChanges = useReviewUi((s) => s.marks)
   const changes = useMemo(() => (showChanges ? changeMarks(model, diff, page) : new Map<string, ChangeMark>()), [showChanges, model, diff, page])
   const removed = useMemo(() => (showChanges ? ghosts(model, diff, page) : []), [showChanges, model, diff, page])
+  const removedFlows = useMemo(() => (showChanges ? ghostEdges(model, diff, page) : []), [showChanges, model, diff, page])
   const [nodes, setNodes] = useState<AnyNode[]>(() => toNodes(model, selected, page, marks, tokens, changes, removed))
   useEffect(() => setNodes(toNodes(model, selected, page, marks, tokens, changes, removed)), [model, selected, page, marks, tokens, changes, removed])
   // The sequence flow a shape would be inserted on if dropped (or placed by a tool) where the pointer is.
@@ -239,7 +261,7 @@ export function Canvas() {
   // A flow is being dragged from a dot: the context pad steps aside (css), it would cover the target.
   const [connecting, setConnecting] = useState(false)
   useEffect(() => setDropFlow(null), [tool])
-  const edges = useMemo(() => toEdges(model, selected, page, passed, dropFlow, changes), [model, selected, page, passed, dropFlow, changes])
+  const edges = useMemo(() => toEdges(model, selected, page, passed, dropFlow, changes, removedFlows), [model, selected, page, passed, dropFlow, changes, removedFlows])
   const flow = useReactFlow()
   const fit = useEditor((s) => s.fit)
   useEffect(() => {
