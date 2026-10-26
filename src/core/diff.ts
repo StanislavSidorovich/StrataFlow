@@ -9,7 +9,7 @@
 // Sequence flows are not listed one by one: a step that now comes after another step is one change of that
 // step ("now after Transfer funds, was after Approve claim"); flows to an added step come with that step.
 import { compareModels, nameSimilarity } from './compare'
-import { isArtifact, type EventTrigger, type Flow, type FlowModel, type FlowNode, type GatewayKind, type LoopKind, type TaskKind } from './metamodel'
+import { isArtifact, type ReviewFix, type ReviewNote, type EventTrigger, type Flow, type FlowModel, type FlowNode, type GatewayKind, type LoopKind, type TaskKind } from './metamodel'
 
 export type ChangeStatus = 'added' | 'removed' | 'changed' | 'comment'
 export type ChangeKind = 'pool' | 'lane' | 'node' | 'flow'
@@ -29,8 +29,18 @@ export interface Change {
   details: string[]
   /** Paired with the base by its place only and named otherwise: the same step in other words, or not? */
   uncertain?: boolean
-  /** 1, 2, 3… in the order the process reads. */
+  /** The number on the canvas and in the list: its fix's, else after the fixes in the order the process reads. */
   n: number
+  /** The fix it belongs to. */
+  fix?: string
+}
+
+/** A fix of the review with its changes as they are now (`gone`: keys no longer changed, kept for an undo). */
+export interface DiffFix {
+  id: string
+  n: number
+  changes: Change[]
+  gone: string[]
 }
 
 export interface ModelDiff {
@@ -40,6 +50,8 @@ export interface ModelDiff {
   /** The revised model is a copy of the base (ids pair them): the base's coordinates are this drawing's too. */
   sameDrawing: boolean
   counts: Record<'added' | 'removed' | 'changed', number>
+  /** The review's fixes, numbered 1, 2, 3… in their order. */
+  fixes: DiffFix[]
   /** Elements of the base still there unchanged. */
   kept: number
 }
@@ -49,6 +61,8 @@ export interface DiffOptions {
   unpair?: string[]
   /** Element ids (revised: `r:`, base: `b:`) with a note: an unchanged one is listed as a comment. */
   notes?: Iterable<string>
+  /** The reviewer's fixes, in order: their changes take their number (and an unchanged element in one is a comment). */
+  fixes?: { id: string; keys: string[] }[]
 }
 
 // ---------------------------------------------------------------- words
@@ -445,7 +459,7 @@ export function diffModels(base: FlowModel, rev: FlowModel, opts: DiffOptions = 
   }
 
   // --- notes on elements that did not change: comments
-  for (const k of opts.notes ?? []) {
+  for (const k of [...(opts.notes ?? []), ...(opts.fixes ?? []).flatMap((f) => f.keys)]) {
     if (byKey.has(k) || !k.startsWith('r:')) continue
     const id = k.slice(2)
     const n = rNode(id)
@@ -479,12 +493,20 @@ export function diffModels(base: FlowModel, rev: FlowModel, opts: DiffOptions = 
     return c.id ? (nodeRank(c.id) ?? 1e6) : baseRank(c.baseId!)
   }
   const ranked = changes.map((c, i) => ({ c, r: rank(c), i })).sort((x, y) => x.r - y.r || x.i - y.i)
-  const numbered = ranked.map(({ c }, i) => ({ ...c, n: i + 1 }))
+  // A fix's changes carry its number (its place in the list); the rest follow, in reading order.
+  const fixList = opts.fixes ?? []
+  const fixOf = new Map<string, number>()
+  fixList.forEach((f, i) => f.keys.forEach((k) => fixOf.has(k) || fixOf.set(k, i)))
+  let next = fixList.length
+  const numbered: Change[] = ranked
+    .map(({ c }) => (fixOf.has(c.key) ? { ...c, n: fixOf.get(c.key)! + 1, fix: fixList[fixOf.get(c.key)!].id } : { ...c, n: ++next }))
+    .sort((x, y) => x.n - y.n)
+  const fixes = fixList.map((f, i) => ({ id: f.id, n: i + 1, changes: numbered.filter((c) => c.fix === f.id), gone: f.keys.filter((k) => !byKey.has(k)) }))
   const counts = { added: 0, removed: 0, changed: 0 }
   for (const c of numbered) if (c.status !== 'comment') counts[c.status]++
   const touched = new Set(numbered.filter((c) => c.status !== 'comment' && c.baseId).map((c) => c.baseId))
   const kept = [...base.nodes, ...base.participants, ...base.lanes].filter((x) => map.has(x.id) && !touched.has(x.id)).length
-  return { changes: numbered, map: Object.fromEntries(map), sameDrawing, counts, kept }
+  return { changes: numbered, map: Object.fromEntries(map), sameDrawing, counts, fixes, kept }
 }
 
 function nodeDetails(b: FlowNode, r: FlowNode): string[] {
@@ -551,14 +573,88 @@ export function reviewCopy(m: FlowModel): FlowModel {
   return copy
 }
 
-/** Changes a note (empty texts remove it). */
+const fixesOf = (m: FlowModel): ReviewFix[] => (m.review!.fixes ??= [])
+const tidy = (m: FlowModel) => {
+  if (m.review?.fixes && !m.review.fixes.length) delete m.review.fixes
+}
+const noteOnly = <T extends ReviewNote>(n: T) => {
+  if (!n.text) delete n.text
+  if (!n.quote) delete n.quote
+  return n
+}
+
+/**
+ * Changes a note: `general` is the overall note; a change's note is its fix's (a change in no fix gets a fix of
+ * its own, numbered after the fixes there are: emptied, it keeps its number until it is removed).
+ */
 export function setReviewNote(m: FlowModel, key: string, patch: { text?: string; quote?: string }): void {
   if (!m.review) return
-  const note = { ...m.review.notes[key], ...patch }
-  if (!note.text) delete note.text
-  if (!note.quote) delete note.quote
-  if (note.text || note.quote) m.review.notes[key] = note
-  else delete m.review.notes[key]
+  if (key === 'general') {
+    const note = noteOnly({ ...m.review.notes.general, ...patch })
+    if (note.text || note.quote) m.review.notes.general = note
+    else delete m.review.notes.general
+    return
+  }
+  const fix = m.review.fixes?.find((f) => f.keys.includes(key)) ?? fixesOf(m)[fixesOf(m).push({ id: newFixId(m), keys: [key] }) - 1]
+  setFixNote(m, fix.id, patch)
+}
+
+function newFixId(m: FlowModel): string {
+  const ids = new Set((m.review?.fixes ?? []).map((f) => f.id))
+  let i = ids.size + 1
+  while (ids.has(`fix${i}`)) i++
+  return `fix${i}`
+}
+
+/** The note and quote of a fix. */
+export function setFixNote(m: FlowModel, id: string, patch: { text?: string; quote?: string }): void {
+  const fix = m.review?.fixes?.find((f) => f.id === id)
+  if (fix) noteOnly(Object.assign(fix, patch))
+}
+
+/** One fix of these changes, at the end of the list (they leave the fixes they were in). Gives its id. */
+export function makeFix(m: FlowModel, keys: string[]): string | null {
+  if (!m.review || !keys.length) return null
+  takeOut(m, keys)
+  const id = newFixId(m)
+  fixesOf(m).push({ id, keys: [...keys] })
+  return id
+}
+
+/** Adds changes to a fix (they leave the fix they were in). */
+export function addToFix(m: FlowModel, id: string, keys: string[]): void {
+  const fix = m.review?.fixes?.find((f) => f.id === id)
+  if (!fix) return
+  takeOut(m, keys.filter((k) => !fix.keys.includes(k)))
+  for (const k of keys) if (!fix.keys.includes(k)) fix.keys.push(k)
+}
+
+/** A change leaves its fix; a fix left with nothing (no change, no note) is gone. */
+export function removeFromFix(m: FlowModel, key: string): void {
+  takeOut(m, [key])
+}
+
+function takeOut(m: FlowModel, keys: string[]) {
+  if (!m.review?.fixes) return
+  const drop = new Set(keys)
+  for (const f of m.review.fixes) f.keys = f.keys.filter((k) => !drop.has(k))
+  m.review.fixes = m.review.fixes.filter((f) => f.keys.length || f.text || f.quote)
+  tidy(m)
+}
+
+/** The fix is gone with its note; its changes are listed with the others again. */
+export function deleteFix(m: FlowModel, id: string): void {
+  if (!m.review?.fixes) return
+  m.review.fixes = m.review.fixes.filter((f) => f.id !== id)
+  tidy(m)
+}
+
+/** Moves a fix up (-1) or down (+1): the numbers follow the new order. */
+export function moveFix(m: FlowModel, id: string, by: -1 | 1): void {
+  const list = m.review?.fixes
+  const i = list?.findIndex((f) => f.id === id) ?? -1
+  if (!list || i < 0 || i + by < 0 || i + by >= list.length) return
+  ;[list[i], list[i + by]] = [list[i + by], list[i]]
 }
 
 /** "Not the same": an element paired by place only is listed as added, its partner as removed (and back). */
@@ -578,5 +674,5 @@ export function endReview(m: FlowModel): void {
 /** The diff of a model with its review's base (null when it has none). */
 export function reviewDiff(m: FlowModel): ModelDiff | null {
   if (!m.review) return null
-  return diffModels(m.review.base, withoutReview(m), { unpair: m.review.unpair, notes: Object.keys(m.review.notes) })
+  return diffModels(m.review.base, withoutReview(m), { unpair: m.review.unpair, fixes: m.review.fixes })
 }

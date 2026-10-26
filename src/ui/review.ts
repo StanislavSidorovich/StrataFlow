@@ -1,6 +1,6 @@
 // Comparing two versions of a process (core/diff.ts) from the File menu: review a model (a copy to correct, in
 // a new tab), compare the open process with a file or another tab, and the review sheet to print or save as PDF.
-import { reviewCopy, reviewDiff, startReview } from '../core/diff'
+import { reviewCopy, reviewDiff, startReview, type Change } from '../core/diff'
 import type { FlowModel } from '../core/metamodel'
 import { parseModel } from '../core/serialize'
 import { isCaseFile } from '../data/caseFile'
@@ -15,11 +15,34 @@ interface ReviewUi {
   open: boolean
   /** The numbers and colours are drawn on the canvas (off: the plain diagram). */
   marks: boolean
-  /** The change whose note fields are open. */
+  /** The change (its key) or fix (`fix:<id>`) in focus. */
   focus: string | null
+  /** Names of added and changed elements drawn in bold, or bold and larger (a view setting, kept per browser). */
+  emphasis: Emphasis
 }
 
-export const useReviewUi = create<ReviewUi>(() => ({ open: false, marks: true, focus: null }))
+export type Emphasis = 'off' | 'bold' | 'large'
+const EMPHASIS_KEY = 'strataflow.review.emphasis'
+
+function storedEmphasis(): Emphasis {
+  try {
+    const v = localStorage.getItem(EMPHASIS_KEY)
+    return v === 'bold' || v === 'large' ? v : 'off'
+  } catch {
+    return 'off'
+  }
+}
+
+export const useReviewUi = create<ReviewUi>(() => ({ open: false, marks: true, focus: null, emphasis: storedEmphasis() }))
+
+export function setEmphasis(emphasis: Emphasis) {
+  useReviewUi.setState({ emphasis })
+  try {
+    localStorage.setItem(EMPHASIS_KEY, emphasis)
+  } catch {
+    // A private window: it lasts until the page is closed.
+  }
+}
 
 const inTask = () => useEditor.getState().backup !== null
 const TASK_NOTE = 'A trainer task is on the canvas: leave the task first (your own processes wait in their tabs).'
@@ -95,6 +118,8 @@ tr { break-inside: avoid; }
 .word { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #7c3aed; font-weight: 600; }
 .word.added { color: #15803d; } .word.removed { color: #6b7385; } .word.comment { color: #0d9488; }
 .label { font-weight: 600; }
+.change + .change { margin-top: 5px; }
+.part th { padding-top: 14px; }
 .details { color: #4b5568; }
 .quote { color: #4b5568; font-style: italic; }
 .foot { margin-top: 18px; color: #8a94a6; font-size: 11px; }
@@ -112,19 +137,23 @@ export function printReview() {
   const w = window.open('', '_blank')
   if (!w) return showError('The review sheet opens in a new window: allow pop-ups for this site and try again.')
   const notes = model.review.notes
-  const rows = diff.changes
-    .map((c) => {
-      const n = notes[c.key]
-      return `<tr><td class="n"><span class="badge ${c.status}">${c.n}</span></td><td><div class="word ${c.status}">${c.status}</div><div class="label">${esc(c.label)}</div>${c.details.length ? `<div class="details">${esc(c.details.join('; '))}</div>` : ''}</td><td>${n?.text?.trim() ? para(n.text) : ''}</td><td class="quote">${n?.quote?.trim() ? para(n.quote) : ''}</td></tr>`
-    })
-    .join('')
+  const what = (c: Change) => `<div class="change"><span class="word ${c.status}">${c.status}</span> <span class="label">${esc(c.label)}</span>${c.details.length ? `<div class="details">${esc(c.details.join('; '))}</div>` : ''}</div>`
+  // One row per fix (its changes, one note, one quote), then the changes in no fix.
+  const fixRows = diff.fixes.map((f) => {
+    const fix = model.review!.fixes!.find((x) => x.id === f.id)
+    const kinds = new Set(f.changes.map((c) => c.status))
+    const status = kinds.size === 1 ? [...kinds][0] : 'changed'
+    return `<tr><td class="n"><span class="badge ${status}">${f.n}</span></td><td>${f.changes.map(what).join('') || '<div class="details">Nothing changed here now</div>'}</td><td>${fix?.text?.trim() ? para(fix.text) : ''}</td><td class="quote">${fix?.quote?.trim() ? para(fix.quote) : ''}</td></tr>`
+  })
+  const others = diff.changes.filter((c) => !c.fix).map((c) => `<tr><td class="n"><span class="badge ${c.status}">${c.n}</span></td><td>${what(c)}</td><td></td><td></td></tr>`)
+  const rows = [...fixRows, ...(fixRows.length && others.length ? ['<tr class="part"><th colspan="4">Other changes</th></tr>'] : []), ...others].join('')
   const overall = notes.general?.text?.trim()
   // A review copy is named "X (review)": the sheet says it once.
   const title = `Review: ${(model.name || 'process').replace(/\s*\(review\)\s*$/i, '') || 'process'}`
   w.document.write(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${SHEET_CSS}</style></head><body>
 <div class="bar"><button onclick="window.print()">Print or save as PDF</button><button onclick="window.close()">Close</button></div>
 <h1>${esc(title)}</h1>
-<p class="sub">Compared with “${esc(model.review.base.name || 'the earlier version')}”: ${(['added', 'changed', 'removed'] as const).filter((s) => diff.counts[s]).map((s) => `${diff.counts[s]} ${s}`).join(', ') || 'no changes'}${diff.kept ? `, ${diff.kept} kept` : ''}. Green = added, violet = changed, grey dashed = removed; the numbers match the table.</p>
+<p class="sub">Compared with “${esc(model.review.base.name || 'the earlier version')}”: ${(['added', 'changed', 'removed'] as const).filter((s) => diff.counts[s]).map((s) => `${diff.counts[s]} ${s}`).join(', ') || 'no changes'}${diff.kept ? `, ${diff.kept} kept` : ''}${diff.fixes.length ? `; ${diff.fixes.length} fix${diff.fixes.length === 1 ? '' : 'es'}` : ''}. Green = added, violet = changed, grey dashed = removed; the numbers match the table.</p>
 <div class="picture"><div id="diagram" class="wait">Drawing the diagram…</div></div>
 ${overall ? `<p class="overall">${para(overall)}</p>` : ''}
 <table><thead><tr><th class="n">#</th><th>What changed</th><th>Note</th><th>What the task says</th></tr></thead><tbody>${rows || '<tr><td></td><td>No changes</td><td></td><td></td></tr>'}</tbody></table>

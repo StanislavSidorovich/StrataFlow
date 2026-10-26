@@ -251,6 +251,15 @@ export function Canvas() {
   // Compared with an earlier version: the changes' numbers and colours, and ghosts of what was removed.
   const diff = useDiff()
   const showChanges = useReviewUi((s) => s.marks)
+  // Emphasis: names of added and changed elements in bold (or bold and larger), on the page so a picture keeps it.
+  const emphasis = useReviewUi((s) => s.emphasis)
+  const emphasised = showChanges && !!diff && emphasis !== 'off'
+  useEffect(() => {
+    if (!emphasised) return
+    const root = document.documentElement
+    root.classList.add('chg-emph', `chg-emph-${emphasis}`)
+    return () => root.classList.remove('chg-emph', `chg-emph-${emphasis}`)
+  }, [emphasised, emphasis])
   const changes = useMemo(() => (showChanges ? changeMarks(model, diff, page) : new Map<string, ChangeMark>()), [showChanges, model, diff, page])
   const removed = useMemo(() => (showChanges ? ghosts(model, diff, page) : []), [showChanges, model, diff, page])
   const removedFlows = useMemo(() => (showChanges ? ghostEdges(model, diff, page) : []), [showChanges, model, diff, page])

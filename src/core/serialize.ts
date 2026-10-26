@@ -1,6 +1,6 @@
 // `*.flow.json`: the model as JSON (SPEC §10). Reading checks the shape and every reference, so a
 // hand-written or generated file that would break the canvas is refused with a clear message.
-import type { FlowModel, Review, ReviewNote } from './metamodel'
+import type { FlowModel, Review, ReviewFix, ReviewNote } from './metamodel'
 
 export const FILE_EXTENSION = '.flow.json'
 
@@ -88,7 +88,24 @@ function parseReview(r: unknown, fail: (msg: string) => never): Review {
     if (typeof v.quote === 'string' && v.quote) note.quote = v.quote
     if (note.text || note.quote) notes[k] = note
   }
-  const out: Review = { base, notes }
+  const out: Review = { base, notes: notes.general ? { general: notes.general } : {} }
+  const fixes: ReviewFix[] = []
+  if (Array.isArray(x.fixes))
+    for (const f of x.fixes) {
+      if (!f || typeof f !== 'object' || typeof f.id !== 'string' || !Array.isArray(f.keys)) continue
+      const fix: ReviewFix = { id: f.id, keys: f.keys.filter((k) => typeof k === 'string') }
+      if (typeof f.text === 'string' && f.text) fix.text = f.text
+      if (typeof f.quote === 'string' && f.quote) fix.quote = f.quote
+      fixes.push(fix)
+    }
+  // Before v0.7 a note belonged to one change: each becomes a fix of that change, in the order they were written.
+  for (const [k, n] of Object.entries(notes)) {
+    if (k === 'general' || fixes.some((f) => f.keys.includes(k))) continue
+    let i = fixes.length + 1
+    while (fixes.some((f) => f.id === `fix${i}`)) i++
+    fixes.push({ id: `fix${i}`, keys: [k], ...n })
+  }
+  if (fixes.length) out.fixes = fixes
   if (Array.isArray(x.unpair) && x.unpair.length) out.unpair = x.unpair.filter((u) => typeof u === 'string')
   return out
 }

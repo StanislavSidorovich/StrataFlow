@@ -129,11 +129,22 @@ export interface ReviewNote {
   quote?: string
 }
 
+/**
+ * One fix of a review: the changes that make it (keys `r:<id>` an element of this model, `b:<id>` one only in the
+ * base), one note and one quote. Fixes are numbered by their place in the list, so a number stays put.
+ */
+export interface ReviewFix extends ReviewNote {
+  id: string
+  keys: string[]
+}
+
 export interface Review {
   /** The model before: a classmate's draft, the AS-IS, an earlier version. Never has a review of its own. */
   base: FlowModel
-  /** Notes by change key (`r:<id>` an element of this model, `b:<id>` one only in the base) and `general`. */
+  /** The overall note (`general`). Files before v0.7 kept a note per change here: they are read as fixes. */
   notes: Record<string, ReviewNote>
+  /** The fixes, in the order the reviewer gave them (1, 2, 3…); changes in no fix are numbered after them. */
+  fixes?: ReviewFix[]
   /** Elements of this model paired with the base by their place only, that the user says are not the same. */
   unpair?: string[]
 }

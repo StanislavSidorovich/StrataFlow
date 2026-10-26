@@ -2227,6 +2227,65 @@ button.link {
 .chg-general {
   padding: 4px 8px 6px;
 }
+/* A fix: its number, its changes, one note. */
+.changes-panel li.chg-fix {
+  margin: 6px 0;
+  padding: 4px 0 2px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}
+.chg-fix.is-focused {
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+.chg-fix-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px 2px 8px;
+}
+.chg-fix-tools {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 2px;
+}
+.chg-fix-changes {
+  margin: 0 6px 4px 30px;
+  padding: 0;
+  list-style: none;
+}
+.chg-tick {
+  margin: 9px 0 0 6px;
+  flex: none;
+}
+.chg-gather {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--panel-border);
+  background: var(--accent-soft);
+}
+.chg-others-head {
+  padding: 8px 8px 2px;
+  font-size: 12px;
+}
+/* Emphasis (Changes panel): what was added or changed reads first, on the canvas and in its picture. */
+.chg-emph :is(.bpmn-shape.chg-added, .bpmn-shape.chg-changed) :is(.bpmn-inner-label, .bpmn-outer-label),
+.chg-emph :is(.bpmn-pool.chg-added, .bpmn-pool.chg-changed, .bpmn-lane.chg-added, .bpmn-lane.chg-changed) .bpmn-pool-header {
+  font-weight: 700;
+}
+.chg-emph-large :is(.bpmn-shape.chg-added, .bpmn-shape.chg-changed) :is(.bpmn-inner-label, .bpmn-outer-label) {
+  font-size: calc(14px * var(--label-scale, 1));
+}
+.chg-emph-large:not(.sheet-picture) .chg-badge.on-shape,
+.chg-emph-large:not(.sheet-picture) .chg-edge-badge .chg-badge,
+.chg-emph-large:not(.sheet-picture) .chg-badge.on-pool {
+  min-width: 26px;
+  height: 26px;
+  border-radius: 13px;
+  font-size: 15px;
+}
 .chg-empty,
 .chg-comment-hint {
   padding: 6px 8px;

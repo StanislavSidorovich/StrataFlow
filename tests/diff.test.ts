@@ -1,7 +1,7 @@
 // Comparing two versions of a process (core/diff.ts): a copy edited in Flow (ids pair the elements), and two
 // models drawn apart (paired by names and places), each change found once, numbered in the order the process reads.
 import { describe, expect, it } from 'vitest'
-import { diffModels } from '../src/core/diff'
+import { diffModels, type ModelDiff } from '../src/core/diff'
 import type { FlowModel } from '../src/core/metamodel'
 import { addNode, connect, deleteElements, moveElements, rename, setSim, updateNode } from '../src/core/ops'
 import { parseModel, serializeModel } from '../src/core/serialize'
@@ -279,7 +279,9 @@ describe('the review in the file', () => {
     m.review = { base: { ...copy(base), review: { base: copy(base), notes: {} } }, notes: { general: { text: 'Lanes are good' }, 'r:x': { text: '', quote: '"as the text says"' }, 'r:y': { text: '' } }, unpair: ['a'] }
     const back = parseModel(serializeModel(m))
     expect(back.review!.base.review).toBeUndefined()
-    expect(back.review!.notes).toEqual({ general: { text: 'Lanes are good' }, 'r:x': { quote: '"as the text says"' } })
+    expect(back.review!.notes).toEqual({ general: { text: 'Lanes are good' } })
+    // A note on one change (files before v0.7) is read as a fix of that change.
+    expect(back.review!.fixes).toEqual([{ id: 'fix1', keys: ['r:x'], quote: '"as the text says"' }])
     expect(back.review!.unpair).toEqual(['a'])
     expect(back.review!.base.nodes).toEqual(base.nodes)
   })
@@ -310,6 +312,97 @@ describe('the review as edits', () => {
     expect(m.review!.unpair).toBeUndefined()
     endReview(m)
     expect(reviewDiff(m)).toBeNull()
+  })
+})
+
+describe('fixes', () => {
+  /** A review copy of the library with three edits: a rename, a gateway kind, a removed step. */
+  async function reviewed() {
+    const ops = await import('../src/core/diff')
+    const m = ops.reviewCopy(library.reference())
+    const fetch = idOf(m, 'Fetch book')
+    const gw = idOf(m, 'Card valid?')
+    const stamp = idOf(m, 'Stamp due date')
+    const before = m.flows.find((f) => f.target === stamp)!.source
+    const after = m.flows.find((f) => f.source === stamp)!.target
+    rename(m, fetch, 'Bring the book')
+    updateNode(m, gw, { kind: 'parallel' })
+    deleteElements(m, [stamp])
+    connect(m, before, after)
+    return { ops, m, keys: { fetch: `r:${fetch}`, gw: `r:${gw}`, stamp: `b:${stamp}` } }
+  }
+  const nums = (d: ModelDiff) => Object.fromEntries(d.changes.map((c) => [c.key, c.n]))
+
+  it('changes in a fix share its number; the others follow in reading order', async () => {
+    const { ops, m, keys } = await reviewed()
+    const plain = nums(ops.reviewDiff(m)!)
+    const id = ops.makeFix(m, [keys.stamp, keys.fetch])!
+    ops.setFixNote(m, id, { text: 'Two in one', quote: 'the text' })
+    const d = ops.reviewDiff(m)!
+    expect(d.fixes).toEqual([expect.objectContaining({ id, n: 1, gone: [] })])
+    expect(d.fixes[0].changes.map((c) => c.key).sort()).toEqual([keys.fetch, keys.stamp].sort())
+    expect(nums(d)[keys.fetch]).toBe(1)
+    expect(nums(d)[keys.stamp]).toBe(1)
+    expect(nums(d)[keys.gw]).toBe(2)
+    expect(d.changes.map((c) => c.n)).toEqual([...d.changes.map((c) => c.n)].sort((a, b) => a - b))
+    expect(Object.keys(plain)).toHaveLength(3)
+  })
+
+  it('a number stays put when a change is added, and follows a manual move', async () => {
+    const { ops, m, keys } = await reviewed()
+    const a = ops.makeFix(m, [keys.gw])!
+    const b = ops.makeFix(m, [keys.fetch])!
+    // A new change before them in the process does not shift the fixes.
+    const t = addNode(m, { type: 'task' }, { x: 40, y: 400 }, 'Greet the member')
+    const d = ops.reviewDiff(m)!
+    expect(nums(d)[keys.gw]).toBe(1)
+    expect(nums(d)[keys.fetch]).toBe(2)
+    expect(nums(d)[`r:${t.id}`]).toBeGreaterThan(2)
+    ops.moveFix(m, b, -1)
+    expect(nums(ops.reviewDiff(m)!)[keys.fetch]).toBe(1)
+    expect(nums(ops.reviewDiff(m)!)[keys.gw]).toBe(2)
+    ops.moveFix(m, b, -1) // already first
+    expect(m.review!.fixes!.map((f) => f.id)).toEqual([b, a])
+  })
+
+  it('a change moves between fixes; an empty fix without a note is gone, one with a note stays', async () => {
+    const { ops, m, keys } = await reviewed()
+    const a = ops.makeFix(m, [keys.gw, keys.fetch])!
+    const b = ops.makeFix(m, [keys.stamp])!
+    ops.setFixNote(m, b, { text: 'keep me' })
+    ops.addToFix(m, b, [keys.fetch])
+    expect(m.review!.fixes!.find((f) => f.id === a)!.keys).toEqual([keys.gw])
+    expect(m.review!.fixes!.find((f) => f.id === b)!.keys).toEqual([keys.stamp, keys.fetch])
+    ops.removeFromFix(m, keys.gw)
+    expect(m.review!.fixes!.map((f) => f.id)).toEqual([b])
+    ops.removeFromFix(m, keys.stamp)
+    ops.removeFromFix(m, keys.fetch)
+    expect(m.review!.fixes).toEqual([{ id: b, keys: [], text: 'keep me' }])
+    ops.deleteFix(m, b)
+    expect(m.review!.fixes).toBeUndefined()
+  })
+
+  it('a note on a change in no fix makes a fix of it; a change undone stays in its fix', async () => {
+    const { ops, m, keys } = await reviewed()
+    ops.setReviewNote(m, keys.gw, { text: 'Exclusive, not parallel' })
+    expect(m.review!.fixes).toEqual([{ id: 'fix1', keys: [keys.gw], text: 'Exclusive, not parallel' }])
+    ops.setReviewNote(m, keys.gw, { quote: 'one way' })
+    expect(m.review!.fixes).toHaveLength(1)
+    updateNode(m, keys.gw.slice(2), { kind: 'exclusive' })
+    const d = ops.reviewDiff(m)!
+    // Changed back: it stays in its fix, as a comment, with the fix's number and note.
+    expect(d.fixes[0]).toMatchObject({ n: 1, gone: [] })
+    expect(d.fixes[0].changes.map((c) => `${c.n} ${c.status}`)).toEqual(['1 comment'])
+    ops.setReviewNote(m, 'general', { text: 'Good lanes' })
+    expect(m.review!.notes).toEqual({ general: { text: 'Good lanes' } })
+  })
+
+  it('an unchanged element in a fix is listed as a comment with the fix number', async () => {
+    const { ops, m } = await reviewed()
+    const hand = `r:${idOf(m, 'Hand over book')}`
+    ops.makeFix(m, [hand])
+    const c = ops.reviewDiff(m)!.changes.find((x) => x.key === hand)!
+    expect(c).toMatchObject({ status: 'comment', n: 1 })
   })
 })
 
