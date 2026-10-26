@@ -3,7 +3,7 @@
 // its own. So the file for Bizagi is written from a copy where every expanded sub-process is collapsed in place.
 // Unlike `setCollapsed` nothing else moves: the box takes the middle of the space the sub-process had (inside its
 // own lane), so nothing lands on a neighbour; the gap it leaves is the price of leaving the drawing alone.
-import { SIZES, type FlowModel, type FlowNode } from '../metamodel'
+import { SIZES, type Bounds, type FlowModel, type FlowNode } from '../metamodel'
 
 /** The ids below a node: what a sub-process holds, at any depth. */
 function below(m: FlowModel, id: string): Set<string> {
@@ -38,5 +38,53 @@ export function collapseForBizagi(model: FlowModel): { model: FlowModel; collaps
     // The flows that met the old box (or crossed its border) are routed again; the ones inside stay on the page.
     for (const f of m.flows) if (f.source === n.id || f.target === n.id || own.has(f.source) !== own.has(f.target)) delete m.diagram.edges[f.id]
   }
+  hideInPages(m)
   return { model: m, collapsed: open.length }
+}
+
+/** Room round the steps on a page of their own. */
+const PAGE_PAD = 100
+
+/** The outermost collapsed sub-process above a node (what the writer puts its page under), if any. */
+function pageHolder(m: FlowModel, n: FlowNode): string | undefined {
+  let found: string | undefined
+  for (let p = n.parentId ? m.nodes.find((x) => x.id === n.parentId) : undefined; p; p = p.parentId ? m.nodes.find((x) => x.id === p!.parentId) : undefined) if (p.type === 'subProcess' && p.collapsed) found = p.id
+  return found
+}
+
+/**
+ * What the pages need once the sub-process is collapsed. A message flow to a step now hidden on a page would end
+ * in thin air on the main sheet (Bizagi draws the line to where the step used to be): it goes to the sub-process
+ * box instead. And a page is its own drawing: its steps move to the top left (they sit where the sub-process was).
+ */
+function hideInPages(m: FlowModel): void {
+  const host = new Map<string, string>()
+  for (const n of m.nodes) {
+    const h = pageHolder(m, n)
+    if (h) host.set(n.id, h)
+  }
+  for (const f of m.flows) {
+    if (f.kind !== 'message') continue
+    const a = host.get(f.source)
+    const b = host.get(f.target)
+    if (!a && !b) continue
+    if (a) f.source = a
+    if (b) f.target = b
+    delete m.diagram.edges[f.id]
+  }
+  const pages = new Map<string, string[]>()
+  for (const [id, h] of host) pages.set(h, [...(pages.get(h) ?? []), id])
+  for (const ids of pages.values()) {
+    const boxes = ids.map((id) => m.diagram.shapes[id]).filter((b): b is Bounds => !!b)
+    if (!boxes.length) continue
+    const dx = PAGE_PAD - Math.min(...boxes.map((b) => b.x))
+    const dy = PAGE_PAD - Math.min(...boxes.map((b) => b.y))
+    if (!dx && !dy) continue
+    for (const b of boxes) Object.assign(b, { x: b.x + dx, y: b.y + dy })
+    const inside = new Set(ids)
+    for (const f of m.flows) {
+      const pts = m.diagram.edges[f.id]
+      if (pts && inside.has(f.source) && inside.has(f.target)) m.diagram.edges[f.id] = pts.map((p) => ({ x: p.x + dx, y: p.y + dy }))
+    }
+  }
 }

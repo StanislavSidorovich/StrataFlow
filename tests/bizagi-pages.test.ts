@@ -83,6 +83,30 @@ describe('collapseForBizagi', () => {
     expect(back.nodes.filter((n) => n.parentId)).toHaveLength(4)
   })
 
+  it('a page of its own starts at the top left, its inner flows move with the steps', () => {
+    const { model: m } = collapseForBizagi(model())
+    const boxes = m.nodes.filter((n) => n.parentId === 'Sub').map((n) => m.diagram.shapes[n.id])
+    expect(Math.min(...boxes.map((b) => b.x))).toBe(100)
+    expect(Math.min(...boxes.map((b) => b.y))).toBe(100)
+    // F2 ran from SubStart (right edge x 256) to Approve (x 300): the same 44 px after the move
+    const [a, b] = m.diagram.edges.F2
+    expect(b.x - a.x).toBe(44)
+    expect(a.x).toBe(m.diagram.shapes.SubStart.x + 36)
+  })
+
+  it('a message flow to a step on a page ends at the sub-process box', () => {
+    const src = model()
+    src.nodes.push({ id: 'BankTask', name: 'Bank', participantId: 'Bank', type: 'task', kind: 'task' } as never)
+    src.participants.push({ id: 'Bank', name: 'Bank' })
+    src.diagram.shapes.Bank = sh(20, 600, 1400, 100)
+    src.flows.push({ id: 'M1', kind: 'message', source: 'Pay', target: 'Bank', name: 'Payment' })
+    src.diagram.edges.M1 = [{ x: 550, y: 450 }, { x: 550, y: 600 }]
+    const { model: m } = collapseForBizagi(src)
+    const mf = m.flows.find((f) => f.id === 'M1')!
+    expect(mf.source).toBe('Sub')
+    expect(m.diagram.edges.M1).toBeUndefined()
+  })
+
   it('does nothing to a model without expanded sub-processes', () => {
     const m = collapseForBizagi(model()).model
     const again = collapseForBizagi(m)
