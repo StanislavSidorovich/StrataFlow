@@ -121,6 +121,7 @@ Each issue links to a help card and highlights elements. Severity: error = inval
 | P16 | Unlabeled end events when there are several (end states should be named) | info |
 | P17 | Loop without an exit (cycle with no XOR/event leaving it) | warning |
 | P18 | A pool always waits for a message the other pool sends only on some paths (course Ch. 3 racing events, exercise 3.7): needs an event-based gateway | warning |
+| P19 | A sequence flow crosses the border of a sub-process (goes straight to a step inside, or out of one): it ends at the border; inside, the sub-process has its own start and end event (BPMN; found on a classmate's model, 2026-10-26) | error |
 
 ## 8. Help cards
 

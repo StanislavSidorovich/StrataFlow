@@ -1,4 +1,4 @@
-// The model check P01–P18 (SPEC §7): each rule fires on a small wrong model and stays quiet on the right one;
+// The model check P01–P19 (SPEC §7): each rule fires on a small wrong model and stays quiet on the right one;
 // the reference models lint clean.
 import { describe, expect, it } from 'vitest'
 import { emptyModel, type FlowModel, type FlowNode } from '../src/core/metamodel'
@@ -106,6 +106,31 @@ describe('the model check', () => {
     expect(rules(m)).not.toContain('P03')
     m.flows.at(-1)!.kind = 'sequence' // as a careless file may have it
     expect(only(m, 'P03')[0].elements).toContain(a.id)
+  })
+
+  it('P19: a sequence flow crosses the border of a sub-process', () => {
+    const m = emptyModel()
+    const start = put(m, START, 'Claim received')
+    const sub = appendNode(m, start.id, { type: 'subProcess' }, 'Verify claim')
+    const inner = addNode(m, TASK, { x: 400, y: 100 }, 'Review claim')
+    inner.parentId = sub.id
+    const end = appendNode(m, sub.id, END, 'Claim settled')
+    // as the sub-process is drawn: start, step, end inside, flows at the border
+    const s2 = addNode(m, START, { x: 300, y: 100 }, 'Review started')
+    s2.parentId = sub.id
+    const e2 = addNode(m, END, { x: 500, y: 100 }, 'Review done')
+    e2.parentId = sub.id
+    connect(m, s2.id, inner.id)
+    connect(m, inner.id, e2.id)
+    expect(rules(m)).not.toContain('P19')
+    // a flow straight into a step inside, and one straight out of it
+    const into = connect(m, start.id, inner.id)
+    const out = connect(m, inner.id, end.id)
+    const hits = only(m, 'P19')
+    expect(hits).toHaveLength(2)
+    expect(hits.every((i) => i.severity === 'error')).toBe(true)
+    expect(hits.flatMap((i) => i.elements)).toEqual(expect.arrayContaining([into.id, out.id]))
+    expect(hits[0].message).toContain('Verify claim')
   })
 
   it('P04: a message flow inside one pool', () => {

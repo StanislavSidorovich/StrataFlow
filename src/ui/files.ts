@@ -103,19 +103,24 @@ function download(): string {
 }
 
 /** The rules Bizagi complains about when it opens a file: the export tells the owner before the file goes there. */
-const BIZAGI_RULES = ['P05', 'P07', 'P10']
+const BIZAGI_RULES = ['P05', 'P07', 'P10', 'P19']
 
 /** Export: BPMN 2.0 XML with the diagram, saved beside the process's own file (a download where there is no file dialog). */
 export async function exportBpmn(): Promise<{ note: string; problems: number } | null> {
   const { model } = useEditor.getState()
+  let collapsed = 0
   // The dialog opens first (it needs the click), the writer loads while it is open.
   const name = await saveExport(`${fileBaseName(model.name)}.bpmn`, 'bpmn', async () => {
     const { writeBpmn } = await import('../core/bpmn/write')
-    return new Blob([await writeBpmn(model)], { type: 'application/xml' })
+    const { collapseForBizagi } = await import('../core/bpmn/pages')
+    const copy = collapseForBizagi(model)
+    collapsed = copy.collapsed
+    return new Blob([await writeBpmn(copy.model)], { type: 'application/xml' })
   })
   if (!name) return null
   const problems = lintModel(model).filter((i) => BIZAGI_RULES.includes(i.rule)).length
-  return { note: `Exported ${name}: BPMN 2.0 XML. In Bizagi Modeler use Import, BPMN; bpmn.io opens it directly.`, problems }
+  const pages = collapsed ? ` ${collapsed === 1 ? 'The sub-process is' : `${collapsed} sub-processes are`} saved collapsed, its steps on a page of its own: Bizagi draws an expanded one as a huge empty box. Your drawing here is unchanged.` : ''
+  return { note: `Exported ${name}: BPMN 2.0 XML. In Bizagi Modeler use Import, BPMN; bpmn.io opens it directly.${pages}`, problems }
 }
 
 const IMAGE_KINDS = {

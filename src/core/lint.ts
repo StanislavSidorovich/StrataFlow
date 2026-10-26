@@ -1,10 +1,10 @@
-// The model check (SPEC §7): rules P01–P18. Each issue names its elements and a help card.
+// The model check (SPEC §7): rules P01–P19. Each issue names its elements and a help card.
 // A warning is a question, not a verdict: the student decides. Conventions follow the NOVA BPM
 // course (Dumas et al. 2013, Chapter 3) and the 7PMG from Chapter 4.
 import { isArtifact, type FlowModel, type FlowNode } from './metamodel'
 
 export type Severity = 'error' | 'warning' | 'info'
-export type RuleId = `P${'01' | '02' | '03' | '04' | '05' | '06' | '07' | '08' | '09' | '10' | '11' | '12' | '13' | '14' | '15' | '16' | '17' | '18'}`
+export type RuleId = `P${'01' | '02' | '03' | '04' | '05' | '06' | '07' | '08' | '09' | '10' | '11' | '12' | '13' | '14' | '15' | '16' | '17' | '18' | '19'}`
 
 export interface Issue {
   rule: RuleId
@@ -40,6 +40,7 @@ export const RULES: Record<RuleId, { severity: Severity; title: string; card: st
   P16: { severity: 'info', title: 'Unnamed end states', card: 'end-event' },
   P17: { severity: 'warning', title: 'Loop without an exit', card: 'loop' },
   P18: { severity: 'warning', title: 'Waiting for a message that may never come', card: 'event-based-gateway' },
+  P19: { severity: 'error', title: 'Sequence flow across a sub-process border', card: 'sub-process' },
 }
 
 const SEVERITY_ORDER: Record<Severity, number> = { error: 0, warning: 1, info: 2 }
@@ -252,12 +253,19 @@ export function lintModel(m: FlowModel, opts: LintOptions = {}): Issue[] {
     }
   }
 
+  // The sub-process a node sits in ('' on the top level); a boundary event sits where its host does.
+  const holder = (n: FlowNode): string => ((n.type === 'event' && n.attachedTo ? byId.get(n.attachedTo)?.parentId : n.parentId) ?? '')
   for (const f of m.flows) {
     const s = byId.get(f.source)
     const t = byId.get(f.target)
     // P03: a sequence flow stays in one pool.
     if (f.kind === 'sequence' && s && t && s.participantId !== t.participantId)
       add('P03', `The flow from ${label(s)} to ${label(t)} crosses a pool border: between pools only message flows (dashed) are allowed.`, [f.id, s.id, t.id])
+    // P19: a sequence flow ends at the border of a sub-process: inside it starts with its own start event and ends with an end event.
+    if (f.kind === 'sequence' && s && t && holder(s) !== holder(t)) {
+      const sub = byId.get(holder(s) || holder(t))
+      add('P19', `The flow from ${label(s)} to ${label(t)} crosses the border of ${sub ? `the sub-process ${label(sub)}` : 'a sub-process'}: a flow ends at the border, and inside it starts with its own start event and ends with an end event.`, [f.id, s.id, t.id])
+    }
     // P04: a message flow joins two pools.
     if (f.kind === 'message') {
       const a = poolOfEnd(m, f.source)

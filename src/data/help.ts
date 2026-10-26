@@ -104,11 +104,13 @@ export const HELP_CARDS: HelpCard[] = [
     body: [
       'Group steps into a sub-process when the diagram gets large or a part is a unit of its own ("Handle payment"). In Quaera Flow select the steps and press Ctrl+G; double-click the sub-process to open its page.',
       'Inside, a sub-process has its own start and end events. Its steps stay in one pool, and in BPMN it has no lanes inside.',
+      'A sequence flow never crosses the border: from outside it ends at the sub-process itself, and inside, its own start event begins and its own end event ends. Check (P19) flags a flow that goes straight to a step inside, or straight out of one.',
+      'Bizagi draws an expanded sub-process as one huge empty box, so the BPMN export saves it collapsed, its steps on a page of its own (your drawing stays as it is).',
       'Level 1 of a process architecture is often a line of collapsed sub-processes with no gateways; level 2 opens each one.',
     ],
     whenToUse: ['"the … procedure", "the … stage"', 'more than ~30 steps on one diagram', 'a part reused or described separately'],
     miniModel: 'start > sub:Check claim > sub:Settle claim > end',
-    typicalMistake: 'A sequence flow from outside going straight to a step inside the sub-process: flows end on the sub-process border.',
+    typicalMistake: 'A sequence flow from outside going straight to a step inside the sub-process, or a flow from a step inside straight to something outside: flows end on the sub-process border.',
     seeAlso: ['model-size', 'call-activity', 'process'],
   },
   {
