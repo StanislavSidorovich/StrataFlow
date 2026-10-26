@@ -122,7 +122,10 @@ export function splitReusable(model: FlowModel): ReusableSplit {
 
   // The main sheet: what no page holds.
   const hidden = new Set(m.nodes.filter((n) => n.parentId).map((n) => n.id))
-  const flows = m.flows.filter((f) => !hidden.has(f.source) && !hidden.has(f.target))
+  // A message of a step inside a sub-process is drawn on that step's page (black-box pool): the copy collapseForBizagi
+  // moved to the box would be a second line to the same party, so the main sheet keeps none.
+  const onPage = new Set(model.flows.filter((f) => f.kind === 'message' && [f.source, f.target].some((id) => byId.get(id)?.parentId)).map((f) => f.id))
+  const flows = m.flows.filter((f) => !hidden.has(f.source) && !hidden.has(f.target) && !onPage.has(f.id))
   const kept = new Set(flows.map((f) => f.id))
   const main: FlowModel = {
     ...m,

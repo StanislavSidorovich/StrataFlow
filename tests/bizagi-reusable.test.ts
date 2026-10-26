@@ -84,7 +84,8 @@ describe('splitReusable', () => {
     expect(Object.keys(calls)).toEqual(['Sub', 'Inner'])
     const [main, settle, pay] = parts.map((p) => p.model)
     expect(main.nodes.map((n) => n.id)).toEqual(['Start', 'Sub', 'End'])
-    expect(main.flows.find((x) => x.id === 'M1')).toMatchObject({ source: 'Sub', target: 'C' })
+    // The message of a step inside is drawn on its page only, not a second time to the box.
+    expect(main.flows.some((x) => x.kind === 'message')).toBe(false)
     // Settlement's page: the same pool name, only the Handler lane, the Customer as a black box.
     expect(settle.participants.map((p) => p.name)).toEqual(['Claim process', 'Customer'])
     expect(settle.participants[0].processId).toBe(calls.Sub)
