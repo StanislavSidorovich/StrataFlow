@@ -6,7 +6,7 @@
 import { isArtifact, type Bounds, type Flow, type FlowModel, type FlowNode } from '../metamodel'
 import { collapseForBizagi, depth, PAGE_PAD } from './pages'
 import { readBpmn, type ReadResult } from './read'
-import { writeBpmn } from './write'
+import { bizagiSafeId, writeBpmn } from './write'
 
 /** One process of a reusable project: the main sheet first, then a page per collapsed sub-process. */
 export interface ReusablePart {
@@ -34,6 +34,11 @@ const POOL = { padX: 60, padY: 50, header: 30, gap: 60, blackBox: 80 }
 function freshIds(m: FlowModel): (base: string) => string {
   const used = new Set<string>([...m.participants.flatMap((p) => [p.id, p.processId ?? '']), ...m.lanes.map((l) => l.id), ...m.nodes.map((n) => n.id), ...m.flows.map((f) => f.id)])
   return (base) => {
+    if (/Id_[0-9a-f]{8}-[0-9a-f]{4}-/i.test(base)) {
+      const id = bizagiSafeId(base, (x) => used.has(x))
+      used.add(id)
+      return id
+    }
     let id = base
     for (let i = 2; used.has(id); i++) id = `${base}_${i}`
     used.add(id)
@@ -140,7 +145,7 @@ export async function writeReusable(model: FlowModel): Promise<{ files: { name: 
   const files: { name: string; xml: string }[] = []
   for (const [i, p] of split.parts.entries()) {
     const title = fileSafe(p.model.name) || (i ? `Sub-process ${i}` : 'Process')
-    const xml = await writeBpmn(p.model, { calls: split.calls, processId: p.processId, tag: i ? String(i + 1) : undefined })
+    const xml = await writeBpmn(p.model, { calls: split.calls, processId: p.processId, tag: i ? String(i + 1) : undefined, guidIds: i > 0 })
     files.push({ name: `Diagram ${i + 1} - ${title}.bpmn`, xml })
   }
   return { files, split }

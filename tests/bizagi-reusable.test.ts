@@ -119,6 +119,57 @@ describe('splitReusable', () => {
   })
 })
 
+describe('Bizagi guid ids', () => {
+  // Bizagi reads every id starting with "Id_" as a GUID: on a page file "Id_<guid>_process" fails to import.
+  const GUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+  const exact = new RegExp(`^Id_${GUID}(_di)?$`)
+  const guidModel = () => {
+    const ids = new Map<string, string>()
+    let n = 0
+    const swap = (s: string) => {
+      const hex = (++n).toString(16).padStart(12, '0')
+      ids.set(s, `Id_aaaaaaaa-bbbb-4ccc-8ddd-${hex}`)
+    }
+    const raw = JSON.parse(JSON.stringify(model()))
+    for (const x of [...raw.participants, ...raw.lanes, ...raw.nodes, ...raw.flows]) swap(x.id)
+    const text = JSON.stringify(raw).replace(/"([A-Za-z0-9_]+)"/g, (all, s) => (ids.has(s) ? `"${ids.get(s)}"` : all))
+    return parseModel(text)
+  }
+
+  it('writes page files with exact guid ids only', async () => {
+    const { files, split } = await writeReusable(guidModel())
+    for (const p of split.parts.slice(1)) expect(p.processId).toMatch(exact)
+    for (const file of files.slice(1)) {
+      const ids = [...file.xml.matchAll(/\b(?:id|bpmnElement|processRef|calledElement|sourceRef|targetRef)="([^"]+)"/g)].map((x) => x[1])
+      const guids = ids.filter((x) => x.startsWith('Id_'))
+      expect(guids.length).toBeGreaterThan(10)
+      for (const id of guids) expect(id, id).toMatch(exact)
+      expect(file.xml).not.toMatch(/MF_|Pool_PH|Id_[0-9a-f-]{36}_(process|pool|lane|store|line)/)
+    }
+    expect(files[0].xml).toContain(`calledElement="${split.calls[Object.keys(split.calls)[0]]}"`)
+    expect(files[1].xml).toContain(`<bpmn:process id="${split.calls[Object.keys(split.calls)[0]]}"`)
+  })
+
+  it('gives the same ids for the same model, all different from each other', async () => {
+    const a = await writeReusable(guidModel())
+    const b = await writeReusable(guidModel())
+    expect(a.files.map((x) => x.xml)).toEqual(b.files.map((x) => x.xml))
+    for (const file of a.files.slice(1)) {
+      const ids = [...file.xml.matchAll(/<bpmn:\w+ [^>]*?\bid="([^"]+)"/g)].map((x) => x[1])
+      expect(new Set(ids).size).toBe(ids.length)
+    }
+  })
+
+  it('reads the guid project back with its pages', async () => {
+    const { files } = await writeReusable(guidModel())
+    const { model: back, pages, warnings } = await readProject(files.map((x) => ({ name: x.name, text: x.xml })))
+    expect(pages).toBe(2)
+    expect(warnings).toEqual([])
+    expect(back.nodes.filter((n) => n.type === 'subProcess').length).toBe(2)
+    expect(back.nodes.length).toBe(guidModel().nodes.length)
+  })
+})
+
 describe('readProject', () => {
   const texts = async () => (await writeReusable(model())).files.map((x) => ({ name: x.name, text: x.xml }))
 

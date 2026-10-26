@@ -60,6 +60,39 @@ export interface WriteOptions {
   processId?: string
   /** Added to the ids the writer makes up (definitions, collaboration, diagram), unique across the files of one project. */
   tag?: string
+  /** Page files: made-up ids built on a Bizagi id become an exact `Id_<guid>` (see `bizagiSafeId`). */
+  guidIds?: boolean
+}
+
+/** An id that holds a Bizagi guid (`Id_<guid>...`) somewhere. */
+const HOLDS_GUID = /Id_[0-9a-f]{8}-[0-9a-f]{4}-/i
+
+/**
+ * Bizagi reads every id starting with `Id_` as a GUID, so `Id_<guid>_process` fails ("Guid should contain 32 digits
+ * with 4 dashes") on a page file. An id made up from a Bizagi one (`base`, such as `Id_<guid>_pool`) becomes a new exact
+ * `Id_<guid>` derived from `base`: the same input gives the same id. `_di` is kept, Bizagi's own exports use it.
+ */
+export function bizagiSafeId(base: string, taken: (id: string) => boolean): string {
+  const di = base.endsWith('_di')
+  const seed = di ? base.slice(0, -3) : base
+  for (let n = 0; ; n++) {
+    const h = [0x9e3779b1, 0x85ebca6b, 0xc2b2ae35, 0x27d4eb2f].map((s) => s ^ n)
+    for (let i = 0; i < seed.length; i++) {
+      const c = seed.charCodeAt(i)
+      h[0] = Math.imul(h[0] ^ c, 597399067)
+      h[1] = Math.imul(h[1] ^ c, 2869860233)
+      h[2] = Math.imul(h[2] ^ c, 951274213)
+      h[3] = Math.imul(h[3] ^ c, 2716044179)
+    }
+    h[0] = Math.imul(h[2] ^ (h[0] >>> 18), 597399067) ^ h[3]
+    h[1] = Math.imul(h[3] ^ (h[1] >>> 22), 2869860233) ^ h[2]
+    h[2] = Math.imul(h[0] ^ (h[2] >>> 17), 951274213) ^ h[1]
+    h[3] = Math.imul(h[1] ^ (h[3] >>> 19), 2716044179) ^ h[0]
+    const hex = h.map((x) => (x >>> 0).toString(16).padStart(8, '0')).join('')
+    const guid = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`
+    const id = `Id_${guid}${di ? '_di' : ''}`
+    if (!taken(id)) return id
+  }
 }
 
 export async function writeBpmn(m: FlowModel, opts: WriteOptions = {}): Promise<string> {
@@ -74,6 +107,11 @@ export async function writeBpmn(m: FlowModel, opts: WriteOptions = {}): Promise<
   const used = new Set<string>([...m.participants.flatMap((p) => [p.id, p.processId ?? '']), ...m.lanes.map((l) => l.id), ...m.nodes.map((n) => n.id), ...m.flows.map((f) => f.id)])
   if (opts.processId) used.add(opts.processId)
   const fresh = (base: string) => {
+    if (opts.guidIds && HOLDS_GUID.test(base)) {
+      const id = bizagiSafeId(base, (x) => used.has(x))
+      used.add(id)
+      return id
+    }
     let id = base
     for (let i = 2; used.has(id); i++) id = `${base}_${i}`
     used.add(id)
