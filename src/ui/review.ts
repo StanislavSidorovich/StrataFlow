@@ -5,6 +5,7 @@ import type { FlowModel } from '../core/metamodel'
 import { parseModel } from '../core/serialize'
 import { isCaseFile } from '../data/caseFile'
 import { openProcess, useDocs } from './docs'
+import { readProjectFiles } from './files'
 import { prepareImage } from './exportImage'
 import { create } from 'zustand'
 import { PREPARE_TIMEOUT_MS, withTimeout } from './safeWrite'
@@ -82,6 +83,19 @@ export async function compareWithText(text: string, fileName: string) {
     compareWith(base, `“${fileName}”`)
   } catch (e) {
     showError(`Not compared with ${fileName}: ${(e as Error).message}`)
+  }
+}
+
+/** Compare with what the dialog gave: one file as before, several files or a .zip as one Bizagi project. */
+export async function compareWithFiles(files: File[]) {
+  if (!files.length) return
+  const { showError } = useEditor.getState()
+  try {
+    const project = await readProjectFiles(files)
+    if (!project) return await compareWithText(await files[0].text(), files[0].name)
+    compareWith(project.model, `the Bizagi project (${project.label})`)
+  } catch (e) {
+    showError(`Not compared: ${(e as Error).message}`)
   }
 }
 

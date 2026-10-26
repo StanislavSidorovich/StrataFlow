@@ -1,4 +1,4 @@
-// The model check P01–P19 (SPEC §7): each rule fires on a small wrong model and stays quiet on the right one;
+// The model check P01–P20 (SPEC §7): each rule fires on a small wrong model and stays quiet on the right one;
 // the reference models lint clean.
 import { describe, expect, it } from 'vitest'
 import { emptyModel, type FlowModel, type FlowNode } from '../src/core/metamodel'
@@ -131,6 +131,22 @@ describe('the model check', () => {
     expect(hits.every((i) => i.severity === 'error')).toBe(true)
     expect(hits.flatMap((i) => i.elements)).toEqual(expect.arrayContaining([into.id, out.id]))
     expect(hits[0].message).toContain('Verify claim')
+  })
+
+  it('P20: a step inside a sub-process sits in another lane', () => {
+    const m = emptyModel()
+    m.lanes.push({ id: 'L1', name: 'Handler' }, { id: 'L2', name: 'Finance' })
+    const sub = put(m, { type: 'subProcess' }, 'Settle claim')
+    sub.laneId = 'L1'
+    const approve = put(m, TASK, 'Approve claim')
+    const pay = put(m, TASK, 'Pay claim')
+    for (const n of [approve, pay]) (n.parentId = sub.id), (n.laneId = 'L1')
+    expect(rules(m)).not.toContain('P20')
+    pay.laneId = 'L2'
+    const [hit] = only(m, 'P20')
+    expect(hit.severity).toBe('info')
+    expect(hit.elements).toEqual([sub.id, pay.id])
+    expect(hit.message).toContain('"Finance"')
   })
 
   it('P04: a message flow inside one pool', () => {

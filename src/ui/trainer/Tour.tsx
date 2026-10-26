@@ -16,7 +16,7 @@ export const TOUR: Step[] = [
   { title: 'Welcome to Quaera Flow', text: 'Draw BPMN processes the way the course does, check them, and practise turning a text into a process. Six short stops.' },
   { target: '[data-testid="palette"]', title: 'Draw', text: 'Pick a shape (or press its key) and click the canvas. Drag from a shape\'s dot to connect; the kind of line is chosen for you. Right-click a shape for more.' },
   { target: '[data-testid="file-menu"]', title: 'Your files', text: 'Your process is kept in this browser. Save writes a .flow.json file; Export BPMN makes a file Bizagi Modeler and bpmn.io open; Open reads both, Bizagi exports included.' },
-  { target: '[data-testid="check"]', title: 'Check', text: 'The model check asks questions about your model (course rules P01–P19): unreachable steps, splits without a matching join, names. A question, not a verdict.' },
+  { target: '[data-testid="check"]', title: 'Check', text: 'The model check asks questions about your model (course rules P01–P20): unreachable steps, splits without a matching join, names. A question, not a verdict.' },
   { target: '[data-testid="trainer"]', title: 'Trainer', text: 'Cases from easy to hard: a worked example, tagging the text, completing a process, then your own. Lessons explain one idea each.' },
   { target: '[data-testid="help-menu"]', title: 'Help', text: 'Help cards explain every element and rule with a small model. F1 opens them; a "?" next to a field opens its card.' },
 ]

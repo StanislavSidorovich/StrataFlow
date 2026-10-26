@@ -44,12 +44,12 @@ import { Canvas } from './canvas/Canvas'
 import { TOOLS } from './canvas/Palette'
 import { copySelection, cutSelection, duplicateSelection, groupSelection, layoutNow, pasteClipboard, renameElement, ungroupSelection } from './actions'
 import { exportImage } from './exportImage'
-import { exportBpmn, openText, saveModel, saveModelAs } from './files'
+import { exportBizagiProject, exportBpmn, openFiles, saveModel, saveModelAs } from './files'
 import { FEEDBACK_URL } from './links'
 import { Menu } from './Menu'
 import { CheckPanel, issueSummary, useIssues } from './panels/Check'
 import { ChangesButton, ChangesPanel } from './panels/Changes'
-import { compareWith, compareWithText, otherTabs, reviewThisModel, useReviewUi } from './review'
+import { compareWith, compareWithFiles, otherTabs, reviewThisModel, useReviewUi } from './review'
 import { HelpPanel } from './panels/Help'
 import { Properties } from './panels/Properties'
 import { SimulatePanel, useSim } from './panels/Simulate'
@@ -77,9 +77,9 @@ const save = async (as: boolean) => {
   }
 }
 
-const exportNow = async () => {
+const exportNow = async (reusable = false) => {
   try {
-    const done = await exportBpmn()
+    const done = await (reusable ? exportBizagiProject() : exportBpmn())
     if (!done) return
     const { say } = useEditor.getState()
     say(done.problems ? `${done.note} ${done.problems} ${done.problems === 1 ? 'problem' : 'problems'}: Bizagi may reject the file.` : done.note)
@@ -257,7 +257,7 @@ export function App() {
             testid="file-menu"
             items={[
               { label: 'New', icon: <FilePlus2 size={15} />, title: 'Start an empty process in a new tab (the open ones stay)', testid: 'new', onPick: () => void newProcess() },
-              { label: 'Open…', icon: <FolderOpen size={15} />, keys: 'Ctrl+O', title: 'Open a .flow.json file, or a .bpmn file (for example one exported from Bizagi Modeler)', testid: 'open', onPick: () => input.current?.click() },
+              { label: 'Open…', icon: <FolderOpen size={15} />, keys: 'Ctrl+O', title: 'Open a .flow.json file, or a .bpmn file (for example one exported from Bizagi Modeler); for a Bizagi project with reusable sub-processes pick all its .bpmn files, or a .zip of them', testid: 'open', onPick: () => input.current?.click() },
               ...(closedCount > 0
                 ? [{ label: 'Reopen closed process', icon: <Undo2 size={15} />, title: 'Brings back the process you closed last, in a new tab', testid: 'reopen', onPick: () => void reopenClosed() }]
                 : []),
@@ -265,6 +265,7 @@ export function App() {
               { label: 'Save', icon: <Save size={15} />, keys: 'Ctrl+S', title: 'Save as a .flow.json file', testid: 'save', onPick: () => void save(false) },
               { label: 'Save as…', keys: 'Ctrl+Shift+S', title: 'Choose where to save', testid: 'save-as', onPick: () => void save(true) },
               { label: 'Export BPMN', icon: <FileDown size={15} />, title: 'Export as BPMN 2.0 XML (.bpmn) for Bizagi Modeler, bpmn.io and other BPMN tools', testid: 'export-bpmn', onPick: () => void exportNow() },
+              { label: 'Export for Bizagi, reusable sub-processes', icon: <FileDown size={15} />, title: 'A .zip of BPMN files as the course practice draws them: each sub-process a call activity, its page in a file of its own with the pool and only the lane of the sub-process', testid: 'export-bizagi-project', onPick: () => void exportNow(true) },
               { label: 'Export PNG', icon: <ImageIcon size={15} />, title: 'The whole diagram as a PNG picture, for slides and reports', testid: 'export-png', onPick: () => void exportPicture('png') },
               { label: 'Export SVG', icon: <ImageIcon size={15} />, title: 'The whole diagram as an SVG picture (sharp at any size)', testid: 'export-svg', onPick: () => void exportPicture('svg') },
               'sep',
@@ -312,24 +313,24 @@ export function App() {
           <input
             ref={input}
             type="file"
-            accept=".json,.bpmn,.xml"
+            accept=".json,.bpmn,.xml,.zip"
+            multiple
             hidden
             data-testid="open-input"
             onChange={async (e) => {
-              const f = e.target.files?.[0]
-              if (f) await openText(await f.text(), f.name)
+              await openFiles([...(e.target.files ?? [])])
               e.target.value = ''
             }}
           />
           <input
             ref={compareInput}
             type="file"
-            accept=".json,.bpmn,.xml"
+            accept=".json,.bpmn,.xml,.zip"
+            multiple
             hidden
             data-testid="compare-input"
             onChange={async (e) => {
-              const f = e.target.files?.[0]
-              if (f) await compareWithText(await f.text(), f.name)
+              await compareWithFiles([...(e.target.files ?? [])])
               e.target.value = ''
             }}
           />
@@ -553,7 +554,7 @@ function CheckButton() {
     <button
       className={`btn${open ? ' is-open' : ''}`}
       onClick={() => useEditor.getState().setCheckOpen(!open)}
-      title="Check the model: every step reachable, splits closed by matching joins, names (course rules P01–P19)"
+      title="Check the model: every step reachable, splits closed by matching joins, names (course rules P01–P20)"
       data-testid="check"
     >
       {worst ? <TriangleAlert size={15} className={`is-${worst}`} /> : <CircleCheck size={15} className="is-ok" />} <span className="btn-label">Check</span>

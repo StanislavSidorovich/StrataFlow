@@ -19,6 +19,10 @@ export interface ReadResult {
   model: FlowModel
   /** Parser warnings plus what the reader skipped. */
   warnings: string[]
+  /** Call activities (read as tasks): node id → the id of the process they call (Bizagi's reusable sub-processes). */
+  calls: Record<string, string>
+  /** The processes with steps: process id → its pool (undefined for a process without one). */
+  processes: Record<string, string | undefined>
 }
 
 const TASKS: Record<string, TaskKind> = {
@@ -30,7 +34,7 @@ const TASKS: Record<string, TaskKind> = {
   'bpmn:ReceiveTask': 'receive',
   'bpmn:ScriptTask': 'script',
   'bpmn:BusinessRuleTask': 'businessRule',
-  // A call activity looks like a task with a thick border; stage 1 decides whether it gets its own kind.
+  // A call activity is a task here; with the file of the process it calls it becomes a sub-process (reusable.ts).
   'bpmn:CallActivity': 'task',
 }
 
@@ -83,6 +87,8 @@ export async function readBpmn(xml: string): Promise<ReadResult> {
   const nodes: FlowNode[] = []
   const flows: Flow[] = []
   const known = new Set<string>()
+  const calls: Record<string, string> = {}
+  const processesRead: Record<string, string | undefined> = {}
 
   const roots: El[] = defs.rootElements ?? []
   const collaboration = roots.find((r) => r.$type === 'bpmn:Collaboration')
@@ -130,7 +136,11 @@ export async function readBpmn(xml: string): Promise<ReadResult> {
         const base = { id: el.id, name: (el.name ?? '').trim(), participantId, laneId: laneOf.get(el.id), parentId }
         const t = el.$type
         const loop = loopOf(el)
-        if (t in TASKS) nodes.push({ ...base, type: 'task', kind: TASKS[t], ...(loop && { loop }) })
+        if (t in TASKS) {
+          nodes.push({ ...base, type: 'task', kind: TASKS[t], ...(loop && { loop }) })
+          const called = typeof el.calledElement === 'string' ? el.calledElement : el.calledElement?.id
+          if (t === 'bpmn:CallActivity' && called) calls[el.id] = called
+        }
         else if (t in GATEWAYS) nodes.push({ ...base, type: 'gateway', kind: GATEWAYS[t], defaultFlow: el.default?.id })
         else if (t in EVENTS) {
           const defsOf = (el.eventDefinitions ?? []) as El[]
@@ -176,6 +186,7 @@ export async function readBpmn(xml: string): Promise<ReadResult> {
     }
     walk(proc.flowElements ?? [])
     walk(proc.artifacts ?? [])
+    if (proc.flowElements?.some(isStep)) processesRead[proc.id] = participantId
   }
 
   for (const m of messageFlows) flows.push({ id: m.id, kind: 'message', source: m.sourceRef?.id, target: m.targetRef?.id, name: (m.name ?? '').trim() })
@@ -225,6 +236,36 @@ export async function readBpmn(xml: string): Promise<ReadResult> {
   }
   for (const n of nodes) if (n.type === 'subProcess' && expanded.has(n.id)) n.collapsed = false
 
+  // Bizagi lists no flowNodeRef in its lanes: a step's lane is the one it is drawn in (the innermost). A step
+  // on a collapsed sub-process's page (drawn apart) and a boundary event take the lane of what holds them.
+  const byId = new Map(nodes.map((n) => [n.id, n]))
+  const holderOf = (n: FlowNode): FlowNode | undefined => {
+    if (n.type === 'event' && n.attachedTo) return byId.get(n.attachedTo)
+    for (let p = n.parentId ? byId.get(n.parentId) : undefined; p; p = p.parentId ? byId.get(p.parentId) : undefined) if (p.type === 'subProcess' && !expanded.has(p.id)) return p
+    return undefined
+  }
+  const laneDepth = (l: Lane): number => (l.parentLaneId ? 1 + laneDepth(lanes.find((x) => x.id === l.parentLaneId)!) : 0)
+  const drawnIn = (n: FlowNode): string | undefined => {
+    const s = shapes[n.id]
+    if (!s) return undefined
+    const cx = s.x + s.width / 2
+    const cy = s.y + s.height / 2
+    return lanes
+      .filter((l) => l.participantId === n.participantId && shapes[l.id])
+      .filter((l) => {
+        const b = shapes[l.id]
+        return cx >= b.x && cx <= b.x + b.width && cy >= b.y && cy <= b.y + b.height
+      })
+      .sort((a, b) => laneDepth(b) - laneDepth(a))[0]?.id
+  }
+  const laneFor = (n: FlowNode, seen = new Set<string>()): string | undefined => {
+    if (n.laneId || seen.has(n.id)) return n.laneId
+    seen.add(n.id)
+    const h = holderOf(n)
+    return (n.laneId = h ? laneFor(h, seen) : drawnIn(n))
+  }
+  for (const n of nodes) if (!isArtifact(n) && n.participantId && lanes.some((l) => l.participantId === n.participantId)) laneFor(n)
+
   const name = (collaboration?.name || processes.find((p) => poolOf.has(p.id))?.name || (participants.length ? '' : processes[0]?.name) || '').trim()
   const model: FlowModel = { format: 'strata-flow', version: 1, name, participants, lanes, nodes, flows: kept, diagram: { shapes, edges } }
   // Data and annotations belong to no lane in BPMN: like the editor, put them where they sit.
@@ -268,5 +309,5 @@ export async function readBpmn(xml: string): Promise<ReadResult> {
     const arrivals = num(defs, 'arrivals')
     if (unit === 'min' || unit === 'h' || unit === 'd' || arrivals !== undefined) model.sim = { ...((unit === 'min' || unit === 'h' || unit === 'd') && { unit }), ...(arrivals !== undefined && { arrivals }) }
   }
-  return { model, warnings }
+  return { model, warnings, calls, processes: processesRead }
 }

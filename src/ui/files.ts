@@ -4,6 +4,7 @@
 // "Save" writes to that file until another document is loaded; other browsers download the file.
 import { isCaseFile } from '../data/caseFile'
 import { lintModel } from '../core/lint'
+import type { FlowModel } from '../core/metamodel'
 import { parseModel, serializeModel, FILE_EXTENSION } from '../core/serialize'
 import { openProcess, useDocs } from './docs'
 import { deleteHandle, getHandle, handleTabs, putHandle } from './fileStore'
@@ -123,10 +124,75 @@ export async function exportBpmn(): Promise<{ note: string; problems: number } |
   return { note: `Exported ${name}: BPMN 2.0 XML. In Bizagi Modeler use Import, BPMN; bpmn.io opens it directly.${pages}`, problems }
 }
 
+/** Export for Bizagi with reusable sub-processes (the course practice's style): one .bpmn per page, in a .zip. */
+export async function exportBizagiProject(): Promise<{ note: string; problems: number } | null> {
+  const { model } = useEditor.getState()
+  let made = { files: 0, moved: 0, dropped: 0 }
+  const name = await saveExport(`${fileBaseName(model.name)}-bizagi.zip`, 'zip', async () => {
+    const { writeReusable } = await import('../core/bpmn/reusable')
+    const { writeZip } = await import('../core/zip')
+    const { files, split } = await writeReusable(model)
+    made = { files: files.length, moved: split.moved, dropped: split.dropped }
+    const enc = new TextEncoder()
+    return new Blob([writeZip(files.map((f) => ({ name: f.name, data: enc.encode(f.xml) }))) as BlobPart], { type: 'application/zip' })
+  })
+  if (!name) return null
+  const problems = lintModel(model).filter((i) => BIZAGI_RULES.includes(i.rule)).length
+  const what =
+    made.files > 1
+      ? `${made.files} BPMN files: Diagram 1 is the main process, each sub-process a call activity with its page in a file of its own (same pool, only the sub-process's lane).`
+      : 'one BPMN file: the process has no sub-process, so Export BPMN gives the same.'
+  const one = made.moved === 1
+  const moved = made.moved ? ` ${made.moved} ${one ? 'step' : 'steps'} in another lane than ${one ? 'its' : 'their'} sub-process ${one ? 'is' : 'are'} drawn in the sub-process's lane on the page (Check, P20).` : ''
+  const dropped = made.dropped ? ` ${made.dropped} data ${made.dropped === 1 ? 'association joins two files and is' : 'associations join two files and are'} left out.` : ''
+  return { note: `Exported ${name}, ${what} Unzip it and import the files in Bizagi Modeler.${moved}${dropped} Your drawing here is unchanged.`, problems }
+}
+
+/**
+ * Several files picked at once, or a .zip: one Bizagi project with reusable sub-processes (Diagram 1..N),
+ * read into one model with pages. Null for a single plain file (opened as before).
+ */
+export async function readProjectFiles(files: File[]): Promise<{ model: FlowModel; warnings: string[]; pages: number; label: string } | null> {
+  const zipped = (f: File) => /\.zip$/i.test(f.name)
+  if (files.length < 2 && !files.some(zipped)) return null
+  const texts: { name: string; text: string }[] = []
+  for (const f of files) {
+    if (!zipped(f)) {
+      texts.push({ name: f.name, text: await f.text() })
+      continue
+    }
+    const { readZip } = await import('../core/zip')
+    for (const e of await readZip(new Uint8Array(await f.arrayBuffer())))
+      if (/\.(bpmn|xml)$/i.test(e.name) && !e.name.startsWith('__MACOSX/')) texts.push({ name: e.name.split('/').pop()!, text: new TextDecoder().decode(e.data) })
+  }
+  if (!texts.length) throw new Error('no .bpmn files in it')
+  if (texts.some((t) => !t.text.trimStart().startsWith('<'))) throw new Error('several files at once are read as one Bizagi project: pick only its .bpmn files')
+  const { readProject } = await import('../core/bpmn/reusable')
+  const r = await readProject(texts)
+  return { model: r.model, warnings: r.warnings, pages: r.pages, label: files.length === 1 ? files[0].name : `${texts.length} files` }
+}
+
+/** Opens what the Open dialog gave: one file as before, several files or a .zip as one Bizagi project. */
+export async function openFiles(files: File[]): Promise<void> {
+  if (!files.length) return
+  const { showError, say } = useEditor.getState()
+  try {
+    const project = await readProjectFiles(files)
+    if (!project) return await openText(await files[0].text(), files[0].name)
+    openProcess(project.model)
+    const { warnings: w, pages } = project
+    const linked = pages ? `${pages} ${pages === 1 ? 'sub-process' : 'sub-processes'} with ${pages === 1 ? 'its page' : 'their pages'} (double-click one to open it)` : 'no page was linked'
+    say(`Opened ${project.label}: ${linked}.${w.length ? ` Note: ${w.slice(0, 3).join('; ')}${w.length > 3 ? '…' : ''}` : ''}`)
+  } catch (e) {
+    showError(`${files.length === 1 ? files[0].name : 'The files'} could not be opened: ${(e as Error).message}`)
+  }
+}
+
 const IMAGE_KINDS = {
   png: { description: 'PNG image', accept: { 'image/png': ['.png'] } },
   svg: { description: 'SVG image', accept: { 'image/svg+xml': ['.svg'] } },
   bpmn: { description: 'BPMN 2.0 XML', accept: { 'application/xml': ['.bpmn'] } },
+  zip: { description: 'ZIP archive', accept: { 'application/zip': ['.zip'] } },
 }
 
 /**

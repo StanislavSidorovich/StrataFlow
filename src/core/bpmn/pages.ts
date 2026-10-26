@@ -15,7 +15,7 @@ function below(m: FlowModel, id: string): Set<string> {
   return out
 }
 
-const depth = (m: FlowModel, n: FlowNode): number => (n.parentId ? 1 + depth(m, m.nodes.find((x) => x.id === n.parentId)!) : 0)
+export const depth = (m: FlowModel, n: FlowNode): number => (n.parentId ? 1 + depth(m, m.nodes.find((x) => x.id === n.parentId)!) : 0)
 
 /** A copy of the model with every expanded sub-process collapsed in place; `collapsed` counts them. */
 export function collapseForBizagi(model: FlowModel): { model: FlowModel; collapsed: number } {
@@ -43,7 +43,7 @@ export function collapseForBizagi(model: FlowModel): { model: FlowModel; collaps
 }
 
 /** Room round the steps on a page of their own. */
-const PAGE_PAD = 100
+export const PAGE_PAD = 100
 
 /** The outermost collapsed sub-process above a node (what the writer puts its page under), if any. */
 function pageHolder(m: FlowModel, n: FlowNode): string | undefined {

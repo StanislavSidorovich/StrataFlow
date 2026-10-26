@@ -52,7 +52,19 @@ const TRIGGERS: Record<Exclude<EventTrigger, 'none'>, string> = {
 /** Namespace of StrataFlow's analysis attributes in BPMN XML (prefix sf). */
 export const SIM_NS = 'https://flow.quaera.app/ns/sim'
 
-export async function writeBpmn(m: FlowModel): Promise<string> {
+/** For the reusable Bizagi export (pages.ts): one file of several. */
+export interface WriteOptions {
+  /** Collapsed sub-processes written as call activities: node id → the id of the process they call. */
+  calls?: Record<string, string>
+  /** Id of the process of a model without pools (a page without a pool is called by it). */
+  processId?: string
+  /** Added to the ids the writer makes up (definitions, collaboration, diagram), unique across the files of one project. */
+  tag?: string
+}
+
+export async function writeBpmn(m: FlowModel, opts: WriteOptions = {}): Promise<string> {
+  const calls = opts.calls ?? {}
+  const tag = opts.tag ? `_${opts.tag}` : ''
   const moddle = new BpmnModdle()
   const make = (type: string, attrs: object = {}): El => moddle.create(type, attrs)
   const loopMarker = (l: LoopKind) =>
@@ -60,6 +72,7 @@ export async function writeBpmn(m: FlowModel): Promise<string> {
 
   // Ids we add must not clash with the model's.
   const used = new Set<string>([...m.participants.flatMap((p) => [p.id, p.processId ?? '']), ...m.lanes.map((l) => l.id), ...m.nodes.map((n) => n.id), ...m.flows.map((f) => f.id)])
+  if (opts.processId) used.add(opts.processId)
   const fresh = (base: string) => {
     let id = base
     for (let i = 2; used.has(id); i++) id = `${base}_${i}`
@@ -67,13 +80,13 @@ export async function writeBpmn(m: FlowModel): Promise<string> {
     return id
   }
 
-  const defs = make('bpmn:Definitions', { id: fresh('Definitions_1'), targetNamespace: 'http://quaera.app/strataflow', exporter: 'StrataFlow', exporterVersion: '0.2', rootElements: [], diagrams: [] })
+  const defs = make('bpmn:Definitions', { id: fresh(`Definitions_1${tag}`), targetNamespace: 'http://quaera.app/strataflow', exporter: 'StrataFlow', exporterVersion: '0.2', rootElements: [], diagrams: [] })
   const el = new Map<string, El>() // model id → semantic element
   const node = (id: string) => m.nodes.find((n) => n.id === id)
 
   // ---------------------------------------------------------------- processes and pools
   const processOf = new Map<string | undefined, El>() // participant id (undefined = no pool) → process
-  const collaboration = m.participants.length ? make('bpmn:Collaboration', { id: fresh('Collaboration_1'), name: m.name || undefined, participants: [], messageFlows: [], artifacts: [] }) : undefined
+  const collaboration = m.participants.length ? make('bpmn:Collaboration', { id: fresh(`Collaboration_1${tag}`), name: m.name || undefined, participants: [], messageFlows: [], artifacts: [] }) : undefined
   const newProcess = (id: string, name: string) => {
     const p = make('bpmn:Process', { id, name: name || undefined, isExecutable: false, flowElements: [], artifacts: [], laneSets: [] })
     defs.rootElements.push(p)
@@ -89,7 +102,7 @@ export async function writeBpmn(m: FlowModel): Promise<string> {
   const free = m.nodes.filter((n) => !n.participantId || !processOf.has(n.participantId))
   // Steps outside every pool go into a process of their own; a loose annotation can sit in the collaboration.
   if (!m.participants.length || free.some((n) => n.type !== 'annotation'))
-    processOf.set(undefined, newProcess(fresh('Process_1'), m.participants.length ? '' : m.name))
+    processOf.set(undefined, newProcess(opts.processId ?? fresh(`Process_1${tag}`), m.participants.length ? '' : m.name))
   if (collaboration) defs.rootElements.push(collaboration)
 
   /** The list a node goes into: its sub-process, else its pool's process, else the free one. */
@@ -133,7 +146,8 @@ export async function writeBpmn(m: FlowModel): Promise<string> {
         if (n.loop) e.loopCharacteristics = loopMarker(n.loop)
         break
       case 'subProcess':
-        e = make('bpmn:SubProcess', { ...base, flowElements: [], artifacts: [] })
+        // A call activity carries no steps: they are in the called process, in a file of its own.
+        e = calls[n.id] ? make('bpmn:CallActivity', { ...base, calledElement: calls[n.id] }) : make('bpmn:SubProcess', { ...base, flowElements: [], artifacts: [] })
         if (n.loop) e.loopCharacteristics = loopMarker(n.loop)
         break
       case 'gateway':
@@ -306,7 +320,7 @@ export async function writeBpmn(m: FlowModel): Promise<string> {
   for (const [holder, elements] of planes) {
     const owner = holder ? el.get(holder) : (collaboration ?? processOf.get(undefined))
     const plane = make('bpmndi:BPMNPlane', { id: fresh(`${owner.id}_plane`), bpmnElement: owner, planeElement: elements })
-    defs.diagrams.push(make('bpmndi:BPMNDiagram', { id: fresh(holder ? `${holder}_diagram` : 'Diagram_1'), name: holder ? undefined : m.name || undefined, plane, ...(holder ? {} : { labelStyle: labelStyles }) }))
+    defs.diagrams.push(make('bpmndi:BPMNDiagram', { id: fresh(holder ? `${holder}_diagram` : `Diagram_1${tag}`), name: holder ? undefined : m.name || undefined, plane, ...(holder ? {} : { labelStyle: labelStyles }) }))
   }
 
   const { xml } = await moddle.toXML(defs, { format: true })

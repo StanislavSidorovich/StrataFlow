@@ -106,6 +106,8 @@ export const HELP_CARDS: HelpCard[] = [
       'Inside, a sub-process has its own start and end events. Its steps stay in one pool, and in BPMN it has no lanes inside.',
       'A sequence flow never crosses the border: from outside it ends at the sub-process itself, and inside, its own start event begins and its own end event ends. Check (P19) flags a flow that goes straight to a step inside, or straight out of one.',
       'Bizagi draws an expanded sub-process as one huge empty box, so the BPMN export saves it collapsed, its steps on a page of its own (your drawing stays as it is).',
+      'In the course a sub-process sits in one lane, and its page shows the same pool with only that lane. Work that changes hands goes into two sub-processes, one per lane, so the hand-off shows on the level above; Check (P20) points at a step in another lane.',
+      'Export for Bizagi, reusable sub-processes writes what the course practice uses: each sub-process becomes a call activity with its page in a file of its own (pool and lane on the page). Open reads such a project back when you pick all its files, or a .zip of them.',
       'Level 1 of a process architecture is often a line of collapsed sub-processes with no gateways; level 2 opens each one.',
     ],
     whenToUse: ['"the … procedure", "the … stage"', 'more than ~30 steps on one diagram', 'a part reused or described separately'],

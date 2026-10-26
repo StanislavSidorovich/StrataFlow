@@ -24,6 +24,13 @@ describe('readBpmn on a Bizagi-shaped export', async () => {
     expect(node('Task_check')).toMatchObject({ laneId: 'Lane_desk', participantId: 'Participant_library' })
   })
 
+  it('puts a step in the lane it is drawn in when the lanes list nothing (as Bizagi writes them)', async () => {
+    const bare = sample.replace(/<(bpmn:)?flowNodeRef>[^<]*<\/(bpmn:)?flowNodeRef>/g, '')
+    expect(bare).not.toContain('flowNodeRef>')
+    const back = (await readBpmn(bare)).model
+    for (const n of model.nodes) expect(back.nodes.find((x) => x.id === n.id)?.laneId, n.id).toBe(n.laneId)
+  })
+
   it('maps element types', () => {
     expect(node('Start_requested')).toMatchObject({ type: 'event', position: 'start', trigger: 'message', throwing: false })
     expect(node('Timer_due')).toMatchObject({ type: 'event', position: 'intermediate', trigger: 'timer' })

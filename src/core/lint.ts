@@ -1,10 +1,10 @@
-// The model check (SPEC §7): rules P01–P19. Each issue names its elements and a help card.
+// The model check (SPEC §7): rules P01–P20. Each issue names its elements and a help card.
 // A warning is a question, not a verdict: the student decides. Conventions follow the NOVA BPM
 // course (Dumas et al. 2013, Chapter 3) and the 7PMG from Chapter 4.
 import { isArtifact, type FlowModel, type FlowNode } from './metamodel'
 
 export type Severity = 'error' | 'warning' | 'info'
-export type RuleId = `P${'01' | '02' | '03' | '04' | '05' | '06' | '07' | '08' | '09' | '10' | '11' | '12' | '13' | '14' | '15' | '16' | '17' | '18' | '19'}`
+export type RuleId = `P${'01' | '02' | '03' | '04' | '05' | '06' | '07' | '08' | '09' | '10' | '11' | '12' | '13' | '14' | '15' | '16' | '17' | '18' | '19' | '20'}`
 
 export interface Issue {
   rule: RuleId
@@ -41,6 +41,7 @@ export const RULES: Record<RuleId, { severity: Severity; title: string; card: st
   P17: { severity: 'warning', title: 'Loop without an exit', card: 'loop' },
   P18: { severity: 'warning', title: 'Waiting for a message that may never come', card: 'event-based-gateway' },
   P19: { severity: 'error', title: 'Sequence flow across a sub-process border', card: 'sub-process' },
+  P20: { severity: 'info', title: 'Sub-process across lanes', card: 'sub-process' },
 }
 
 const SEVERITY_ORDER: Record<Severity, number> = { error: 0, warning: 1, info: 2 }
@@ -272,6 +273,17 @@ export function lintModel(m: FlowModel, opts: LintOptions = {}): Issue[] {
       const b = poolOfEnd(m, f.target)
       if (a === b) add('P04', `The message flow ${s || t ? `from ${label(s)} to ${label(t)} ` : ''}stays inside one pool: inside a pool use a sequence flow; a message goes to another party.`, [f.id])
     }
+  }
+
+  // P20: the course puts a sub-process in one lane and its page shows only that lane (Chapter 3, exercise 3.4);
+  // work of another role inside it is a hand-off that belongs on the level above.
+  for (const sub of m.nodes) {
+    if (sub.type !== 'subProcess' || !sub.laneId) continue
+    const away = steps.filter((n) => n.parentId === sub.id && n.laneId && n.laneId !== sub.laneId && !(n.type === 'event' && n.attachedTo))
+    if (!away.length) continue
+    const lanes = [...new Set(away.map((n) => m.lanes.find((l) => l.id === n.laneId)?.name.trim() || 'another lane'))]
+    const own = m.lanes.find((l) => l.id === sub.laneId)?.name.trim()
+    add('P20', `The sub-process ${label(sub)} sits in ${own ? `the lane "${own}"` : 'one lane'}, but ${away.length === 1 ? `${label(away[0])} inside it is` : `${away.length} steps inside it are`} in ${lanes.map((l) => (l === 'another lane' ? l : `"${l}"`)).join(', ')}: in the course a sub-process stays in one lane (its page shows only that lane); split it per role or move the work to the level above. The reusable Bizagi export puts these steps in the sub-process's lane.`, [sub.id, ...away.map((n) => n.id)])
   }
 
   for (const n of steps) {
