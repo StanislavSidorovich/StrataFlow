@@ -101,9 +101,24 @@ describe('splitReusable', () => {
       expect(b.x).toBeGreaterThan(pool.x)
       expect(b.y + b.height).toBeLessThan(pool.y + pool.height)
     }
-    // Pay sat in Finance: on the page it takes the sub-process's lane (P20 says so on the canvas).
-    expect(pay.nodes.find((n) => n.id === 'Pay')?.laneId).toBe(pay.lanes[0].id)
-    expect(moved).toBe(1)
+    // Pay sits in Finance, the page's start and end in Handler: the page has both lanes, each step in its own.
+    expect(pay.lanes.map((l) => l.name)).toEqual(['Handler', 'Finance'])
+    const lane = (id: string) => pay.lanes.find((l) => l.id === pay.nodes.find((n) => n.id === id)?.laneId)?.name
+    expect([lane('InStart'), lane('Pay'), lane('InEnd')]).toEqual(['Handler', 'Finance', 'Handler'])
+    expect(moved).toBe(0)
+    // The lanes are bands one below the other, the pool round them, every step inside its band.
+    const [a, b] = pay.lanes.map((l) => pay.diagram.shapes[l.id])
+    expect(b.y).toBeCloseTo(a.y + a.height)
+    const poolBox = pay.diagram.shapes[pay.participants[0].id]
+    expect(poolBox.height).toBeCloseTo(a.height + b.height)
+    for (const n of pay.nodes) {
+      const box = pay.diagram.shapes[n.id]
+      const band = pay.diagram.shapes[n.laneId!]
+      expect(box.y, n.id).toBeGreaterThanOrEqual(band.y)
+      expect(box.y + box.height, n.id).toBeLessThanOrEqual(band.y + band.height)
+    }
+    // A flow between two bands is routed again by the writer, not drawn through the old place.
+    expect(pay.diagram.edges.F6).toBeUndefined()
   })
 
   it('writes call activities that call the page processes, one file per page', async () => {
@@ -182,7 +197,7 @@ describe('readProject', () => {
     expect(node('Sub')).toMatchObject({ type: 'subProcess', collapsed: true, laneId: 'L1', participantId: 'P' })
     expect(node('Inner')).toMatchObject({ type: 'subProcess', collapsed: true, parentId: 'Sub' })
     expect(node('Approve')).toMatchObject({ parentId: 'Sub', participantId: 'P', laneId: 'L1' })
-    expect(node('Pay')).toMatchObject({ parentId: 'Inner', participantId: 'P', laneId: 'L1' })
+    expect(node('Pay')).toMatchObject({ parentId: 'Inner', participantId: 'P', laneId: 'L2' })
     expect(back.nodes.map((n) => n.id).sort()).toEqual(model().nodes.map((n) => n.id).sort())
     expect(back.flows.filter((x) => x.kind === 'sequence').map((x) => x.id).sort()).toEqual(['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7'])
     // One message, from the step itself (the main sheet's copy to the box is dropped).

@@ -65,16 +65,24 @@ export function splitReusable(model: FlowModel): ReusableSplit {
     const pool = m.participants.find((p) => p.id === s.participantId)
     const lane = m.lanes.find((l) => l.id === s.laneId)
     const poolId = pool ? fresh(`${s.id}_pool`) : undefined
-    const laneId = poolId && lane ? fresh(`${s.id}_lane`) : undefined
     const inside = new Set(m.nodes.filter((n) => n.parentId === s.id).map((n) => n.id))
+    // The page's lanes: the pool's lanes its steps sit in, in the main pool's order (the sub-process's own lane when none).
+    const stepLanes = new Set(m.nodes.filter((n) => inside.has(n.id) && !isArtifact(n) && !(n.type === 'event' && n.attachedTo)).map((n) => n.laneId))
+    if (!stepLanes.size && lane) stepLanes.add(lane.id)
+    const pageLanes = pool ? m.lanes.filter((l) => l.participantId === pool.id && stepLanes.has(l.id)) : []
+    const laneMap = new Map<string, string>() // main sheet lane → its lane on the page
+    for (const l of pageLanes) laneMap.set(l.id, fresh(l.id === s.laneId ? `${s.id}_lane` : `${s.id}_${l.id}_lane`))
+    const firstLane = (lane && laneMap.get(lane.id)) || [...laneMap.values()][0]
     const nodes: FlowNode[] = m.nodes
       .filter((n) => inside.has(n.id))
       .map((n) => {
         const c = structuredClone(n)
-        if (!isArtifact(c) && !(c.type === 'event' && c.attachedTo) && c.laneId !== s.laneId) moved++
+        const host = c.type === 'event' && c.attachedTo ? byId.get(c.attachedTo) : undefined
+        const own = (n.laneId && laneMap.get(n.laneId)) || (host?.laneId && laneMap.get(host.laneId))
+        if (!isArtifact(c) && !host && !(n.laneId && laneMap.has(n.laneId))) moved++
         c.parentId = undefined
         c.participantId = poolId
-        c.laneId = laneId
+        c.laneId = poolId ? own || firstLane : undefined
         return c
       })
     const flows: Flow[] = m.flows.filter((f) => f.kind !== 'message' && inside.has(f.source) && inside.has(f.target)).map((f) => structuredClone(f))
@@ -84,18 +92,49 @@ export function splitReusable(model: FlowModel): ReusableSplit {
     for (const f of flows) if (m.diagram.edges[f.id]) edges[f.id] = m.diagram.edges[f.id].map((p) => ({ ...p }))
     const page: FlowModel = { format: m.format, version: m.version, name: s.name, participants: [], lanes: [], nodes, flows, diagram: { shapes, edges } }
 
+    // Several lanes: each lane's steps move into a band of their own, one below the other, keeping their order and
+    // their place within the lane. A flow between two bands loses its drawn route (the writer routes it again).
+    const bands = new Map<string, { y: number; height: number }>() // page lane → band, only with several lanes
+    if (pool && poolId && pageLanes.length > 1) {
+      const boxes0 = Object.values(shapes)
+      let top = (boxes0.length ? Math.min(...boxes0.map((b) => b.y)) : PAGE_PAD) - POOL.padY
+      const dys = new Map<string, number>() // node → how far it moved
+      for (const l of pageLanes) {
+        const id = laneMap.get(l.id)!
+        const group = nodes.filter((n) => n.laneId === id && shapes[n.id])
+        const lo = group.length ? Math.min(...group.map((n) => shapes[n.id].y)) : 0
+        const hi = group.length ? Math.max(...group.map((n) => shapes[n.id].y + shapes[n.id].height)) : 0
+        const height = Math.max(group.length ? hi - lo + 2 * POOL.padY : 0, 160)
+        const dy = top + POOL.padY - lo
+        for (const n of group) {
+          shapes[n.id] = { ...shapes[n.id], y: shapes[n.id].y + dy }
+          dys.set(n.id, dy)
+        }
+        bands.set(id, { y: top, height })
+        top += height
+      }
+      for (const f of flows) {
+        const a = dys.get(f.source) ?? 0
+        if (edges[f.id] && a === (dys.get(f.target) ?? 0)) edges[f.id] = edges[f.id].map((p) => ({ x: p.x, y: p.y + a }))
+        else delete edges[f.id]
+      }
+    }
+
     if (pool && poolId) {
-      // The page's pool round its steps, the one lane filling it.
+      // The page's pool round its steps, its lanes filling it.
       const boxes = Object.values(shapes)
       const x0 = (boxes.length ? Math.min(...boxes.map((b) => b.x)) : PAGE_PAD) - POOL.padX - POOL.header
-      const y0 = (boxes.length ? Math.min(...boxes.map((b) => b.y)) : PAGE_PAD) - POOL.padY
+      const bandTop = bands.size ? Math.min(...[...bands.values()].map((b) => b.y)) : undefined
+      const y0 = bandTop ?? (boxes.length ? Math.min(...boxes.map((b) => b.y)) : PAGE_PAD) - POOL.padY
       const width = (boxes.length ? Math.max(...boxes.map((b) => b.x + b.width)) : PAGE_PAD + 200) + POOL.padX - x0
-      const height = (boxes.length ? Math.max(...boxes.map((b) => b.y + b.height)) : PAGE_PAD + 100) + POOL.padY - y0
+      const height = bands.size ? [...bands.values()].reduce((sum, b) => sum + b.height, 0) : (boxes.length ? Math.max(...boxes.map((b) => b.y + b.height)) : PAGE_PAD + 100) + POOL.padY - y0
       page.participants.push({ id: poolId, name: pool.name, processId: calls[s.id] })
       shapes[poolId] = { x: x0, y: y0, width, height }
-      if (lane && laneId) {
-        page.lanes.push({ id: laneId, name: lane.name, participantId: poolId, ...(lane.capacity !== undefined && { capacity: lane.capacity }) })
-        shapes[laneId] = { x: x0 + POOL.header, y: y0, width: width - POOL.header, height }
+      for (const l of pageLanes) {
+        const id = laneMap.get(l.id)!
+        page.lanes.push({ id, name: l.name, participantId: poolId, ...(l.capacity !== undefined && { capacity: l.capacity }) })
+        const band = bands.get(id)
+        shapes[id] = { x: x0 + POOL.header, y: band?.y ?? y0, width: width - POOL.header, height: band?.height ?? height }
       }
       // Message flows of the drawing with one end on this page (collapseForBizagi moved them to the box on the
       // main sheet): here they reach the step, and the other party is a black-box pool below.
