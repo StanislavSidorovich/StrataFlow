@@ -6,6 +6,7 @@ import type { FlowModel } from './metamodel'
 import { groupIntoSubprocess, pageOf, setCollapsed } from './ops'
 import { snapshot } from './reduce'
 import { parseModel } from './serialize'
+import type { ReviewLayer } from './reviewReplay'
 
 export const STORY_FORMAT = 'flow-story'
 export const STORY_VERSION = 1
@@ -49,6 +50,8 @@ export interface Beat {
   question?: StoryQuestion
   /** The named steps are grouped into a sub-process and collapsed (the editor's own operations, on a copy). */
   group?: { name: string; steps: string[] }
+  /** The beat is on the page of this collapsed sub-process (by name): its steps as the frame has them. */
+  page?: string
 }
 
 export interface Story {
@@ -102,6 +105,8 @@ export interface StoryFrame {
   question: StoryQuestion | null
   /** The sub-process a group beat made. */
   grouped: string | null
+  /** A review replay's frame: the marks of its changes and the ghosts of what was removed. */
+  review?: ReviewLayer
 }
 
 /** True when the text is a story file (not a model or a case file). */
@@ -113,7 +118,7 @@ export function isStoryFile(text: string): boolean {
   }
 }
 
-const BEAT_KEYS = ['title', 'show', 'flows', 'focus', 'quote', 'text', 'ghosts', 'token', 'overview', 'question', 'group']
+const BEAT_KEYS = ['title', 'show', 'flows', 'focus', 'quote', 'text', 'ghosts', 'token', 'overview', 'question', 'group', 'page']
 
 const fail = (msg: string): never => {
   throw new StoryError(msg)
@@ -166,6 +171,7 @@ function checkBeat(b: unknown, i: number): Beat {
   if (typeof o.title !== 'string' || !o.title.trim()) fail(`${where(i)} needs a “title”`)
   for (const k of ['show', 'flows', 'token'] as const) if (o[k] !== undefined && !isStrings(o[k])) fail(`${at}: “${k}” must be a list of names`)
   if (o.focus !== undefined && (typeof o.focus !== 'string' || !o.focus)) fail(`${at}: “focus” must be a name`)
+  if (o.page !== undefined && (typeof o.page !== 'string' || !o.page)) fail(`${at}: “page” must be the name of a sub-process`)
   for (const k of ['quote', 'text'] as const) if (o[k] !== undefined && !(typeof o[k] === 'string' || isStrings(o[k]))) fail(`${at}: “${k}” must be a string or a list of strings`)
   if (o.overview !== undefined && typeof o.overview !== 'boolean') fail(`${at}: “overview” must be true or false`)
   if (o.ghosts !== undefined) {
@@ -332,12 +338,22 @@ export function storyFrames(story: Story, open: FlowModel): StoryFrame[] {
       return { id: `ghost:${i}:${k}`, name: g.name, ...(g.kind ? { kind: g.kind } : {}), x, y, links }
     })
 
+    // A beat that opens a sub-process's page: the box must be collapsed (a page exists only for those).
+    let pageBeat: string | null = null
+    if (beat.page) {
+      pageBeat = resolveName(ref, beat.page, `${at}, “page”`)
+      const sp = ref.nodes.find((n) => n.id === pageBeat)
+      if (sp?.type !== 'subProcess' || !sp.collapsed) fail(`${at}, “page”: “${beat.page}” is not a collapsed sub-process`)
+      if (!shown.has(pageBeat)) fail(`${at}, “page”: “${beat.page}” is not shown yet`)
+    }
+    const onPageIds = pageBeat ? [...shown].filter((id) => ref.nodes.some((n) => n.id === id) && pageOf(ref, id) === pageBeat) : []
+
     const overview = !!beat.overview
-    const fit = overview || (!current.length && !token.length) ? [...shown] : [...new Set([...current, ...token, ...(focus ? [focus] : []), ...newFlows.flatMap((d) => (ref.flows.find((f) => f.id === d.id) ? [ref.flows.find((f) => f.id === d.id)!.source, ref.flows.find((f) => f.id === d.id)!.target] : []))])]
+    const fit = pageBeat && !current.length && !token.length ? onPageIds : overview || (!current.length && !token.length) ? [...shown] : [...new Set([...current, ...token, ...(focus ? [focus] : []), ...newFlows.flatMap((d) => (ref.flows.find((f) => f.id === d.id) ? [ref.flows.find((f) => f.id === d.id)!.source, ref.flows.find((f) => f.id === d.id)!.target] : []))])]
     // On a sub-process's page when what the beat shows lives there.
     const focusNode = focus ? ref.nodes.find((n) => n.id === focus) : undefined
     const hostOf = focusNode?.type === 'event' && focusNode.attachedTo ? focusNode.attachedTo : focus
-    const onPage = focusNode && hostOf && !overview ? (pageOf(ref, hostOf) ?? null) : null
+    const onPage = pageBeat ?? (focusNode && hostOf && !overview ? (pageOf(ref, hostOf) ?? null) : null)
 
     frames.push({
       index: i,

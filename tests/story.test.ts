@@ -113,6 +113,21 @@ describe('shop-order story', () => {
     expect(ship.x - (b.x + b.width)).toBeLessThan(120)
     expect(lintModel(last.model, { expectLanes: true }).filter((i) => i.severity === 'error')).toEqual([])
   })
+  it('opens the page of Collect payment in a beat of its own, with its steps and the timer on the border', () => {
+    const at = frames.findIndex((x) => x.beat.page)
+    const f = frames[at]
+    const box = nodeOf(f.model, frames.find((x) => x.grouped)!.grouped!)!
+    expect(at).toBeGreaterThan(frames.findIndex((x) => x.grouped))
+    expect(f.page).toBe(box.id)
+    // The three named steps, and the start and end event grouping added inside.
+    expect(f.fit.map((id) => nodeOf(f.model, id)!.name)).toEqual(expect.arrayContaining(['14 days', 'Receive payment', 'Reminder sent']))
+    expect(f.fit.every((id) => nodeOf(f.model, id)!.parentId === box.id)).toBe(true)
+    expect(frames[at + 1].overview).toBe(true)
+  })
+  it('refuses a page beat that names a step, or a sub-process not shown yet', () => {
+    expect(refuse(story([{ title: 'a', show: ['Check stock'], page: 'Check stock' }]))).toMatch(/not a collapsed sub-process/)
+    expect(refuse(story([{ title: 'a', show: ['Check stock'], page: 'Nowhere' }]))).toMatch(/no element named/)
+  })
   it('shows the whole reference before the group beat', () => {
     const at = frames.findIndex((x) => x.grouped)
     expect(frames[at - 1].model).toEqual(shop())

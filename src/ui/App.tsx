@@ -294,7 +294,7 @@ export function App() {
               {
                 label: 'Example: story, online shop',
                 icon: <Presentation size={15} />,
-                title: 'The online shop process told in 18 beats, ending with a sub-process (Present = full screen)',
+                title: 'The online shop process told in 19 beats, ending with a sub-process (Present = full screen)',
                 testid: 'example-story',
                 onPick: presentExample,
               },

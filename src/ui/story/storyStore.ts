@@ -18,6 +18,8 @@ interface StoryState {
   setAsk: (on: boolean) => void
   /** Starts a story; throws StoryError when it cannot play. */
   open: (story: Story) => void
+  /** Starts a story whose frames are already built (a review replay). */
+  openFrames: (story: Story, frames: StoryFrame[]) => void
   exit: () => void
   goTo: (beat: number) => void
   answer: (option: number) => void
@@ -50,6 +52,9 @@ export const useStory = create<StoryState>()((set, get) => ({
   },
   open(story) {
     const frames = storyFrames(story, story.model ?? useEditor.getState().model)
+    set({ story, frames, beat: 0, answered: null })
+  },
+  openFrames(story, frames) {
     set({ story, frames, beat: 0, answered: null })
   },
   exit() {

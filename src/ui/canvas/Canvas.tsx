@@ -55,7 +55,7 @@ export const nodeTypes = { shape: BpmnShape, pool: PoolShape, ghost: GhostShape 
 export const edgeTypes = { flow: BpmnEdge }
 
 /** What is drawn on a page: the main process (page null) or a collapsed sub-process's steps, as in Bizagi. */
-function shownOn(model: FlowModel, page: string | null): Set<string> {
+export function shownOn(model: FlowModel, page: string | null): Set<string> {
   const out = new Set<string>()
   for (const n of model.nodes) {
     // A boundary event is drawn with its host.

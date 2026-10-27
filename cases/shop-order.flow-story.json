@@ -1,7 +1,7 @@
 {
   "format": "flow-story",
   "version": 1,
-  "title": "Online shop: order fulfilment in 18 beats",
+  "title": "Online shop: order fulfilment in 19 beats",
   "text": [
     "When an order from a customer arrives, a sales clerk checks in the system whether every item is in stock. If an item is missing, the order is rejected and the customer is told so. Otherwise two things happen at the same time: the warehouse packs the goods and prints a packing slip, while sales sends the invoice to the customer. When both are done, sales waits for the customer's payment. If no payment has come 14 days after that, sales sends the customer a reminder, and goes on waiting. Once the payment has arrived, the warehouse ships the order. The order is now shipped.",
     "We model the online shop's process. The customer is outside it: we only see what the customer sends to the shop and receives from it."
@@ -244,6 +244,15 @@
         ]
       },
       "focus": "Collect payment"
+    },
+    {
+      "title": "Inside Collect payment",
+      "quote": "sales sends the customer a reminder, and goes on waiting",
+      "text": [
+        "The sub-process's own page: **Receive payment** with the **14 days** timer on its border, and the **Reminder sent** that the timer leads to. Nothing was lost by grouping, it just sits one level down.",
+        "While presenting, click a collapsed sub-process (or *Open page*) to look inside it; *Back* returns."
+      ],
+      "page": "Collect payment"
     },
     {
       "title": "The whole process",

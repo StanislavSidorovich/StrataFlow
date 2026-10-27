@@ -77,7 +77,9 @@ function StoryCard() {
   const presenting = useStory((s) => s.presenting)
   if (!frame || !story) return null
   const q = frame.question
-  const quotes = story.text ? [] : quotesOf(frame.beat)
+  // With a task text the quote is lit in it; a quote the text does not hold is shown on its own.
+  const located = locateQuotes(story)[frame.index] ?? []
+  const quotes = quotesOf(frame.beat).filter((_, k) => !story.text || !located[k])
   const grade = q && answered !== null ? (answered === q.right ? 'right' : 'wrong') : null
   return (
     <div key={`${beat}:${asking}`} className={`story-card${presenting ? ' is-presenting' : ''}`} role="status" aria-live="polite" data-testid="story-card">

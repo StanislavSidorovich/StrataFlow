@@ -107,6 +107,28 @@
 }
 .story-canvas {
   flex: 1;
+  position: relative;
+}
+
+/* a sub-process's page: Back, and Open page for each collapsed box */
+.story-pages {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 460px);
+}
+.story-pages-name {
+  color: var(--text-muted, inherit);
+}
+@media (max-width: 700px) {
+  .story-pages {
+    max-width: calc(100% - 24px);
+  }
 }
 
 /* the comment card */
