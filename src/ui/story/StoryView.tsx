@@ -3,8 +3,9 @@
 // highlighted. Present = full screen, only the diagram, the text and a quiet bar; ← → / Space, Home / End, Esc.
 import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
-import { ArrowLeft, ArrowRight, CircleCheck, CircleX, Maximize2, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CircleCheck, CircleX, Maximize2, Share2, X } from 'lucide-react'
 import { locateQuotes, quotesOf, textsOf, type QuoteSpan, type Story } from '../../core/story'
+import { shareNow } from '../share'
 import { StoryCanvas } from './StoryCanvas'
 import { useShown, useStory } from './storyStore'
 
@@ -184,6 +185,12 @@ function StoryPane() {
         </button>
         <button className="btn" onClick={() => setPresenting(true)} title="Full screen: only the diagram, the text and a quiet bar (Esc to leave)" data-testid="story-present">
           <Maximize2 size={14} /> Present
+        </button>
+        <button className="btn" onClick={() => void shareNow(false)} title="Save one .flow.html file to send: opening it lands in Quaera Flow on this story. Nothing is uploaded" data-testid="story-share">
+          <Share2 size={14} /> Share
+        </button>
+        <button className="btn" onClick={() => void shareNow(true)} title="Copy the link instead (long; a file is tidier in a chat)" data-testid="story-share-link">
+          Copy link
         </button>
       </div>
       <label className="small story-ask">

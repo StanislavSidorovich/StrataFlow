@@ -29,6 +29,8 @@ import {
   Smartphone,
   Sparkles,
   Timer,
+  Share2,
+  Link2,
   Save,
   TriangleAlert,
   Undo2,
@@ -49,6 +51,8 @@ import { exportBizagiProject, exportBpmn, openFiles, saveModel, saveModelAs } fr
 import { FEEDBACK_URL } from './links'
 import { Menu } from './Menu'
 import { presentExample } from './story/present'
+import { shareFromHash } from '../core/shareLink'
+import { shareNow } from './share'
 import { StoryView } from './story/StoryView'
 import { useStory } from './story/storyStore'
 import { CheckPanel, issueSummary, useIssues } from './panels/Check'
@@ -162,7 +166,7 @@ export function App() {
 
   useEffect(() => {
     // On a phone the notice comes instead; the tour is one of the welcome card's choices.
-    if (!useLayout.getState().phone) welcomeAtStart()
+    if (!useLayout.getState().phone && !shareFromHash(location.hash) && !useStory.getState().story) welcomeAtStart()
   }, [])
 
   useEffect(() => {
@@ -273,6 +277,8 @@ export function App() {
               { label: 'Export for Bizagi, reusable sub-processes', icon: <FileDown size={15} />, title: 'A .zip of BPMN files as the course practice draws them: each sub-process a call activity, its page in a file of its own with the pool and only the lane of the sub-process', testid: 'export-bizagi-project', onPick: () => void exportNow(true) },
               { label: 'Export PNG', icon: <ImageIcon size={15} />, title: 'The whole diagram as a PNG picture, for slides and reports', testid: 'export-png', onPick: () => void exportPicture('png') },
               { label: 'Export SVG', icon: <ImageIcon size={15} />, title: 'The whole diagram as an SVG picture (sharp at any size)', testid: 'export-svg', onPick: () => void exportPicture('svg') },
+              { label: 'Share as file…', icon: <Share2 size={15} />, title: 'One .flow.html file to send: opening it lands in Quaera Flow with this process (or the story on the screen) loaded. Nothing is uploaded', testid: 'share-file', onPick: () => void shareNow(false) },
+              { label: 'Copy share link', icon: <Link2 size={15} />, title: 'The same as a link in the clipboard (long; a file is tidier in a chat)', testid: 'share-link', onPick: () => void shareNow(true) },
               'sep',
               { label: 'Review this model…', icon: <GitCompareArrows size={15} />, title: 'Correct a copy of this model (a classmate’s draft): each change is numbered on the diagram, with a note', testid: 'review-copy', onPick: reviewThisModel },
               { label: 'Compare with a file…', icon: <GitCompareArrows size={15} />, title: 'Show what changed since another version: the file you pick (.flow.json or a Bizagi .bpmn) is the “before”, this process the “after”', testid: 'compare-file', onPick: () => compareInput.current?.click() },

@@ -9,9 +9,11 @@ import './trainer.css'
 import './story.css'
 import { registerServiceWorker } from './pwa/register'
 import { App } from './ui/App'
+import { openSharedFromHash } from './ui/share'
 import { installViewport } from './ui/viewport'
 
 installViewport()
+void openSharedFromHash()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

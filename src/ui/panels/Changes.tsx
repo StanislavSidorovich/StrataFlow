@@ -5,8 +5,9 @@
 // so they are saved with the file, undone with Ctrl+Z and printed on the review sheet.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useReactFlow } from '@xyflow/react'
-import { ArrowDown, ArrowUp, GitCompareArrows, Play, Printer, Trash2, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, GitCompareArrows, Play, Printer, Share2, Trash2, X } from 'lucide-react'
 import { playReview } from '../story/present'
+import { shareNow } from '../share'
 import { addToFix, deleteFix, endReview, makeFix, moveFix, removeFromFix, reviewDiff, setFixNote, setReviewNote, toggleUnpair, type Change, type DiffFix, type ModelDiff } from '../../core/diff'
 import type { FlowModel } from '../../core/metamodel'
 import { nodeOf, pageOf } from '../../core/ops'
@@ -137,6 +138,9 @@ export function ChangesPanel() {
         </label>
         <button className="btn" onClick={() => playReview()} title="Tell the review fix by fix: the draft first, then each fix with its note and quote, full screen with Present" data-testid="changes-play">
           <Play size={14} /> <span className="btn-label">Play review</span>
+        </button>
+        <button className="btn" onClick={() => void shareNow(false)} title="One .flow.html file to send: opening it lands in Quaera Flow with this process and its changes, ready for Play review. Nothing is uploaded" data-testid="changes-share">
+          <Share2 size={14} /> <span className="btn-label">Share as file</span>
         </button>
         <button className="btn" onClick={() => void printReview()} title="The diagram with its numbers and the list of fixes with your notes, to print or save as PDF" data-testid="changes-print">
           <Printer size={14} /> <span className="btn-label">Review sheet</span>

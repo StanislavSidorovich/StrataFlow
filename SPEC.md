@@ -211,6 +211,15 @@ Details fixed in S1 (v0.10.0): an element is named by its name, or `#id` when it
 
 Review replay (v0.11.0, `core/reviewReplay.ts`): a model with a `review` (a copy made by Review this model) plays as a story, **Play review** in the Changes panel. Frame 0 is the base; then one frame per fix in review order, each applying only that fix's changes to the frame before, lighting its elements (added green, changed violet, removed a faded dashed ghost, as in the Changes panel), showing the fix number, its note as the comment and its quote ("The task says") highlighted in the task text (My task, when the model has one; else the quote on its own); then one frame per change in no fix, numbered as the panel numbers them; the last of these is the corrected model; an overview closes the story. A change that depends on another (a step moved into a sub-process another fix adds) applies it too and says "Together with fix N" in the comment.
 
+### 10.2 Share as file and `#share=` (v0.12.0)
+
+A story or a process travels to a classmate as **one small file**; no server. `src/core/shareLink.ts` packs a payload `{ v: 1, kind: 'story' | 'model', story | model }` as compact JSON, deflate-raw (`CompressionStream`), base64url, into the URL fragment: `https://flow.quaera.app/#share=<data>`. A story carries its model inside (a story told over the open model gets it embedded); a model carries its `review`, so Play review works on the other side. The shop-order story is about 4.7 KB of data. The fragment never reaches a server.
+
+- **File → Share as file…**, **Share** in the story bar, **Share as file** in the Changes panel: writes `<name>.flow.html`, a page with no external resource: the title, "Opening in Quaera Flow…", `location.replace(<link>)` in a script, a big **Open in Quaera Flow** link with the same URL (phones may show downloaded HTML without running scripts) and one line saying what the file is and that the content stays in the link. The save goes through `saveExport` / `writePrepared` (safe write). **Copy share link** puts the raw link on the clipboard. A link over about 1.5 MB gets a soft warning (some browsers cut long URLs).
+- A review replay on the screen shares the model with its review, not the replay.
+- **On load**: `main.tsx` reads `#share=`, strips it with `history.replaceState` (F5 and the next share do not re-open it), then opens a story at beat 1, or a model in a new tab (Changes panel available if it has a review; the welcome card is skipped). A damaged or newer-format link shows a short message in the notice and the app opens as usual.
+- **Testing**: the file always points at https://flow.quaera.app; adding `?sharehere` to the page's address makes it point at the page's own origin (the dev server).
+
 ## 11. Tech stack
 
 - **React + TypeScript + Vite**, **Zustand** (+ immer) for the store and undo/redo, Tailwind CSS, lucide-react icons, Vitest. Same as StrataSQL.
