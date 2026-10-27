@@ -1,0 +1,321 @@
+/* Story / Present (SPEC §10.1): the story takes the place of the editor. */
+
+.story-root {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  background: var(--app-bg);
+}
+.story-root.is-presenting {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+}
+.story-pane {
+  width: 280px;
+  flex: none;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  background: var(--panel-bg);
+  border-right: 1px solid var(--panel-border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.story-pane-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.story-pane-head h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 14px;
+}
+.story-progress,
+.story-presenter-progress {
+  height: 3px;
+  background: var(--panel-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.story-progress > div,
+.story-presenter-progress > div {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s;
+}
+.story-ask {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.story-beats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.story-beats button {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+}
+.story-beats button:hover {
+  background: var(--accent-soft);
+}
+.story-beats button.is-past {
+  color: var(--text);
+}
+.story-beats button.is-now {
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 600;
+}
+.story-beat-n {
+  flex: none;
+  width: 18px;
+  text-align: right;
+  opacity: 0.6;
+}
+
+.story-main {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.story-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.story-canvas {
+  flex: 1;
+}
+
+/* the comment card */
+.story-card {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: min(400px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 12px 16px 14px;
+  background: var(--panel-bg);
+  color: var(--text);
+  border: 1px solid var(--panel-border);
+  border-left: 4px solid var(--accent);
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.14);
+  animation: story-card-in 0.35s 0.15s both;
+  z-index: 6;
+}
+.story-card.is-presenting {
+  width: min(460px, calc(100% - 32px));
+  font-size: 16px;
+}
+.story-card h3 {
+  margin: 2px 0 8px;
+  font-size: 16px;
+}
+.story-card p {
+  margin: 6px 0;
+  line-height: 1.5;
+}
+.story-card blockquote {
+  margin: 6px 0;
+  padding: 2px 10px;
+  border-left: 3px solid var(--panel-border);
+  color: var(--muted);
+  font-style: italic;
+}
+.story-card-step {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.story-card .ask-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0;
+}
+.story-card .ask-options .btn {
+  text-align: left;
+  justify-content: flex-start;
+}
+@keyframes story-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* the task text under the canvas */
+.story-text {
+  flex: none;
+  max-height: 26vh;
+  overflow-y: auto;
+  padding: 8px 20px 10px;
+  border-top: 1px solid var(--panel-border);
+  background: var(--panel-bg);
+  line-height: 1.55;
+  font-size: 14px;
+}
+.is-presenting .story-text {
+  font-size: 18px;
+  max-height: 30vh;
+}
+.story-text p {
+  margin: 4px 0;
+}
+.story-text mark {
+  background: none;
+  color: inherit;
+  border-radius: 3px;
+}
+.story-text mark.is-now {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 28%, transparent);
+  font-weight: 600;
+}
+.story-text mark.is-past {
+  opacity: 0.45;
+}
+
+/* what the beat shows */
+.story-canvas .react-flow__node,
+.story-canvas .react-flow__edge {
+  transition: opacity 0.4s;
+}
+.story-canvas .react-flow__node.story-dim,
+.story-canvas .react-flow__edge.story-dim {
+  opacity: 0.3;
+}
+.story-canvas .react-flow__node.story-new {
+  animation: story-pop 0.5s ease-out both;
+}
+.story-canvas .react-flow__node.story-focus .bpmn-shape {
+  filter: drop-shadow(0 0 6px var(--accent));
+}
+@keyframes story-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+/* a flow draws itself after the shape is there */
+.story-canvas .react-flow__edge.story-draw .react-flow__edge-path {
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
+  animation: story-draw 0.8s 0.5s ease-in-out forwards;
+}
+.story-canvas .react-flow__edge.story-draw.story-reverse .react-flow__edge-path {
+  stroke-dashoffset: -1;
+  animation-name: story-draw-back;
+}
+.story-canvas .react-flow__edge.story-fade {
+  animation: story-fade 0.6s 0.5s both;
+}
+@keyframes story-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes story-draw-back {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes story-fade {
+  from {
+    opacity: 0;
+  }
+}
+.story-ghost {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 90px;
+  padding: 8px 12px;
+  border: 2px dashed var(--muted);
+  border-radius: 10px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 12px;
+  text-align: center;
+}
+.story-ghost small {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* the quiet bar of Present */
+.story-presenter-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  border-radius: 0;
+}
+.story-presenter-bar {
+  position: absolute;
+  right: 16px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  opacity: 0.25;
+  transition: opacity 0.2s;
+  z-index: 8;
+}
+.story-presenter-bar:hover {
+  opacity: 1;
+}
+.story-presenter-bar button {
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 6px;
+}
+.story-presenter-bar button:disabled {
+  opacity: 0.3;
+}
+
+@media (max-width: 900px) {
+  .story-pane {
+    display: none;
+  }
+}
+
+.story-canvas .react-flow__handle {
+  display: none;
+}

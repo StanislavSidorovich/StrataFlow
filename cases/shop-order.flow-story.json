@@ -1,0 +1,652 @@
+{
+  "format": "flow-story",
+  "version": 1,
+  "title": "Online shop: order fulfilment in 18 beats",
+  "text": [
+    "When an order from a customer arrives, a sales clerk checks in the system whether every item is in stock. If an item is missing, the order is rejected and the customer is told so. Otherwise two things happen at the same time: the warehouse packs the goods and prints a packing slip, while sales sends the invoice to the customer. When both are done, sales waits for the customer's payment. If no payment has come 14 days after that, sales sends the customer a reminder, and goes on waiting. Once the payment has arrived, the warehouse ships the order. The order is now shipped.",
+    "We model the online shop's process. The customer is outside it: we only see what the customer sends to the shop and receives from it."
+  ],
+  "beats": [
+    {
+      "title": "The shop and its customer",
+      "show": [
+        "Online shop",
+        "Sales",
+        "Warehouse",
+        "Customer"
+      ],
+      "quote": [
+        "We model the online shop's process",
+        "The customer is outside it"
+      ],
+      "text": [
+        "**Online shop** is a pool: we model its process, so we see inside it. Its roles are lanes: **Sales** and **Warehouse**.",
+        "**Customer** is an empty pool, a black box: we do not know what happens inside, we only see the messages between customer and shop."
+      ],
+      "focus": "Online shop"
+    },
+    {
+      "title": "An order arrives",
+      "show": [
+        "Order received"
+      ],
+      "quote": "an order from a customer arrives",
+      "text": [
+        "The process starts when a message comes from the customer: a **message start event**, with a message flow from the Customer pool.",
+        "It sits in Sales, because a sales clerk deals with the order."
+      ]
+    },
+    {
+      "title": "Check the stock",
+      "show": [
+        "Check stock"
+      ],
+      "quote": "checks in the system whether every item is in stock",
+      "text": [
+        "A person working with a system: a **user task**. (A plain task is also right; the user task says more.)",
+        "A sequence flow joins it to the start event: the order in which things happen."
+      ]
+    },
+    {
+      "title": "In stock or not?",
+      "show": [
+        "In stock?"
+      ],
+      "quote": "If an item is missing",
+      "text": [
+        "\"If ... otherwise\" means one way out of two: an **exclusive gateway (XOR)**. Only one of the branches is taken, never both.",
+        "The question is written on the gateway, the answers on the flows leaving it."
+      ],
+      "question": {
+        "prompt": "The flow splits after \"Check stock\". Which gateway?",
+        "options": [
+          "Exclusive gateway (XOR)",
+          "Parallel gateway (AND)",
+          "Inclusive gateway (OR)",
+          "Event-based gateway"
+        ],
+        "right": 0,
+        "why": "\"If an item is missing ... otherwise\": exactly one way is taken, so an exclusive gateway."
+      }
+    },
+    {
+      "title": "The order is rejected",
+      "show": [
+        "Order rejected"
+      ],
+      "quote": "the order is rejected and the customer is told so",
+      "text": [
+        "The \"No\" branch ends at once. The process ends by telling the customer, so it is a **message end event** with a message flow to the Customer pool."
+      ]
+    },
+    {
+      "title": "Two things at the same time",
+      "show": [
+        "#Gateway_2"
+      ],
+      "quote": "Otherwise two things happen at the same time",
+      "text": [
+        "\"Otherwise\" is the other branch of the XOR: the **Yes** flow. It is the *default* flow (the little slash), the way taken when nothing else fits.",
+        "\"At the same time\" asks for a **parallel gateway (AND) split**: both ways run, in any order. An XOR would take only one."
+      ],
+      "question": {
+        "prompt": "Two things must happen at the same time. Which gateway?",
+        "options": [
+          "Exclusive gateway (XOR)",
+          "Parallel gateway (AND)",
+          "Inclusive gateway (OR)",
+          "Event-based gateway"
+        ],
+        "right": 1,
+        "why": "\"At the same time\": all ways run together, so a parallel gateway (AND)."
+      },
+      "focus": "#Gateway_2"
+    },
+    {
+      "title": "The warehouse packs the goods",
+      "show": [
+        "Pack goods"
+      ],
+      "quote": "the warehouse packs the goods",
+      "text": [
+        "Work done by hand, with no system: a **manual task**. It sits in the Warehouse lane, because the warehouse does it."
+      ]
+    },
+    {
+      "title": "A packing slip",
+      "show": [
+        "Packing slip"
+      ],
+      "quote": "prints a packing slip",
+      "text": [
+        "The packing slip is a document the task produces: a **data object** linked to Pack goods.",
+        "It is not a task of its own. Data shows what a task uses or makes; it does not say when anything happens."
+      ]
+    },
+    {
+      "title": "Meanwhile: the invoice",
+      "show": [
+        "Send invoice"
+      ],
+      "quote": "while sales sends the invoice to the customer",
+      "text": [
+        "\"While\" is the second branch of the AND split. A **send task** plus a message flow to the customer: sales sends something out.",
+        "Pack goods and Send invoice have no order between them: either may finish first."
+      ]
+    },
+    {
+      "title": "When both are done",
+      "show": [
+        "#Gateway_3"
+      ],
+      "quote": "When both are done",
+      "text": [
+        "A **parallel join** waits for every branch before the process goes on. Each AND split needs its AND join.",
+        "With an XOR here the process would go on after the first branch and ship before the invoice is sent."
+      ],
+      "focus": "#Gateway_3"
+    },
+    {
+      "title": "Wait for the payment",
+      "show": [
+        "Receive payment"
+      ],
+      "quote": "sales waits for the customer's payment",
+      "text": [
+        "The process waits for a message from the customer: a **receive task**, with a message flow from the Customer pool.",
+        "Why a task and not an event? The deadline in the next beat needs an activity to sit on."
+      ]
+    },
+    {
+      "title": "14 days later",
+      "show": [
+        "14 days"
+      ],
+      "quote": "If no payment has come 14 days after that",
+      "text": [
+        "A deadline while waiting: a **timer event on the border** of Receive payment, a boundary event.",
+        "It is *non-interrupting* (dashed border): the task is not cancelled when the timer fires."
+      ],
+      "question": {
+        "prompt": "\"14 days\" sits on the border of Receive payment. What kind of event?",
+        "options": [
+          "A plain (none) event",
+          "A message event",
+          "A timer event",
+          "An error event"
+        ],
+        "right": 2,
+        "why": "A deadline is time passing: a timer event."
+      }
+    },
+    {
+      "title": "The reminder, and goes on waiting",
+      "show": [
+        "Reminder sent"
+      ],
+      "quote": "sends the customer a reminder, and goes on waiting",
+      "text": [
+        "The reminder branch ends after sending: a message end event and a message flow.",
+        "\"Goes on waiting\" is exactly what a non-interrupting timer does: the reminder goes out and Receive payment is still waiting for the payment."
+      ]
+    },
+    {
+      "title": "The warehouse ships",
+      "show": [
+        "Ship order"
+      ],
+      "quote": "Once the payment has arrived, the warehouse ships the order",
+      "text": [
+        "After the payment arrives the main path goes on: a manual task in the Warehouse lane."
+      ]
+    },
+    {
+      "title": "The order is shipped",
+      "show": [
+        "Order shipped"
+      ],
+      "quote": "The order is now shipped",
+      "text": [
+        "The good outcome: an **end event**. The process is complete."
+      ]
+    },
+    {
+      "title": "Follow one order",
+      "text": [
+        "A token walks the happy path: the goods are in stock, the payment arrives in time.",
+        "At the AND split the token divides in two: this one follows Pack goods while another follows Send invoice. The join lets them through together."
+      ],
+      "token": [
+        "Order received",
+        "Check stock",
+        "In stock?",
+        "#Gateway_2",
+        "Pack goods",
+        "#Gateway_3",
+        "Receive payment",
+        "Ship order",
+        "Order shipped"
+      ]
+    },
+    {
+      "title": "A deadline on a whole part",
+      "quote": "If no payment has come 14 days after that",
+      "text": [
+        "Receive payment, the timer and the reminder belong together: they are *collecting the payment*. Grouped into one **sub-process**, they read as one step: **Collect payment**.",
+        "The reasoning: a deadline on a whole part needs a sub-process. A timer sits on one activity; to put it on several steps, wrap them in a sub-process and put the timer on that. Inside, the same steps are on the sub-process's own page."
+      ],
+      "group": {
+        "name": "Collect payment",
+        "steps": [
+          "Receive payment",
+          "14 days",
+          "Reminder sent"
+        ]
+      },
+      "focus": "Collect payment"
+    },
+    {
+      "title": "The whole process",
+      "text": [
+        "Pools and lanes for who does the work, an XOR with a default for the decision, an AND split and join for the parallel work, a timer on the border for the deadline, and a sub-process to hold a part together."
+      ],
+      "overview": true
+    }
+  ],
+  "model": {
+    "format": "strata-flow",
+    "version": 1,
+    "name": "Order fulfilment",
+    "participants": [
+      {
+        "id": "Participant_1",
+        "name": "Online shop",
+        "processId": "Process_1"
+      },
+      {
+        "id": "Participant_2",
+        "name": "Customer"
+      }
+    ],
+    "lanes": [
+      {
+        "id": "Lane_1",
+        "name": "Sales",
+        "participantId": "Participant_1"
+      },
+      {
+        "id": "Lane_2",
+        "name": "Warehouse",
+        "participantId": "Participant_1"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "Event_1",
+        "name": "Order received",
+        "type": "event",
+        "position": "start",
+        "trigger": "message",
+        "throwing": false,
+        "participantId": "Participant_1",
+        "laneId": "Lane_1"
+      },
+      {
+        "id": "Task_1",
+        "name": "Check stock",
+        "type": "task",
+        "kind": "user",
+        "participantId": "Participant_1",
+        "laneId": "Lane_1"
+      },
+      {
+        "id": "Gateway_1",
+        "name": "In stock?",
+        "type": "gateway",
+        "kind": "exclusive",
+        "participantId": "Participant_1",
+        "laneId": "Lane_1",
+        "defaultFlow": "Flow_4"
+      },
+      {
+        "id": "Event_2",
+        "name": "Order rejected",
+        "type": "event",
+        "position": "end",
+        "trigger": "message",
+        "throwing": true,
+        "participantId": "Participant_1",
+        "laneId": "Lane_1"
+      },
+      {
+        "id": "Gateway_2",
+        "name": "",
+        "type": "gateway",
+        "kind": "parallel",
+        "participantId": "Participant_1",
+        "laneId": "Lane_1"
+      },
+      {
+        "id": "Task_2",
+        "name": "Pack goods",
+        "type": "task",
+        "kind": "manual",
+        "participantId": "Participant_1",
+        "laneId": "Lane_2"
+      },
+      {
+        "id": "Task_3",
+        "name": "Send invoice",
+        "type": "task",
+        "kind": "send",
+        "participantId": "Participant_1",
+        "laneId": "Lane_1"
+      },
+      {
+        "id": "Gateway_3",
+        "name": "",
+        "type": "gateway",
+        "kind": "parallel",
+        "participantId": "Participant_1",
+        "laneId": "Lane_2"
+      },
+      {
+        "id": "Task_4",
+        "name": "Receive payment",
+        "type": "task",
+        "kind": "receive",
+        "participantId": "Participant_1",
+        "laneId": "Lane_1"
+      },
+      {
+        "id": "Task_5",
+        "name": "Ship order",
+        "type": "task",
+        "kind": "manual",
+        "participantId": "Participant_1",
+        "laneId": "Lane_2"
+      },
+      {
+        "id": "Event_3",
+        "name": "Order shipped",
+        "type": "event",
+        "position": "end",
+        "trigger": "none",
+        "throwing": true,
+        "participantId": "Participant_1",
+        "laneId": "Lane_2"
+      },
+      {
+        "id": "Event_4",
+        "name": "14 days",
+        "type": "event",
+        "position": "boundary",
+        "trigger": "timer",
+        "throwing": false,
+        "interrupting": false,
+        "attachedTo": "Task_4",
+        "participantId": "Participant_1",
+        "laneId": "Lane_1"
+      },
+      {
+        "id": "Event_5",
+        "name": "Reminder sent",
+        "type": "event",
+        "position": "end",
+        "trigger": "message",
+        "throwing": true,
+        "participantId": "Participant_1",
+        "laneId": "Lane_1"
+      },
+      {
+        "id": "DataObject_1",
+        "name": "Packing slip",
+        "type": "dataObject",
+        "participantId": "Participant_1",
+        "laneId": "Lane_2"
+      }
+    ],
+    "flows": [
+      {
+        "id": "Flow_1",
+        "kind": "sequence",
+        "source": "Event_1",
+        "target": "Task_1",
+        "name": ""
+      },
+      {
+        "id": "Flow_2",
+        "kind": "sequence",
+        "source": "Task_1",
+        "target": "Gateway_1",
+        "name": ""
+      },
+      {
+        "id": "Flow_3",
+        "kind": "sequence",
+        "source": "Gateway_1",
+        "target": "Event_2",
+        "name": "No",
+        "condition": "an item is missing"
+      },
+      {
+        "id": "Flow_4",
+        "kind": "sequence",
+        "source": "Gateway_1",
+        "target": "Gateway_2",
+        "name": "Yes"
+      },
+      {
+        "id": "Flow_5",
+        "kind": "sequence",
+        "source": "Gateway_2",
+        "target": "Task_2",
+        "name": ""
+      },
+      {
+        "id": "Flow_6",
+        "kind": "sequence",
+        "source": "Gateway_2",
+        "target": "Task_3",
+        "name": ""
+      },
+      {
+        "id": "Flow_7",
+        "kind": "sequence",
+        "source": "Task_2",
+        "target": "Gateway_3",
+        "name": ""
+      },
+      {
+        "id": "Flow_8",
+        "kind": "sequence",
+        "source": "Task_3",
+        "target": "Gateway_3",
+        "name": ""
+      },
+      {
+        "id": "Flow_9",
+        "kind": "sequence",
+        "source": "Gateway_3",
+        "target": "Task_4",
+        "name": ""
+      },
+      {
+        "id": "Flow_10",
+        "kind": "sequence",
+        "source": "Task_4",
+        "target": "Task_5",
+        "name": ""
+      },
+      {
+        "id": "Flow_11",
+        "kind": "sequence",
+        "source": "Task_5",
+        "target": "Event_3",
+        "name": ""
+      },
+      {
+        "id": "Flow_12",
+        "kind": "sequence",
+        "source": "Event_4",
+        "target": "Event_5",
+        "name": ""
+      },
+      {
+        "id": "DataAssociation_1",
+        "kind": "data",
+        "source": "Task_2",
+        "target": "DataObject_1",
+        "name": ""
+      },
+      {
+        "id": "MessageFlow_1",
+        "kind": "message",
+        "source": "Participant_2",
+        "target": "Event_1",
+        "name": ""
+      },
+      {
+        "id": "MessageFlow_2",
+        "kind": "message",
+        "source": "Event_2",
+        "target": "Participant_2",
+        "name": ""
+      },
+      {
+        "id": "MessageFlow_3",
+        "kind": "message",
+        "source": "Task_3",
+        "target": "Participant_2",
+        "name": ""
+      },
+      {
+        "id": "MessageFlow_4",
+        "kind": "message",
+        "source": "Participant_2",
+        "target": "Task_4",
+        "name": ""
+      },
+      {
+        "id": "MessageFlow_5",
+        "kind": "message",
+        "source": "Event_5",
+        "target": "Participant_2",
+        "name": ""
+      }
+    ],
+    "diagram": {
+      "shapes": {
+        "Participant_1": {
+          "x": 0,
+          "y": 0,
+          "width": 1204,
+          "height": 556
+        },
+        "Lane_1": {
+          "x": 30,
+          "y": 0,
+          "width": 1174,
+          "height": 226
+        },
+        "Lane_2": {
+          "x": 30,
+          "y": 226,
+          "width": 1174,
+          "height": 330
+        },
+        "Participant_2": {
+          "x": 0,
+          "y": 616,
+          "width": 1204,
+          "height": 250
+        },
+        "Event_1": {
+          "x": 132,
+          "y": 128,
+          "width": 36,
+          "height": 36
+        },
+        "Task_1": {
+          "x": 218,
+          "y": 106,
+          "width": 100,
+          "height": 80
+        },
+        "Gateway_1": {
+          "x": 368,
+          "y": 121,
+          "width": 50,
+          "height": 50
+        },
+        "Event_2": {
+          "x": 468,
+          "y": 30,
+          "width": 36,
+          "height": 36
+        },
+        "Gateway_2": {
+          "x": 468,
+          "y": 121,
+          "width": 50,
+          "height": 50
+        },
+        "Task_2": {
+          "x": 568,
+          "y": 256,
+          "width": 100,
+          "height": 80
+        },
+        "Task_3": {
+          "x": 568,
+          "y": 106,
+          "width": 100,
+          "height": 80
+        },
+        "Gateway_3": {
+          "x": 718,
+          "y": 376,
+          "width": 50,
+          "height": 50
+        },
+        "Task_4": {
+          "x": 818,
+          "y": 106,
+          "width": 100,
+          "height": 80
+        },
+        "Task_5": {
+          "x": 968,
+          "y": 256,
+          "width": 100,
+          "height": 80
+        },
+        "Event_3": {
+          "x": 1118,
+          "y": 278,
+          "width": 36,
+          "height": 36
+        },
+        "Event_4": {
+          "x": 870,
+          "y": 168,
+          "width": 36,
+          "height": 36
+        },
+        "Event_5": {
+          "x": 968,
+          "y": 128,
+          "width": 36,
+          "height": 36
+        },
+        "DataObject_1": {
+          "x": 600,
+          "y": 466,
+          "width": 36,
+          "height": 50
+        }
+      },
+      "edges": {}
+    }
+  }
+}

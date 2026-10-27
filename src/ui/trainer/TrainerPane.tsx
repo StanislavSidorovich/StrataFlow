@@ -1,7 +1,7 @@
 // The trainer column (left of the canvas, so Properties stays on the right): the case picker with
 // progress and lessons; a task (case text, tagging, Check with the comparison, the hint ladder); a lesson.
 import { useEffect, type ReactNode } from 'react'
-import { ArrowLeft, ArrowRight, CircleCheck, CircleX, Clapperboard, Eye, EyeOff, FileText, GraduationCap, Lightbulb, ListChecks, NotebookPen, Play, Square, Trash2, Wand2, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CircleCheck, CircleX, Clapperboard, Eye, EyeOff, FileText, GraduationCap, Lightbulb, ListChecks, NotebookPen, Play, Presentation, Square, Trash2, Wand2, X } from 'lucide-react'
 import type { CompareItem } from '../../core/compare'
 import { UNIT_NAMES } from '../../core/analysis'
 import { CASES, caseById, FILE_CASES, TAGS, tagFits, type TrainerCase } from '../../data/cases'
@@ -10,6 +10,7 @@ import { findCues } from '../../data/textcues'
 import { DONE_AT, LEVELS, levelsOf, paragraphParts, progressKey, viewCase, type GoalCheck, type Level } from '../../data/trainer'
 import { HelpQ } from '../panels/Help'
 import { useEditor } from '../store'
+import { presentCase } from '../story/present'
 import { MyTaskView } from './MyTask'
 import { startTour } from './Tour'
 import { allTagged, useTrainer, walkSteps, type Session } from './trainerStore'
@@ -52,6 +53,9 @@ function Picker() {
         <span className="stars" title={`Difficulty ${c.difficulty} of 3`}>{'★'.repeat(c.difficulty)}</span>
         <button className="btn icon" onClick={() => useTrainer.getState().start(c.id, 0, { walk: true })} title="Watch it built: the model step by step, with the words of the text" aria-label={`Watch ${c.title} built`} data-testid={`watch:${c.id}`}>
           <Clapperboard size={14} />
+        </button>
+        <button className="btn icon" onClick={() => presentCase(c)} title="Present: the whole process told beat by beat, with the sentence of the text it comes from (full screen on request)" aria-label={`Present ${c.title}`} data-testid={`present:${c.id}`}>
+          <Presentation size={14} />
         </button>
         {file && (
           <button className="btn icon" onClick={() => confirm(`Remove “${c.title}” from the trainer? The file itself stays where it is.`) && useTrainer.getState().removeFileCase(c.id)} title="Remove this case file from the trainer" aria-label={`Remove ${c.title}`}>

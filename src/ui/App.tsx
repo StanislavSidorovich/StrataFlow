@@ -23,6 +23,7 @@ import {
   MessageSquare,
   MousePointer2,
   PanelRight,
+  Presentation,
   Play,
   RefreshCw,
   Smartphone,
@@ -47,6 +48,9 @@ import { exportImage } from './exportImage'
 import { exportBizagiProject, exportBpmn, openFiles, saveModel, saveModelAs } from './files'
 import { FEEDBACK_URL } from './links'
 import { Menu } from './Menu'
+import { presentExample } from './story/present'
+import { StoryView } from './story/StoryView'
+import { useStory } from './story/storyStore'
 import { CheckPanel, issueSummary, useIssues } from './panels/Check'
 import { ChangesButton, ChangesPanel } from './panels/Changes'
 import { compareWith, compareWithFiles, otherTabs, reviewThisModel, useReviewUi } from './review'
@@ -120,6 +124,7 @@ export function App() {
   const tabCount = useDocs((s) => s.tabs.length)
   const closedCount = useDocs((s) => s.closed.length)
   const hasContent = useEditor((s) => s.model.nodes.length + s.model.participants.length > 0)
+  const storyOn = useStory((s) => s.story !== null)
   const error = useEditor((s) => s.error)
   const message = useEditor((s) => s.message)
   const goCheck = useEditor((s) => s.goCheck)
@@ -285,6 +290,13 @@ export function App() {
                   openProcess(parseModel(example))
                   useEditor.getState().say('Opened the example: a library lends a book. Your other processes stay in their tabs.')
                 },
+              },
+              {
+                label: 'Example: story, online shop',
+                icon: <Presentation size={15} />,
+                title: 'The online shop process told in 18 beats, ending with a sub-process (Present = full screen)',
+                testid: 'example-story',
+                onPick: presentExample,
               },
               {
                 label: 'Example: expense claim AS-IS',
@@ -478,13 +490,14 @@ export function App() {
         </div>
       )}
       <main className="main">
-        {trainerOpen && (
+        {storyOn && <StoryView />}
+        {!storyOn && trainerOpen && (
           <>
             <TrainerPane />
             {!phone && <PaneResizer />}
           </>
         )}
-        <ReactFlowProvider key={doc}>
+        {!storyOn && <ReactFlowProvider key={doc}>
           <div className="workspace">
             <Canvas />
             <TrainerVeil />
@@ -492,8 +505,8 @@ export function App() {
             {changesOpen && reviewed && <ChangesPanel />}
             {simOpen && <SimulatePanel />}
           </div>
-        </ReactFlowProvider>
-        {side && (
+        </ReactFlowProvider>}
+        {!storyOn && side && (
           <div className={`side-wrap${narrow ? ' is-over' : ''}`}>
             {!narrow && <SideResizer />}
             {narrow && !help && (

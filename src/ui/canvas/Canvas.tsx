@@ -34,7 +34,7 @@ import type { ModelDiff } from '../../core/diff'
 import { registerBounds } from '../exportImage'
 import { Palette } from './Palette'
 
-type AnyNode = ShapeNode | PoolNode | GhostNode
+export type AnyNode = ShapeNode | PoolNode | GhostNode
 
 /**
  * The line shown while a flow is dragged. From a pool's border strip it is the line the flow will have:
@@ -51,8 +51,8 @@ function ConnectionLine({ fromX, fromY, toX, toY, fromPosition, toPosition, from
   )
 }
 
-const nodeTypes = { shape: BpmnShape, pool: PoolShape, ghost: GhostShape }
-const edgeTypes = { flow: BpmnEdge }
+export const nodeTypes = { shape: BpmnShape, pool: PoolShape, ghost: GhostShape }
+export const edgeTypes = { flow: BpmnEdge }
 
 /** What is drawn on a page: the main process (page null) or a collapsed sub-process's steps, as in Bizagi. */
 function shownOn(model: FlowModel, page: string | null): Set<string> {
@@ -124,7 +124,7 @@ function ghostEdges(model: FlowModel, diff: ModelDiff | null, page: string | nul
   return out
 }
 
-function toNodes(model: FlowModel, selected: Set<string>, page: string | null, marks: Map<string, Severity> = new Map(), tokens: Set<string> = new Set(), changes: Map<string, ChangeMark> = new Map(), removed: GhostNode[] = []): AnyNode[] {
+export function toNodes(model: FlowModel, selected: Set<string>, page: string | null, marks: Map<string, Severity> = new Map(), tokens: Set<string> = new Set(), changes: Map<string, ChangeMark> = new Map(), removed: GhostNode[] = []): AnyNode[] {
   const { shapes } = model.diagram
   const shown = shownOn(model, page)
   const out: AnyNode[] = []
@@ -166,7 +166,7 @@ function toNodes(model: FlowModel, selected: Set<string>, page: string | null, m
   return out
 }
 
-function toEdges(model: FlowModel, selected: Set<string>, page: string | null, passed: Set<string> = new Set(), drop: string | null = null, changes: Map<string, ChangeMark> = new Map(), removed: FlowEdge[] = []): FlowEdge[] {
+export function toEdges(model: FlowModel, selected: Set<string>, page: string | null, passed: Set<string> = new Set(), drop: string | null = null, changes: Map<string, ChangeMark> = new Map(), removed: FlowEdge[] = []): FlowEdge[] {
   const byId = new Map(model.nodes.map((n) => [n.id, n]))
   const shown = shownOn(model, page)
   const real: FlowEdge[] = model.flows.filter((f) => shown.has(f.source) && shown.has(f.target)).map((f) => {

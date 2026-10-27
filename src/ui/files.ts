@@ -3,6 +3,9 @@
 // Same pattern as StrataSQL's fileSave.ts: "Save as" picks the folder and name (Chrome, Edge), after which
 // "Save" writes to that file until another document is loaded; other browsers download the file.
 import { isCaseFile } from '../data/caseFile'
+import { isStoryFile } from '../core/story'
+import { openStoryText } from './story/present'
+import { useStory } from './story/storyStore'
 import { lintModel } from '../core/lint'
 import type { FlowModel } from '../core/metamodel'
 import { parseModel, serializeModel, FILE_EXTENSION } from '../core/serialize'
@@ -285,6 +288,8 @@ export async function openText(text: string, fileName: string): Promise<void> {
       if (!model.name) model.name = fileName.replace(/\.(bpmn|xml)$/i, '')
       openProcess(model)
       say(warnings.length ? `Opened ${fileName}. Not shown yet: ${warnings.slice(0, 3).join('; ')}${warnings.length > 3 ? '…' : ''}` : `Opened ${fileName}`)
+    } else if (isStoryFile(text)) {
+      if (openStoryText(text)) say(`Opened the story “${useStory.getState().story?.title}”: ← → step through it, Present for full screen.`)
     } else if (isCaseFile(text)) {
       // A case file joins the trainer and starts its walkthrough; the user's own model waits meanwhile.
       const c = useTrainer.getState().openCaseFile(text)

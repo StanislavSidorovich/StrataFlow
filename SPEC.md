@@ -205,6 +205,8 @@ Added in the design of 2026-10-27:
 
 Frames: the model reduced to what is shown so far (`snapshot` of the walkthrough), new elements bright and the rest dimmed, new flows drawn from the older end (dashoffset). `storyFromCase(c)` turns any case into a draft story (pools and lanes, then the walkthrough order; phrases → quotes, `why` → comment, the walkthrough's questions), so every case can be presented; a hand-written story file overrides it. The first hand-written story: `cases/shop-order.flow-story.json`, ending with Receive payment + 14 days + Reminder sent grouped into **Collect payment**.
 
+Details fixed in S1 (v0.10.0): an element is named by its name, or `#id` when it has none (drafts and the unnamed AND gateways); `flows` names a flow by its name or as `A -> B`, and a flow listed in a later beat is held back until then, every other flow is drawn as soon as both its ends are shown; `quote` is a string or a list; `text` a string or a list; `ghosts` are `{ name, kind?, links? }` and show in their own beat only; a beat is drawn on a collapsed sub-process's page when its focus lives there; the file may carry its `model` (self-contained) or be told over the open model; a boundary event needs its host shown first or in the same beat; unknown fields and unfound quotes are refused with the beat named. Present is the story in place of the editor; the open model and the trainer are left as they were.
+
 Review replay (later sprint): a model with a `review` plays as a story, base first, then fix by fix in review order, each with its note and quote.
 
 ## 11. Tech stack
