@@ -1326,6 +1326,25 @@ function growHolders(m: FlowModel, level: { participantId?: string; parentId?: s
   if (right + 30 > pool.x + pool.width) resizeElement(m, level.participantId!, { ...pool, width: right + 30 - pool.x })
 }
 
+/** After content at one level moved left by dx: a pool that was widened for it shrinks back, never past its last shape. */
+function shrinkPool(m: FlowModel, level: { participantId?: string; parentId?: string }, dx: number) {
+  if (dx <= 0) return
+  for (let p = level.parentId ? nodeOf(m, level.parentId) : undefined; p; p = p.parentId ? nodeOf(m, p.parentId) : undefined) {
+    if (p.type === 'subProcess' && p.collapsed) return
+    const s = m.diagram.shapes[p.id]
+    // The sub-process holding the content narrows only while its steps stay inside.
+    const kids = m.nodes.filter((k) => k.parentId === p.id && m.diagram.shapes[k.id])
+    if (s && kids.length) {
+      const right = Math.max(...kids.map((k) => m.diagram.shapes[k.id].x + m.diagram.shapes[k.id].width)) + GROUP_PAD
+      if (right < s.x + s.width) resizeElement(m, p.id, { ...s, width: Math.max(right - s.x, s.width - dx) })
+    }
+  }
+  const pool = level.participantId ? m.diagram.shapes[level.participantId] : undefined
+  if (!pool) return
+  const right = Math.max(...m.nodes.filter((n) => n.participantId === level.participantId && m.diagram.shapes[n.id] && !pageOf(m, n.id)).map((n) => m.diagram.shapes[n.id].x + m.diagram.shapes[n.id].width)) + 30
+  if (right < pool.x + pool.width) resizeElement(m, level.participantId!, { ...pool, width: Math.max(right - pool.x, pool.width - dx) })
+}
+
 /**
  * Collapses a sub-process to a task-sized box (its steps go on a page of their own, as in Bizagi) or expands
  * it round its steps. What sits right of it moves left or right by the width it gave up or needs.
@@ -1347,13 +1366,33 @@ export function setCollapsed(m: FlowModel, id: string, collapsed: boolean): void
   const old = { ...s }
   let next: Bounds
   if (collapsed) {
+    // Its lane: the one holding most of its steps (the earliest of them on a tie), as grouping picks it.
+    const direct = m.nodes.filter((k) => k.parentId === id && !isArtifact(k) && !(k.type === 'event' && k.attachedTo) && k.laneId && m.diagram.shapes[k.id])
+    const count = new Map<string, number>()
+    for (const k of direct) count.set(k.laneId!, (count.get(k.laneId!) ?? 0) + 1)
+    const best = Math.max(0, ...count.values())
+    const first = direct.filter((k) => count.get(k.laneId!) === best).sort((a, b) => m.diagram.shapes[a.id].x - m.diagram.shapes[b.id].x)[0]
+    const lane = first ? first.laneId : n.laneId
+    const ls = lane ? m.diagram.shapes[lane] : undefined
+    let y = cy
+    if (ls && !pageOf(m, id) && (cy - SIZES.subProcess.height / 2 < ls.y || cy + SIZES.subProcess.height / 2 > ls.y + ls.height)) {
+      const mine = direct.filter((k) => k.laneId === lane)
+      y = mine.reduce((t, k) => t + centre(m.diagram.shapes[k.id]).y, 0) / mine.length
+      y = Math.min(Math.max(y, ls.y + SIZES.subProcess.height / 2), ls.y + ls.height - SIZES.subProcess.height / 2)
+    }
+    if (lane && !pageOf(m, id)) n.laneId = lane
     n.collapsed = true
-    next = { x: s.x, y: Math.round(cy - SIZES.subProcess.height / 2), ...SIZES.subProcess }
+    next = { x: s.x, y: Math.round(y - SIZES.subProcess.height / 2), ...SIZES.subProcess }
+    // What follows closes up, but keeps the room it had after the steps (never nearer than a gap to the box).
+    const after = peersRight(s.x + s.width)
     const freed = s.width - next.width
+    const room = after.length ? Math.min(...after.map((x) => m.diagram.shapes[x.id].x)) - (next.x + next.width + GROUP_GAP) : 0
+    const back = Math.max(0, Math.min(freed, room))
     const to: Record<string, Point> = {}
-    if (freed > 0) for (const x of peersRight(s.x + s.width)) to[x.id] = { x: m.diagram.shapes[x.id].x - freed, y: m.diagram.shapes[x.id].y }
+    for (const x of after) to[x.id] = { x: m.diagram.shapes[x.id].x - back, y: m.diagram.shapes[x.id].y }
     Object.assign(s, next)
     if (Object.keys(to).length) moveElements(m, to)
+    shrinkPool(m, level, back)
   } else {
     const kids = [...own].filter((k) => k !== id && !ring.some((r) => r.id === k)).map((k) => m.diagram.shapes[k]).filter(Boolean)
     if (kids.length) {

@@ -145,7 +145,7 @@ export async function exportBizagiProject(): Promise<{ note: string; problems: n
   const one = made.moved === 1
   const moved = made.moved ? ` ${made.moved} ${one ? 'step' : 'steps'} in another lane than ${one ? 'its' : 'their'} sub-process ${one ? 'is' : 'are'} drawn in the sub-process's lane on the page (Check, P20).` : ''
   const dropped = made.dropped ? ` ${made.dropped} data ${made.dropped === 1 ? 'association joins two files and is' : 'associations join two files and are'} left out.` : ''
-  return { note: `Exported ${name}, ${what} Unzip it and import the files in Bizagi Modeler.${moved}${dropped} Your drawing here is unchanged.`, problems }
+  return { note: `Exported ${name}, ${what} Unzip it and import the files in Bizagi Modeler. Bizagi does not link the call activities to their pages on import: link each one by hand (open its properties, pick the sub-process diagram).${moved}${dropped} Your drawing here is unchanged.`, problems }
 }
 
 /**

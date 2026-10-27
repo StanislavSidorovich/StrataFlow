@@ -65,9 +65,9 @@ describe('collapseForBizagi', () => {
     expect(box.y).toBeGreaterThanOrEqual(lane.y)
     expect(box.y + box.height).toBeLessThanOrEqual(lane.y + lane.height)
     expect(box.width).toBeLessThan(200)
-    // nothing moved, so nothing lands on the neighbours
-    expect(copy.diagram.shapes.End).toEqual(m.diagram.shapes.End)
-    expect(box.x + box.width).toBeLessThan(copy.diagram.shapes.End.x)
+    // what followed closes up (no gap where the content was) and keeps its room from the box
+    expect(copy.diagram.shapes.End.x).toBeLessThan(m.diagram.shapes.End.x)
+    expect(copy.diagram.shapes.End.x - (box.x + box.width)).toBeGreaterThanOrEqual(40)
     // the flows at the old border are routed again; the steps keep their page
     expect(copy.diagram.edges.F5).toBeUndefined()
     expect(copy.diagram.edges.F2).toBeDefined()
