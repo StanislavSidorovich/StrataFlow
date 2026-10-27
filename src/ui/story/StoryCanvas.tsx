@@ -143,6 +143,7 @@ export function StoryCanvas({ frame }: { frame: StoryFrame }) {
 function StoryCamera({ frame, page, byHand }: { frame: StoryFrame; page: string | null; byHand: boolean }) {
   const flow = useReactFlow()
   const width = useStore((s) => s.width)
+  const height = useStore((s) => s.height)
   const presenting = useStory((s) => s.presenting)
   useEffect(() => {
     const fit = (duration: number) => {
@@ -150,11 +151,27 @@ function StoryCamera({ frame, page, byHand }: { frame: StoryFrame; page: string 
       // A page opened by hand shows all of it.
       const ids = byHand ? [] : frame.fit.filter((id) => have.has(id))
       const pick = ids.length ? ids : flow.getNodes().map((n) => n.id)
-      void flow.fitView({ nodes: pick.map((id) => ({ id })), padding: { top: '56px', bottom: '56px', left: '56px', right: `${cardRoom(width)}px` }, maxZoom: presenting ? 1.3 : 1, minZoom: 0.2, duration })
+      const pad = { top: 56, bottom: 56, left: 56, right: cardRoom(width) }
+      const maxZoom = presenting ? 1.3 : 1
+      const near = byHand || !ids.length ? [] : frame.fitNear.filter((n) => have.has(n.pool) && have.has(n.near))
+      if (!near.length) {
+        void flow.fitView({ nodes: pick.map((id) => ({ id })), padding: { top: `${pad.top}px`, bottom: `${pad.bottom}px`, left: `${pad.left}px`, right: `${pad.right}px` }, maxZoom, minZoom: 0.2, duration })
+        return
+      }
+      // A message flow to a pool: frame the strip of the pool above (or below) its other end, not the whole pool.
+      const rects = [flow.getNodesBounds(pick), ...near.map(({ pool, near }) => ({ ...flow.getNodesBounds([pool]), x: flow.getNodesBounds([near]).x, width: flow.getNodesBounds([near]).width }))]
+      const x0 = Math.min(...rects.map((r) => r.x))
+      const y0 = Math.min(...rects.map((r) => r.y))
+      const x1 = Math.max(...rects.map((r) => r.x + r.width))
+      const y1 = Math.max(...rects.map((r) => r.y + r.height))
+      const w = Math.max(1, width - pad.left - pad.right)
+      const h = Math.max(1, height - pad.top - pad.bottom)
+      const zoom = Math.min(maxZoom, Math.max(0.2, Math.min(w / (x1 - x0), h / (y1 - y0))))
+      void flow.setViewport({ x: pad.left + (w - (x1 - x0) * zoom) / 2 - x0 * zoom, y: pad.top + (h - (y1 - y0) * zoom) / 2 - y0 * zoom, zoom }, { duration })
     }
     // New nodes are measured first, or fitView leaves them out.
     const timers = [setTimeout(() => fit(700), 120), setTimeout(() => fit(300), 900)]
     return () => timers.forEach(clearTimeout)
-  }, [frame, flow, width, presenting, page, byHand])
+  }, [frame, flow, width, height, presenting, page, byHand])
   return null
 }

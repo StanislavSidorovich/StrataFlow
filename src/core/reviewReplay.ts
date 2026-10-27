@@ -332,6 +332,7 @@ export function reviewReplay(m: FlowModel, text?: string[]): Replay | null {
       drawn: [],
       focus: null,
       fit,
+      fitNear: [],
       page,
       token: [],
       tokenFlows: [],

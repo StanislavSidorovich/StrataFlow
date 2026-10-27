@@ -95,6 +95,11 @@ export interface StoryFrame {
   focus: string | null
   /** What the camera frames. */
   fit: string[]
+  /**
+   * Pools reached by a message flow new in this beat: the camera frames only the part of the pool above or
+   * below `near` (the flow's other end). A whole pool is as wide as the model and would zoom the beat out.
+   */
+  fitNear: { pool: string; near: string }[]
   /** The collapsed sub-process whose page this beat is on (null = the main process). */
   page: string | null
   /** The token's way: element ids in order, and the flows between them. */
@@ -349,7 +354,19 @@ export function storyFrames(story: Story, open: FlowModel): StoryFrame[] {
     const onPageIds = pageBeat ? [...shown].filter((id) => ref.nodes.some((n) => n.id === id) && pageOf(ref, id) === pageBeat) : []
 
     const overview = !!beat.overview
-    const fit = pageBeat && !current.length && !token.length ? onPageIds : overview || (!current.length && !token.length) ? [...shown] : [...new Set([...current, ...token, ...(focus ? [focus] : []), ...newFlows.flatMap((d) => (ref.flows.find((f) => f.id === d.id) ? [ref.flows.find((f) => f.id === d.id)!.source, ref.flows.find((f) => f.id === d.id)!.target] : []))])]
+    // The ends of the new flows join the frame; a pool at the end of a message flow joins only near the other end.
+    const isPool = (id: string) => ref.participants.some((p) => p.id === id)
+    const fitNear: StoryFrame['fitNear'] = []
+    const flowEnds = newFlows.flatMap((d) => {
+      const f = ref.flows.find((x) => x.id === d.id)
+      if (!f) return []
+      if (f.kind === 'message' && isPool(f.source) !== isPool(f.target)) {
+        const [pool, near] = isPool(f.source) ? [f.source, f.target] : [f.target, f.source]
+        if (!current.includes(pool)) return (fitNear.push({ pool, near }), [near])
+      }
+      return [f.source, f.target]
+    })
+    const fit = pageBeat && !current.length && !token.length ? onPageIds : overview || (!current.length && !token.length) ? [...shown] : [...new Set([...current, ...token, ...(focus ? [focus] : []), ...flowEnds])]
     // On a sub-process's page when what the beat shows lives there.
     const focusNode = focus ? ref.nodes.find((n) => n.id === focus) : undefined
     const hostOf = focusNode?.type === 'event' && focusNode.attachedTo ? focusNode.attachedTo : focus
@@ -363,6 +380,7 @@ export function storyFrames(story: Story, open: FlowModel): StoryFrame[] {
       drawn: newFlows,
       focus,
       fit,
+      fitNear: fit === onPageIds || overview ? [] : fitNear,
       page: onPage,
       token,
       tokenFlows,

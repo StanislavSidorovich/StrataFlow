@@ -102,6 +102,16 @@ describe('shop-order story', () => {
   it('carries the shop-order model', () => {
     expect(s.model).toEqual(shop())
   })
+  it('frames a message flow to a pool by the strip near its other end, not the whole pool', () => {
+    const m = s.model!
+    const id = (name: string) => [...m.participants, ...m.nodes].find((x) => x.name === name)!.id
+    const arrives = frames.find((f) => f.beat.title === 'An order arrives')!
+    expect(arrives.fit).not.toContain(id('Customer'))
+    expect(arrives.fitNear).toEqual([{ pool: id('Customer'), near: id('Order received') }])
+    // The beat that shows the pools frames them whole.
+    expect(frames[0].fitNear).toEqual([])
+    expect(frames[0].fit).toContain(id('Customer'))
+  })
   it('ends with Receive payment + 14 days + Reminder sent collapsed into Collect payment in the Sales lane', () => {
     const grouped = frames.find((f) => f.grouped)!
     const last = frames.at(-1)!
