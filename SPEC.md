@@ -198,6 +198,15 @@ Same idea as StrataSQL's `*.strata-story.json` (SPEC §10.1 there): beats name e
 
 `show`, `flows` (held back until this beat), `focus`, `quote`, `text` (`**bold**`, `*italic*`, `` `code` ``), `ghosts` (dashed, never enter the model), `token` (animate a token along the named path), `overview`. Present mode = full screen, ← → / Space; videos recorded by a Playwright script.
 
+Added in the design of 2026-10-27:
+- `question`: a predict-first question before the beat (`{ prompt, options, right, why }`, as Watch it built's); the canvas keeps the previous frame until it is answered. On by default, off in full screen (a presenter does not quiz the room).
+- `group: { name, steps }`: the named steps are grouped into a sub-process and collapsed, with the editor's own `groupIntoSubprocess` + `setCollapsed` on a copy of the model; later beats see the collapsed box (its content on its page).
+- A story may carry the task `text` (paragraphs); then the whole text stays visible under the canvas, the beat's `quote` is highlighted in it, quotes of earlier beats are faded. Without a text the quote is shown on its own.
+
+Frames: the model reduced to what is shown so far (`snapshot` of the walkthrough), new elements bright and the rest dimmed, new flows drawn from the older end (dashoffset). `storyFromCase(c)` turns any case into a draft story (pools and lanes, then the walkthrough order; phrases → quotes, `why` → comment, the walkthrough's questions), so every case can be presented; a hand-written story file overrides it. The first hand-written story: `cases/shop-order.flow-story.json`, ending with Receive payment + 14 days + Reminder sent grouped into **Collect payment**.
+
+Review replay (later sprint): a model with a `review` plays as a story, base first, then fix by fix in review order, each with its note and quote.
+
 ## 11. Tech stack
 
 - **React + TypeScript + Vite**, **Zustand** (+ immer) for the store and undo/redo, Tailwind CSS, lucide-react icons, Vitest. Same as StrataSQL.
