@@ -16,7 +16,7 @@ describe('own cases', () => {
       it('the reference model file matches the drawing', async () => {
         const m = emptyModel(c.name)
         c.draw(m)
-        await autoLayout(m)
+        if (!c.drawn) await autoLayout(m)
         const text = serializeModel(m)
         const file = `cases/${c.id}.flow.json`
         if (process.env.UPDATE_CASES || !existsSync(file)) writeFileSync(file, text)

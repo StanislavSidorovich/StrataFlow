@@ -26,4 +26,6 @@ Written: 1 `library-lend`, 2 `hotel-booking`, 3 `shop-order`, 4 `scooter-ride`, 
 6. AS-IS problems / TO-BE ideas (where relevant)
 7. Hints per level, synonyms (task name variants)
 
+Reference model, read rather than built, not in the trainer: `kaiyo-order`, a distributor's order at Kaiyo Trading (Quaera's dataset), placed by hand; File → Example and `?example=kaiyo`.
+
 Never add the owner's graded group project (or anything that identifies the owner's employer) here.

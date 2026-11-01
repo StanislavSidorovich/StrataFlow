@@ -67,6 +67,7 @@ import { TrainerPane, TrainerVeil } from './trainer/TrainerPane'
 import { useTrainer } from './trainer/trainerStore'
 import { PaneResizer, SideResizer, showSide, useLayout } from './viewport'
 import { openWelcome, WelcomeCard, welcomeAtStart } from './Welcome'
+import { cameFromExampleLink, openKaiyo } from './exampleLink'
 import example from '../data/examples/library-loan.flow.json?raw'
 import expenseAsIs from '../../cases/expense-claim-as-is.flow.json?raw'
 import expenseToBe from '../../cases/expense-claim-to-be.flow.json?raw'
@@ -166,7 +167,7 @@ export function App() {
 
   useEffect(() => {
     // On a phone the notice comes instead; the tour is one of the welcome card's choices.
-    if (!useLayout.getState().phone && !shareFromHash(location.hash) && !useStory.getState().story) welcomeAtStart()
+    if (!useLayout.getState().phone && !shareFromHash(location.hash) && !useStory.getState().story && !cameFromExampleLink()) welcomeAtStart()
   }, [])
 
   useEffect(() => {
@@ -303,6 +304,13 @@ export function App() {
                 title: 'The online shop process told in 19 beats, ending with a sub-process (Present = full screen)',
                 testid: 'example-story',
                 onPick: presentExample,
+              },
+              {
+                label: 'Example: Kaiyo Trading order',
+                icon: <BookOpen size={15} />,
+                title: 'A distributor order with the main BPMN elements, and where a row of the data is born (opens in a new tab)',
+                testid: 'example-kaiyo',
+                onPick: openKaiyo,
               },
               {
                 label: 'Example: expense claim AS-IS',

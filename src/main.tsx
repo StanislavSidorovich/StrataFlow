@@ -9,11 +9,13 @@ import './trainer.css'
 import './story.css'
 import { registerServiceWorker } from './pwa/register'
 import { App } from './ui/App'
+import { openExampleFromLink } from './ui/exampleLink'
 import { openSharedFromHash } from './ui/share'
 import { installViewport } from './ui/viewport'
 
 installViewport()
 void openSharedFromHash()
+openExampleFromLink()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

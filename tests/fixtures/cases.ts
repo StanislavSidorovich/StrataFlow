@@ -1,7 +1,8 @@
 // The own cases in `cases/`, drawn with the editor's operations. `tests/cases.test.ts` lays each one out and
 // checks it against `cases/<id>.flow.json` (UPDATE_CASES=1 writes the files).
 import type { FlowModel } from '../../src/core/metamodel'
-import { addBoundaryEvent, addLane, addNode, addPool, appendNode, connect, moveElements, rename, setDefaultFlow, setFlow, setProbability, setSim, setSimSettings, updateNode } from '../../src/core/ops'
+import { addBoundaryEvent, addLane, addNode, addPool, appendNode, connect, moveElements, rename, resizeElement, resizeLane, setDefaultFlow, setFlow, setFlowRoute, setProbability, setSim, setSimSettings, updateNode } from '../../src/core/ops'
+import { route } from '../../src/core/routing'
 import { drawOrderFulfilment } from './order-fulfilment'
 
 /** Moves a step straight down (or up) so its centre sits at `cy`: into another lane. */
@@ -314,8 +315,93 @@ export function drawExpenseToBe(m: FlowModel) {
   setSim(m, pay.id, { wait: 20, duration: 0.05, cost: 2 })
 }
 
-/** `md`: the case file when two models share one (AS-IS and TO-BE). */
-export const CASES: { id: string; name: string; draw: (m: FlowModel) => unknown; md?: string }[] = [
+/**
+ * Kaiyo Trading (quaera.app's dataset): a distributor's order, read rather than built, so it shows the main elements on one
+ * page. The notes name what `fact_sellin` keeps, checked against the dataset; the order of the steps is illustrative.
+ */
+function drawKaiyoOrder(m: FlowModel) {
+  addPool(m, { x: 0, y: 0 }, 'Kaiyo Trading')
+  const [sales, warehouse, finance] = ['Sales', 'Warehouse', 'Finance'].map((name) => addLane(m, 'Participant_1', name))
+  resizeElement(m, 'Participant_1', { ...m.diagram.shapes.Participant_1, width: 1480 })
+  resizeLane(m, sales.id, 250)
+  resizeLane(m, warehouse.id, 230)
+  resizeLane(m, finance.id, 230)
+  addPool(m, { x: 0, y: 770 }, 'Distributor')
+  m.participants[1].processId = undefined // black box
+  resizeElement(m, 'Participant_2', { ...m.diagram.shapes.Participant_2, width: 1480, height: 100 })
+  const [rowSales, rowWarehouse, rowFinance] = [120, 385, 590]
+  const event = (position: 'start' | 'end', trigger: 'message' | undefined, x: number, y: number, name: string) =>
+    addNode(m, trigger ? { type: 'event', position, trigger } : { type: 'event', position }, { x, y }, name)
+  const task = (kind: 'user' | 'manual' | 'send' | 'receive', x: number, y: number, name: string) => addNode(m, { type: 'task', kind }, { x, y }, name)
+  const parallel = (x: number, y: number) => addNode(m, { type: 'gateway', kind: 'parallel' }, { x, y })
+  const flow = (from: string, to: string, source?: 'top' | 'bottom' | 'left' | 'right', target?: 'top' | 'bottom' | 'left' | 'right') => {
+    const f = connect(m, from, to)
+    if (source || target) setFlowRoute(m, f.id, { source, target })
+    return f
+  }
+
+  const start = event('start', 'message', 130, rowSales, 'Order received')
+  const post = task('user', 260, rowSales, 'Post order in ERP')
+  const stock = addNode(m, { type: 'gateway' }, { x: 400, y: rowSales }, 'Stock available?')
+  const declined = event('end', 'message', 400, 195, 'Order declined')
+  const split = parallel(640, rowSales)
+  const pack = task('manual', 800, rowWarehouse, 'Pack goods')
+  const ship = task('send', 960, rowWarehouse, 'Ship goods')
+  const invoice = task('send', 640, rowFinance, 'Send invoice')
+  const join = parallel(1110, rowFinance)
+  const pay = task('receive', 1240, rowFinance, 'Receive payment')
+  const paid = event('end', undefined, 1390, rowFinance, 'Order paid')
+  const late = addBoundaryEvent(m, pay.id, 'timer')
+  rename(m, late.id, 'Payment overdue')
+  updateNode(m, late.id, { interrupting: false })
+  const reminded = event('end', 'message', 1390, 670, 'Reminder sent')
+
+  flow(start.id, post.id)
+  flow(post.id, stock.id)
+  const no = flow(stock.id, declined.id, 'bottom', 'top')
+  const yes = flow(stock.id, split.id)
+  setFlow(m, no.id, { name: 'No', condition: 'the stock does not cover the order' })
+  setFlow(m, yes.id, { name: 'Yes' })
+  setDefaultFlow(m, yes.id, true)
+  flow(split.id, pack.id, 'right', 'top')
+  flow(split.id, invoice.id, 'bottom', 'top')
+  flow(pack.id, ship.id)
+  flow(ship.id, join.id, 'right', 'top')
+  flow(invoice.id, join.id)
+  flow(join.id, pay.id)
+  flow(pay.id, paid.id)
+  flow(late.id, reminded.id, 'bottom', 'left')
+
+  const erp = addNode(m, { type: 'dataStore' }, { x: 260, y: 195 }, 'ERP')
+  connect(m, post.id, erp.id)
+  const note = (at: string, source: 'top' | 'right', target: 'bottom' | 'left', x: number, y: number, width: number, height: number, text: string) => {
+    const n = addNode(m, { type: 'annotation' }, { x, y }, text)
+    resizeElement(m, n.id, { x, y, width, height })
+    connect(m, at, n.id, { source, target })
+  }
+  note(post.id, 'top', 'bottom', 175, 12, 170, 44, 'fact_sellin: order_date and amounts')
+  note(declined.id, 'right', 'left', 440, 173, 200, 44, 'No row in fact_sellin: every row there was shipped')
+  note(ship.id, 'top', 'bottom', 820, 262, 280, 44, 'The fact_sellin row is complete: ship_date, units, 2 to 11 days after the order')
+  note(pay.id, 'top', 'bottom', 1140, 488, 200, 44, 'Invoices and payments are not in the dataset')
+
+  flow('Participant_2', start.id, 'top', 'bottom')
+  flow(declined.id, 'Participant_2', 'bottom', 'top')
+  flow(invoice.id, 'Participant_2', 'bottom', 'top')
+  flow(ship.id, 'Participant_2', 'bottom', 'top')
+  const paying = flow('Participant_2', pay.id, 'top', 'bottom')
+  flow(reminded.id, 'Participant_2', 'bottom', 'top')
+  // BPMN keeps the bends, not the sides they were drawn from.
+  for (const f of m.flows) {
+    if (!f.sourceSide && !f.targetSide) continue
+    const points = route(f, m.diagram.shapes[f.source], m.diagram.shapes[f.target], f.target === 'Participant_2', f.source === 'Participant_2')
+    setFlowRoute(m, f.id, { source: null, target: null, points })
+  }
+  // Left of the timer's name, which hangs under the task.
+  setFlowRoute(m, paying.id, { points: m.diagram.edges[paying.id].map((p) => ({ ...p, x: m.diagram.shapes[pay.id].x + 18 })) })
+}
+
+/** `md`: the case file when two models share one (AS-IS and TO-BE). `drawn`: placed by hand, auto layout would tangle its message flows. */
+export const CASES: { id: string; name: string; draw: (m: FlowModel) => unknown; md?: string; drawn?: boolean }[] = [
   { id: 'library-lend', name: 'Lend a book', draw: drawLibrary },
   { id: 'hotel-booking', name: 'Hotel booking and check-in', draw: drawHotel },
   { id: 'shop-order', name: 'Order fulfilment', draw: drawOrderFulfilment },
@@ -324,4 +410,5 @@ export const CASES: { id: string; name: string; draw: (m: FlowModel) => unknown;
   { id: 'football-match', name: 'Match day', draw: drawFootball },
   { id: 'expense-claim-as-is', name: 'Expense claim (AS-IS)', draw: drawExpenseAsIs, md: 'expense-claim' },
   { id: 'expense-claim-to-be', name: 'Expense claim (TO-BE)', draw: drawExpenseToBe, md: 'expense-claim' },
+  { id: 'kaiyo-order', name: 'Kaiyo Trading: distributor order', draw: drawKaiyoOrder, drawn: true },
 ]

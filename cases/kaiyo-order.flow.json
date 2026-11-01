@@ -1,0 +1,657 @@
+{
+  "format": "strata-flow",
+  "version": 1,
+  "name": "Kaiyo Trading: distributor order",
+  "participants": [
+    {
+      "id": "Participant_1",
+      "name": "Kaiyo Trading",
+      "processId": "Process_1"
+    },
+    {
+      "id": "Participant_2",
+      "name": "Distributor"
+    }
+  ],
+  "lanes": [
+    {
+      "id": "Lane_1",
+      "name": "Sales",
+      "participantId": "Participant_1"
+    },
+    {
+      "id": "Lane_2",
+      "name": "Warehouse",
+      "participantId": "Participant_1"
+    },
+    {
+      "id": "Lane_3",
+      "name": "Finance",
+      "participantId": "Participant_1"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "Event_1",
+      "name": "Order received",
+      "type": "event",
+      "position": "start",
+      "trigger": "message",
+      "throwing": false,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_1",
+      "name": "Post order in ERP",
+      "type": "task",
+      "kind": "user",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Gateway_1",
+      "name": "Stock available?",
+      "type": "gateway",
+      "kind": "exclusive",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1",
+      "defaultFlow": "Flow_4"
+    },
+    {
+      "id": "Event_2",
+      "name": "Order declined",
+      "type": "event",
+      "position": "end",
+      "trigger": "message",
+      "throwing": true,
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Gateway_2",
+      "name": "",
+      "type": "gateway",
+      "kind": "parallel",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Task_2",
+      "name": "Pack goods",
+      "type": "task",
+      "kind": "manual",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Task_3",
+      "name": "Ship goods",
+      "type": "task",
+      "kind": "send",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Task_4",
+      "name": "Send invoice",
+      "type": "task",
+      "kind": "send",
+      "participantId": "Participant_1",
+      "laneId": "Lane_3"
+    },
+    {
+      "id": "Gateway_3",
+      "name": "",
+      "type": "gateway",
+      "kind": "parallel",
+      "participantId": "Participant_1",
+      "laneId": "Lane_3"
+    },
+    {
+      "id": "Task_5",
+      "name": "Receive payment",
+      "type": "task",
+      "kind": "receive",
+      "participantId": "Participant_1",
+      "laneId": "Lane_3"
+    },
+    {
+      "id": "Event_3",
+      "name": "Order paid",
+      "type": "event",
+      "position": "end",
+      "trigger": "none",
+      "throwing": true,
+      "participantId": "Participant_1",
+      "laneId": "Lane_3"
+    },
+    {
+      "id": "Event_4",
+      "name": "Payment overdue",
+      "type": "event",
+      "position": "boundary",
+      "trigger": "timer",
+      "throwing": false,
+      "interrupting": false,
+      "attachedTo": "Task_5",
+      "participantId": "Participant_1",
+      "laneId": "Lane_3"
+    },
+    {
+      "id": "Event_5",
+      "name": "Reminder sent",
+      "type": "event",
+      "position": "end",
+      "trigger": "message",
+      "throwing": true,
+      "participantId": "Participant_1",
+      "laneId": "Lane_3"
+    },
+    {
+      "id": "DataStore_1",
+      "name": "ERP",
+      "type": "dataStore",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Annotation_1",
+      "name": "fact_sellin: order_date and amounts",
+      "type": "annotation",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Annotation_2",
+      "name": "No row in fact_sellin: every row there was shipped",
+      "type": "annotation",
+      "participantId": "Participant_1",
+      "laneId": "Lane_1"
+    },
+    {
+      "id": "Annotation_3",
+      "name": "The fact_sellin row is complete: ship_date, units, 2 to 11 days after the order",
+      "type": "annotation",
+      "participantId": "Participant_1",
+      "laneId": "Lane_2"
+    },
+    {
+      "id": "Annotation_4",
+      "name": "Invoices and payments are not in the dataset",
+      "type": "annotation",
+      "participantId": "Participant_1",
+      "laneId": "Lane_3"
+    }
+  ],
+  "flows": [
+    {
+      "id": "Flow_1",
+      "kind": "sequence",
+      "source": "Event_1",
+      "target": "Task_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_2",
+      "kind": "sequence",
+      "source": "Task_1",
+      "target": "Gateway_1",
+      "name": ""
+    },
+    {
+      "id": "Flow_3",
+      "kind": "sequence",
+      "source": "Gateway_1",
+      "target": "Event_2",
+      "name": "No",
+      "condition": "the stock does not cover the order"
+    },
+    {
+      "id": "Flow_4",
+      "kind": "sequence",
+      "source": "Gateway_1",
+      "target": "Gateway_2",
+      "name": "Yes"
+    },
+    {
+      "id": "Flow_5",
+      "kind": "sequence",
+      "source": "Gateway_2",
+      "target": "Task_2",
+      "name": ""
+    },
+    {
+      "id": "Flow_6",
+      "kind": "sequence",
+      "source": "Gateway_2",
+      "target": "Task_4",
+      "name": ""
+    },
+    {
+      "id": "Flow_7",
+      "kind": "sequence",
+      "source": "Task_2",
+      "target": "Task_3",
+      "name": ""
+    },
+    {
+      "id": "Flow_8",
+      "kind": "sequence",
+      "source": "Task_3",
+      "target": "Gateway_3",
+      "name": ""
+    },
+    {
+      "id": "Flow_9",
+      "kind": "sequence",
+      "source": "Task_4",
+      "target": "Gateway_3",
+      "name": ""
+    },
+    {
+      "id": "Flow_10",
+      "kind": "sequence",
+      "source": "Gateway_3",
+      "target": "Task_5",
+      "name": ""
+    },
+    {
+      "id": "Flow_11",
+      "kind": "sequence",
+      "source": "Task_5",
+      "target": "Event_3",
+      "name": ""
+    },
+    {
+      "id": "Flow_12",
+      "kind": "sequence",
+      "source": "Event_4",
+      "target": "Event_5",
+      "name": ""
+    },
+    {
+      "id": "DataAssociation_1",
+      "kind": "data",
+      "source": "Task_1",
+      "target": "DataStore_1",
+      "name": ""
+    },
+    {
+      "id": "Association_1",
+      "kind": "association",
+      "source": "Task_1",
+      "target": "Annotation_1",
+      "name": ""
+    },
+    {
+      "id": "Association_2",
+      "kind": "association",
+      "source": "Event_2",
+      "target": "Annotation_2",
+      "name": ""
+    },
+    {
+      "id": "Association_3",
+      "kind": "association",
+      "source": "Task_3",
+      "target": "Annotation_3",
+      "name": ""
+    },
+    {
+      "id": "Association_4",
+      "kind": "association",
+      "source": "Task_5",
+      "target": "Annotation_4",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_1",
+      "kind": "message",
+      "source": "Participant_2",
+      "target": "Event_1",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_2",
+      "kind": "message",
+      "source": "Event_2",
+      "target": "Participant_2",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_3",
+      "kind": "message",
+      "source": "Task_4",
+      "target": "Participant_2",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_4",
+      "kind": "message",
+      "source": "Task_3",
+      "target": "Participant_2",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_5",
+      "kind": "message",
+      "source": "Participant_2",
+      "target": "Task_5",
+      "name": ""
+    },
+    {
+      "id": "MessageFlow_6",
+      "kind": "message",
+      "source": "Event_5",
+      "target": "Participant_2",
+      "name": ""
+    }
+  ],
+  "diagram": {
+    "shapes": {
+      "Participant_1": {
+        "x": 0,
+        "y": 0,
+        "width": 1480,
+        "height": 710
+      },
+      "Lane_1": {
+        "x": 30,
+        "y": 0,
+        "width": 1450,
+        "height": 250
+      },
+      "Lane_2": {
+        "x": 30,
+        "y": 250,
+        "width": 1450,
+        "height": 230
+      },
+      "Lane_3": {
+        "x": 30,
+        "y": 480,
+        "width": 1450,
+        "height": 230
+      },
+      "Participant_2": {
+        "x": 0,
+        "y": 770,
+        "width": 1480,
+        "height": 100
+      },
+      "Event_1": {
+        "x": 112,
+        "y": 102,
+        "width": 36,
+        "height": 36
+      },
+      "Task_1": {
+        "x": 210,
+        "y": 80,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_1": {
+        "x": 375,
+        "y": 95,
+        "width": 50,
+        "height": 50
+      },
+      "Event_2": {
+        "x": 382,
+        "y": 177,
+        "width": 36,
+        "height": 36
+      },
+      "Gateway_2": {
+        "x": 615,
+        "y": 95,
+        "width": 50,
+        "height": 50
+      },
+      "Task_2": {
+        "x": 750,
+        "y": 345,
+        "width": 100,
+        "height": 80
+      },
+      "Task_3": {
+        "x": 910,
+        "y": 345,
+        "width": 100,
+        "height": 80
+      },
+      "Task_4": {
+        "x": 590,
+        "y": 550,
+        "width": 100,
+        "height": 80
+      },
+      "Gateway_3": {
+        "x": 1085,
+        "y": 565,
+        "width": 50,
+        "height": 50
+      },
+      "Task_5": {
+        "x": 1190,
+        "y": 550,
+        "width": 100,
+        "height": 80
+      },
+      "Event_3": {
+        "x": 1372,
+        "y": 572,
+        "width": 36,
+        "height": 36
+      },
+      "Event_4": {
+        "x": 1242,
+        "y": 612,
+        "width": 36,
+        "height": 36
+      },
+      "Event_5": {
+        "x": 1372,
+        "y": 652,
+        "width": 36,
+        "height": 36
+      },
+      "DataStore_1": {
+        "x": 235,
+        "y": 170,
+        "width": 50,
+        "height": 50
+      },
+      "Annotation_1": {
+        "x": 175,
+        "y": 12,
+        "width": 170,
+        "height": 44
+      },
+      "Annotation_2": {
+        "x": 440,
+        "y": 173,
+        "width": 200,
+        "height": 44
+      },
+      "Annotation_3": {
+        "x": 820,
+        "y": 262,
+        "width": 280,
+        "height": 44
+      },
+      "Annotation_4": {
+        "x": 1140,
+        "y": 488,
+        "width": 200,
+        "height": 44
+      }
+    },
+    "edges": {
+      "Flow_3": [
+        {
+          "x": 400,
+          "y": 145
+        },
+        {
+          "x": 400,
+          "y": 177
+        }
+      ],
+      "Flow_5": [
+        {
+          "x": 665,
+          "y": 120
+        },
+        {
+          "x": 800,
+          "y": 120
+        },
+        {
+          "x": 800,
+          "y": 345
+        }
+      ],
+      "Flow_6": [
+        {
+          "x": 640,
+          "y": 145
+        },
+        {
+          "x": 640,
+          "y": 550
+        }
+      ],
+      "Flow_8": [
+        {
+          "x": 1010,
+          "y": 385
+        },
+        {
+          "x": 1110,
+          "y": 385
+        },
+        {
+          "x": 1110,
+          "y": 565
+        }
+      ],
+      "Flow_12": [
+        {
+          "x": 1260,
+          "y": 648
+        },
+        {
+          "x": 1260,
+          "y": 670
+        },
+        {
+          "x": 1372,
+          "y": 670
+        }
+      ],
+      "Association_1": [
+        {
+          "x": 260,
+          "y": 80
+        },
+        {
+          "x": 260,
+          "y": 56
+        }
+      ],
+      "Association_2": [
+        {
+          "x": 418,
+          "y": 195
+        },
+        {
+          "x": 440,
+          "y": 195
+        }
+      ],
+      "Association_3": [
+        {
+          "x": 960,
+          "y": 345
+        },
+        {
+          "x": 960,
+          "y": 306
+        }
+      ],
+      "Association_4": [
+        {
+          "x": 1240,
+          "y": 550
+        },
+        {
+          "x": 1240,
+          "y": 532
+        }
+      ],
+      "MessageFlow_1": [
+        {
+          "x": 130,
+          "y": 770
+        },
+        {
+          "x": 130,
+          "y": 138
+        }
+      ],
+      "MessageFlow_2": [
+        {
+          "x": 400,
+          "y": 213
+        },
+        {
+          "x": 400,
+          "y": 770
+        }
+      ],
+      "MessageFlow_3": [
+        {
+          "x": 640,
+          "y": 630
+        },
+        {
+          "x": 640,
+          "y": 770
+        }
+      ],
+      "MessageFlow_4": [
+        {
+          "x": 960,
+          "y": 425
+        },
+        {
+          "x": 960,
+          "y": 770
+        }
+      ],
+      "MessageFlow_5": [
+        {
+          "x": 1208,
+          "y": 770
+        },
+        {
+          "x": 1208,
+          "y": 630
+        }
+      ],
+      "MessageFlow_6": [
+        {
+          "x": 1390,
+          "y": 688
+        },
+        {
+          "x": 1390,
+          "y": 770
+        }
+      ]
+    }
+  }
+}
