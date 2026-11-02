@@ -137,6 +137,10 @@ Done: an editor that draws every BPMN element the course uses (also loop and mul
 
 ## Sprints
 
+### 2026-11-02 · Links from Quaera reuse the open window (v0.13.1)
+Family links used to open a new installed-app window per click. Manifest: `launch_handler: { client_mode: "navigate-existing" }` (as Model and Lab). `#example=kaiyo` is now accepted in an open window without reload: `followExampleLinks` (`src/ui/exampleLink.ts`) listens to `hashchange` and Chrome's `launchQueue`, then opens the example as its own tab (returns to it if already open), so unsaved work is never replaced. `?example=kaiyo` still works. 605 tests, build green. Not checked in an installed app (needs Chrome 139+ and a reinstall or manifest refresh). Quaera's `FLOW_KAIYO` switches to `#example=kaiyo` in the next commit.
+Built with: Sonnet 5.5 (Claude Code), effort medium.
+
 ### 2026-10-14 · Handoff from StrataSQL
 Project folder, CLAUDE.md, SPEC v0.1, ROADMAP, lessons from StrataSQL, design notes, research list, case plan, licenses. Repo created. No code yet.
 Built with: Claude Opus 5.5 (Claude Code), effort low.
