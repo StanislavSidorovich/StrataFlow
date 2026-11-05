@@ -321,3 +321,22 @@ function isInside(m: FlowModel, id: string, holder: string): boolean {
   for (let n = m.nodes.find((x) => x.id === id); n?.parentId; n = m.nodes.find((x) => x.id === n!.parentId)) if (n.parentId === holder) return true
   return false
 }
+
+/** Hours in one unit (a day is 24 clock hours here, not a working day). */
+const HOURS_PER: Record<TimeUnit, number> = { min: 1 / 60, h: 1, d: 24 }
+
+/** A time in one unit expressed in another (Little's law breaks when a rate in days meets a time in hours). */
+export const convertTime = (x: number, from: TimeUnit, to: TimeUnit) => (x * HOURS_PER[from]) / HOURS_PER[to]
+
+/**
+ * Little's law, WIP = arrival rate × cycle time: how many cases are open at once on average. The rate is
+ * per `rateUnit`, the time in `timeUnit`; the time is converted first, so the unit of the rate wins.
+ * Any one of the three may be left out and is computed from the other two.
+ */
+export function littlesLaw(v: { wip?: number; rate?: number; time?: number }, rateUnit: TimeUnit, timeUnit: TimeUnit): { wip?: number; rate?: number; time?: number } {
+  const t = v.time === undefined ? undefined : convertTime(v.time, timeUnit, rateUnit)
+  if (v.wip === undefined && v.rate !== undefined && t !== undefined) return { ...v, wip: v.rate * t }
+  if (v.rate === undefined && v.wip !== undefined && t !== undefined && t > 0) return { ...v, rate: v.wip / t }
+  if (v.time === undefined && v.wip !== undefined && v.rate !== undefined && v.rate > 0) return { ...v, time: convertTime(v.wip / v.rate, rateUnit, timeUnit) }
+  return v
+}

@@ -1,7 +1,7 @@
 // The own cases in `cases/`, drawn with the editor's operations. `tests/cases.test.ts` lays each one out and
 // checks it against `cases/<id>.flow.json` (UPDATE_CASES=1 writes the files).
 import type { FlowModel } from '../../src/core/metamodel'
-import { addBoundaryEvent, addLane, addNode, addPool, appendNode, connect, moveElements, rename, resizeElement, resizeLane, setDefaultFlow, setFlow, setFlowRoute, setProbability, setSim, setSimSettings, updateNode } from '../../src/core/ops'
+import { addBoundaryEvent, addLane, addNode, addPool, appendNode, connect, moveElements, rename, resizeElement, resizeLane, setCapacity, setDefaultFlow, setFlow, setFlowRoute, setProbability, setSim, setSimSettings, updateNode } from '../../src/core/ops'
 import { route } from '../../src/core/routing'
 import { drawOrderFulfilment } from './order-fulfilment'
 
@@ -398,6 +398,18 @@ function drawKaiyoOrder(m: FlowModel) {
   }
   // Left of the timer's name, which hangs under the task.
   setFlowRoute(m, paying.id, { points: m.diagram.edges[paying.id].map((p) => ({ ...p, x: m.diagram.shapes[pay.id].x + 18 })) })
+
+  // Teaching figures for Simulate (hours; the dataset keeps no times, costs or shares): waiting + work per step,
+  // so that cycle time 68.8 h, processing 1.85 h, efficiency 2.7 %. Payment is not counted (no terms in the data).
+  setSim(m, post.id, { duration: 0.5, wait: 3.5, cost: 6 })
+  setSim(m, pack.id, { duration: 1, wait: 23, cost: 30 })
+  setSim(m, ship.id, { duration: 0.5, wait: 47.5, cost: 45 })
+  setSim(m, invoice.id, { duration: 0.25, wait: 5.75, cost: 3 })
+  setSim(m, pay.id, { duration: 0, cost: 0 })
+  setProbability(m, no.id, 0.1)
+  setProbability(m, yes.id, 0.9)
+  for (const l of [sales, warehouse, finance]) setCapacity(m, l.id, 1)
+  setSimSettings(m, { unit: 'h', arrivals: 0.5 }) // 12 orders a day round the clock
 }
 
 /** `md`: the case file when two models share one (AS-IS and TO-BE). `drawn`: placed by hand, auto layout would tangle its message flows. */

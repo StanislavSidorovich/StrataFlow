@@ -17,17 +17,20 @@
     {
       "id": "Lane_1",
       "name": "Sales",
-      "participantId": "Participant_1"
+      "participantId": "Participant_1",
+      "capacity": 1
     },
     {
       "id": "Lane_2",
       "name": "Warehouse",
-      "participantId": "Participant_1"
+      "participantId": "Participant_1",
+      "capacity": 1
     },
     {
       "id": "Lane_3",
       "name": "Finance",
-      "participantId": "Participant_1"
+      "participantId": "Participant_1",
+      "capacity": 1
     }
   ],
   "nodes": [
@@ -47,7 +50,12 @@
       "type": "task",
       "kind": "user",
       "participantId": "Participant_1",
-      "laneId": "Lane_1"
+      "laneId": "Lane_1",
+      "sim": {
+        "duration": 0.5,
+        "wait": 3.5,
+        "cost": 6
+      }
     },
     {
       "id": "Gateway_1",
@@ -82,7 +90,12 @@
       "type": "task",
       "kind": "manual",
       "participantId": "Participant_1",
-      "laneId": "Lane_2"
+      "laneId": "Lane_2",
+      "sim": {
+        "duration": 1,
+        "wait": 23,
+        "cost": 30
+      }
     },
     {
       "id": "Task_3",
@@ -90,7 +103,12 @@
       "type": "task",
       "kind": "send",
       "participantId": "Participant_1",
-      "laneId": "Lane_2"
+      "laneId": "Lane_2",
+      "sim": {
+        "duration": 0.5,
+        "wait": 47.5,
+        "cost": 45
+      }
     },
     {
       "id": "Task_4",
@@ -98,7 +116,12 @@
       "type": "task",
       "kind": "send",
       "participantId": "Participant_1",
-      "laneId": "Lane_3"
+      "laneId": "Lane_3",
+      "sim": {
+        "duration": 0.25,
+        "wait": 5.75,
+        "cost": 3
+      }
     },
     {
       "id": "Gateway_3",
@@ -114,7 +137,11 @@
       "type": "task",
       "kind": "receive",
       "participantId": "Participant_1",
-      "laneId": "Lane_3"
+      "laneId": "Lane_3",
+      "sim": {
+        "duration": 0,
+        "cost": 0
+      }
     },
     {
       "id": "Event_3",
@@ -205,14 +232,16 @@
       "source": "Gateway_1",
       "target": "Event_2",
       "name": "No",
-      "condition": "the stock does not cover the order"
+      "condition": "the stock does not cover the order",
+      "probability": 0.1
     },
     {
       "id": "Flow_4",
       "kind": "sequence",
       "source": "Gateway_1",
       "target": "Gateway_2",
-      "name": "Yes"
+      "name": "Yes",
+      "probability": 0.9
     },
     {
       "id": "Flow_5",
@@ -653,5 +682,9 @@
         }
       ]
     }
+  },
+  "sim": {
+    "unit": "h",
+    "arrivals": 0.5
   }
 }

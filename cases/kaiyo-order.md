@@ -46,6 +46,7 @@ The dataset is synthetic and keeps results only, so the order of the steps is il
 - ✱ Checked against the dataset (2026-11-01): `fact_sellin` has 15 362 rows, none without `ship_date`; shipment comes 2 to 11 days after the order; one row per month, distributor and SKU, so an order of several SKUs gives several rows; no column for invoices or payments.
 - ✱ Placed by hand, not by Auto layout: six message flows must not run through shapes in a model meant to be read at a glance.
 - ✱ The overdue timer has no number of days: the dataset holds no payment terms, so none is invented.
+- ✱ Teaching figures in Simulate (v0.14.0, from the chapter 6 note): hours; Post order in ERP 4 (0.5 work), Pack goods 24 (1), Ship goods 48 (0.5), Send invoice 6 (0.25), Stock available? 90 % yes / 10 % no, 12 orders a day (0.5 an hour), one person per lane. Result: cycle time 68.8 h, processing 1.85 h, efficiency 2.7 %, cost 76.2, lanes 25 % / 67.5 % / 11 %, 34.4 orders open at once. They are invented, the dataset has no times or costs (ship_date 2 to 11 days is the only anchor); the payment wait is left out for the same reason, so Receive payment counts 0.
 
 ## 6. AS-IS problems / TO-BE ideas
 

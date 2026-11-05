@@ -2296,3 +2296,15 @@ button.link {
     padding-left: 8px;
   }
 }
+.sim-little {
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.sim-little p {
+  margin: 0 0 4px;
+}
+.sim-little .row {
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}

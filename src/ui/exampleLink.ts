@@ -4,7 +4,7 @@ import kaiyoOrder from '../../cases/kaiyo-order.flow.json?raw'
 import { openProcess, switchTo, useDocs } from './docs'
 import { hadStoredModel, useEditor } from './store'
 
-const NOTICE = 'Kaiyo Trading: an illustrative order process. The notes show what the data keeps, Help explains each element. Your other processes stay in their tabs.'
+const NOTICE = 'Kaiyo Trading: an illustrative order process. The notes show what the data keeps; the times, costs and shares in Simulate are teaching figures, not the real Kaiyo figures. Help explains each element. Your other processes stay in their tabs.'
 
 export function openKaiyo() {
   openProcess(parseModel(kaiyoOrder))

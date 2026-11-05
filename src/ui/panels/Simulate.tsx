@@ -5,7 +5,7 @@
 import { useMemo, useState } from 'react'
 import { create } from 'zustand'
 import { FastForward, Pin, PinOff, Play, RotateCcw, StepForward, X } from 'lucide-react'
-import { analyseModel, UNIT_NAMES, type Analysis } from '../../core/analysis'
+import { analyseModel, convertTime, littlesLaw, UNIT_NAMES, type Analysis } from '../../core/analysis'
 import type { FlowModel, TimeUnit } from '../../core/metamodel'
 import { isDecision } from '../../core/analysis'
 import { nodeOf, setCapacity, setProbability, setSim, setSimSettings } from '../../core/ops'
@@ -231,6 +231,8 @@ function FiguresTab({ a, model, unit }: { a: Analysis; model: FlowModel; unit: s
         </label>
       </div>
 
+      <Little a={a} model={model} unit={unit} />
+
       <table className="sim-table" data-testid="sim-steps">
         <thead>
           <tr>
@@ -355,6 +357,48 @@ function Kpi({ label, value, base, unit, percent, lowerIsBetter, testid, title }
           {delta ? ` · ${delta > 0 ? '+' : '−'}${Math.round(Math.abs(delta) * 100)} %` : ''}
         </small>
       )}
+    </div>
+  )
+}
+
+/** Little's law in plain words: cases open at once = new cases per time unit × cycle time (same unit on both sides). */
+function Little({ a, model, unit }: { a: Analysis; model: FlowModel; unit: string }) {
+  const tu: TimeUnit = model.sim?.unit ?? 'min'
+  const rate = model.sim?.arrivals
+  const [open, setOpen] = useState('')
+  const [perDay, setPerDay] = useState('')
+  const forward = rate !== undefined && a.cycleTime !== undefined ? littlesLaw({ rate, time: a.cycleTime }, tu, tu).wip : undefined
+  const per = unit === 'days' ? 'day' : unit
+  const backward = littlesLaw({ wip: num(open), rate: num(perDay) }, 'd', 'd').time
+  return (
+    <div className="sim-little" data-testid="sim-little">
+      {forward !== undefined ? (
+        <p data-testid="little-wip">
+          <strong>About {fmt(forward, 1)} cases are open at the same time</strong>
+          <span className="muted">
+            {' '}
+            (Little's law: {fmt(rate)} new per {per} × {fmt(a.cycleTime)} {unit} cycle time
+            {tu !== 'd' && `, or ${fmt(convertTime(1, 'd', tu) * rate!, 1)} new per day × ${fmt(convertTime(a.cycleTime!, tu, 'd'), 1)} days`}
+            ). A day here is 24 hours.
+          </span>
+        </p>
+      ) : (
+        <p className="muted">Fill in the new cases per {per} and every activity's time to see how many cases are open at once (Little's law).</p>
+      )}
+      <div className="row">
+        <span className="muted">Seen from outside:</span>
+        <label>
+          open cases <input className="sim-num" inputMode="decimal" value={open} placeholder="60" onChange={(e) => setOpen(e.target.value)} data-testid="little-open" />
+        </label>
+        <label>
+          new per day <input className="sim-num" inputMode="decimal" value={perDay} placeholder="15" onChange={(e) => setPerDay(e.target.value)} data-testid="little-perday" />
+        </label>
+        {backward !== undefined && (
+          <span data-testid="little-time">
+            a case stays about <strong>{fmt(backward, 1)} days</strong> ({fmt(convertTime(backward, 'd', tu), 1)} {unit})
+          </span>
+        )}
+      </div>
     </div>
   )
 }

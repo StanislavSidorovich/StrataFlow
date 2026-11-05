@@ -1,7 +1,9 @@
 // Flow analysis (stage 6): the textbook rules for sequence, decision, parallel split and rework loop,
 // resource utilisation, and the notes for what cannot be counted.
 import { describe, expect, it } from 'vitest'
-import { analyseModel, branchShares } from '../src/core/analysis'
+import { readFileSync } from 'node:fs'
+import { analyseModel, branchShares, convertTime, littlesLaw } from '../src/core/analysis'
+import { parseModel } from '../src/core/serialize'
 import { emptyModel, type FlowModel } from '../src/core/metamodel'
 import { addLane, addNode, addPool, appendNode, connect, convertActivity, ModelError, setCapacity, setProbability, setSim, setSimSettings, updateNode } from '../src/core/ops'
 import { CASES } from './fixtures/cases'
@@ -221,5 +223,58 @@ describe('token play', () => {
         expect(end.log.at(-1), `${c.id} ${p.name}`).toMatch(/^Case done/)
       }
     }
+  })
+})
+
+describe("Little's law", () => {
+  it('multiplies the rate by the time in one unit', () => {
+    expect(littlesLaw({ rate: 0.5, time: 68.8 }, 'h', 'h').wip).toBeCloseTo(34.4)
+    // 12 a day with a cycle time of 68.8 hours: the hours become days first, 12 × 2.8667
+    expect(littlesLaw({ rate: 12, time: 68.8 }, 'd', 'h').wip).toBeCloseTo(34.4)
+    // forgetting the conversion would give 12 × 68.8 = 825.6
+    expect(littlesLaw({ rate: 12, time: 68.8 }, 'd', 'h').wip).not.toBeCloseTo(825.6)
+  })
+  it('solves for the rate and for the time', () => {
+    expect(littlesLaw({ wip: 60, rate: 15 }, 'd', 'd').time).toBeCloseTo(4) // 60 open, 15 a day: 4 days
+    expect(littlesLaw({ wip: 60, rate: 15 }, 'd', 'h').time).toBeCloseTo(96) // the same, asked in hours
+    expect(littlesLaw({ wip: 34.4, time: 68.8 }, 'h', 'h').rate).toBeCloseTo(0.5)
+    expect(littlesLaw({ time: 68.8 }, 'h', 'h').wip).toBeUndefined()
+  })
+  it('converts between units', () => {
+    expect(convertTime(68.8, 'h', 'd')).toBeCloseTo(2.8667)
+    expect(convertTime(90, 'min', 'h')).toBeCloseTo(1.5)
+  })
+})
+
+describe('Kaiyo Trading example (illustrative figures, chapter 6 note)', () => {
+  const m = parseModel(readFileSync('cases/kaiyo-order.flow.json', 'utf8'))
+  const [a] = analyseModel(m)
+  it('gets cycle time 68.8 h, processing 1.85 h, efficiency 2.7 %', () => {
+    expect(m.sim?.unit).toBe('h')
+    expect(a.cycleTime).toBeCloseTo(68.8)
+    expect(a.processingTime).toBeCloseTo(1.85)
+    expect(a.waitingTime).toBeCloseTo(66.95)
+    expect(a.efficiency).toBeCloseTo(1.85 / 68.8)
+    expect(a.cost).toBeCloseTo(6 + 0.9 * (30 + 45 + 3))
+  })
+  it('runs the warehouse steps in 90 % of the cases', () => {
+    const runs = (n: string) => a.steps.find((s) => s.name === n)!.runs
+    expect(runs('Post order in ERP')).toBeCloseTo(1)
+    expect(runs('Pack goods')).toBeCloseTo(0.9)
+    expect(runs('Send invoice')).toBeCloseTo(0.9)
+  })
+  it('keeps every lane under 85 % at 12 orders a day', () => {
+    const busy = Object.fromEntries(a.resources.map((r) => [r.name, r.utilisation!]))
+    expect(busy.Sales).toBeCloseTo(0.25)
+    expect(busy.Warehouse).toBeCloseTo(0.675)
+    expect(busy.Finance).toBeCloseTo(0.1125)
+    expect(a.resources.every((r) => r.utilisation! < 0.85)).toBe(true)
+    expect(m.sim!.arrivals! * a.cycleTime!).toBeCloseTo(34.4)
+  })
+  it('overloads the warehouse when two people cover only 16 h of the 24', () => {
+    // the note's what-if: 16.2 h of work a day against 16 h of people
+    const busy = (cap: number) => (m.sim!.arrivals! * a.resources.find((r) => r.name === 'Warehouse')!.work) / cap
+    expect(busy(16 / 24)).toBeGreaterThan(1)
+    expect(busy(24 / 24)).toBeCloseTo(0.675)
   })
 })
