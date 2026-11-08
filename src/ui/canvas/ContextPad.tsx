@@ -18,37 +18,48 @@ const APPEND: { icon: IconName; spec: NodeSpec; title: string }[] = [
   { icon: 'end', spec: { type: 'event', position: 'end' }, title: 'Append an end event' },
 ]
 
-// The pad keeps its screen size while the diagram zooms out, so at a small zoom it lies over the next shapes and a
-// click meant for one of them lands on a pad button (an appended gateway). Its room, in screen pixels.
+// The pad keeps its screen size while the diagram zooms out, so it can lie over the next shapes and a click meant
+// for one of them lands on a pad button (an appended gateway). Its room, in screen pixels. It goes to the first side
+// of the shape where no other shape is under it (right, bottom, top, left); when every side is taken it goes where it
+// covers least, so the pad is always there.
 const PAD_W = 96
 const PAD_H = 170
+const SIDES = [Position.Right, Position.Bottom, Position.Top, Position.Left] as const
 
 export function ContextPad({ el }: { el: FlowNode }) {
   const only = useEditor((s) => s.selection.length === 1 && s.selection[0] === el.id)
   const linking = useEditor((s) => s.linkFrom === el.id)
-  // Another shape under the pad's place: the pad stays away (zoom in to use it).
-  const covers = useStore((s) => {
-    if (!only) return false
+  const place = useStore((s): Position => {
+    if (!only) return Position.Right
     const me = s.nodeLookup.get(el.id)
-    if (!me) return false
+    if (!me) return Position.Right
     const z = s.transform[2]
     const { x, y } = me.internals.positionAbsolute
     const w = me.measured.width ?? me.width ?? 0
     const h = me.measured.height ?? me.height ?? 0
-    const x0 = x + w + 10 / z
-    const x1 = x0 + PAD_W / z
-    const y1 = y + PAD_H / z
-    for (const n of s.nodeLookup.values()) {
-      if (n.id === el.id || n.type !== 'shape') continue
-      const p = n.internals.positionAbsolute
-      const nw = n.measured.width ?? n.width ?? 0
-      const nh = n.measured.height ?? n.height ?? 0
-      if (p.x <= x && p.y <= y && p.x + nw >= x + w && p.y + nh >= y + h) continue // the sub-process it sits in
-      if (p.x < x1 && p.x + nw > x0 && p.y < y1 && p.y + nh > y) return true
+    const pw = PAD_W / z
+    const ph = PAD_H / z
+    const gap = 10 / z
+    let best: Position = Position.Right
+    let least = Infinity
+    for (const side of SIDES) {
+      const x0 = side === Position.Right ? x + w + gap : side === Position.Left ? x - gap - pw : x
+      const y0 = side === Position.Bottom ? y + h + gap : side === Position.Top ? y - gap - ph : y
+      let hit = 0
+      for (const n of s.nodeLookup.values()) {
+        if (n.id === el.id || n.type !== 'shape') continue
+        const p = n.internals.positionAbsolute
+        const nw = n.measured.width ?? n.width ?? 0
+        const nh = n.measured.height ?? n.height ?? 0
+        if (p.x <= x && p.y <= y && p.x + nw >= x + w && p.y + nh >= y + h) continue // the sub-process it sits in
+        hit += Math.max(0, Math.min(p.x + nw, x0 + pw) - Math.max(p.x, x0)) * Math.max(0, Math.min(p.y + nh, y0 + ph) - Math.max(p.y, y0))
+      }
+      if (hit === 0) return side
+      if (hit < least) (least = hit), (best = side)
     }
-    return false
+    return best
   })
-  if (!only || covers) return null
+  if (!only) return null
   const canAppend = !(el.type === 'event' && el.position === 'end') && el.type !== 'dataObject' && el.type !== 'dataStore' && el.type !== 'annotation'
   const canCarry = el.type === 'task' || el.type === 'subProcess'
 
@@ -61,7 +72,7 @@ export function ContextPad({ el }: { el: FlowNode }) {
   }
 
   return (
-    <NodeToolbar isVisible position={Position.Right} offset={10} align="start" className="context-pad">
+    <NodeToolbar isVisible position={place} offset={10} align="start" className="context-pad">
       {canAppend &&
         APPEND.map((a) => (
           <button

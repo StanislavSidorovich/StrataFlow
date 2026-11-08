@@ -26,7 +26,8 @@ import { useIssues } from '../panels/Check'
 import { useSim } from '../panels/Simulate'
 import { useEditor } from '../store'
 import { ContextMenu } from './ContextMenu'
-import { BpmnEdge, EdgeMarkers, type FlowEdge } from './edges'
+import { findJumps } from '../../core/jumps'
+import { BpmnEdge, drawnPoints, EdgeMarkers, type Box, type FlowEdge } from './edges'
 import { FlowGrips } from './FlowGrips'
 import { BpmnShape, GhostShape, PoolShape, type ChangeMark, type GhostNode, type PoolNode, type ShapeNode } from './nodes'
 import { useDiff, useReviewUi } from '../panels/Changes'
@@ -195,6 +196,23 @@ export function toEdges(model: FlowModel, selected: Set<string>, page: string | 
   return [...real, ...removed]
 }
 
+/** Marks where sequence and message flows cross (as drawn now, also while a shape is dragged) so the edge draws a hop. */
+function withJumps(edges: FlowEdge[], nodes: AnyNode[]): FlowEdge[] {
+  const boxes = new Map<string, Box>()
+  for (const n of nodes) boxes.set(n.id, { x: n.position.x, y: n.position.y, w: n.width ?? n.measured?.width ?? 0, h: n.height ?? n.measured?.height ?? 0, pool: n.type === 'pool' })
+  const shapes = nodes.filter((n) => n.type === 'shape').map((n) => boxes.get(n.id)!)
+  const paths = new Map<string, Point[]>()
+  for (const e of edges) {
+    const k = e.data?.kind
+    if (e.data?.ghost || (k !== 'sequence' && k !== 'message')) continue
+    const pts = drawnPoints(e.data, boxes.get(e.source), boxes.get(e.target), () => shapes.filter((b) => b !== boxes.get(e.source) && b !== boxes.get(e.target)))
+    if (pts) paths.set(e.id, pts)
+  }
+  const jumps = findJumps(paths)
+  if (!jumps.size) return edges
+  return edges.map((e) => (jumps.has(e.id) ? { ...e, data: { ...e.data!, jumps: jumps.get(e.id) } } : e))
+}
+
 /** What moves along with a dragged element: a pool's lanes and content, a task's boundary events, a sub-process's content. */
 function followersOf(model: FlowModel, id: string): string[] {
   if (model.participants.some((p) => p.id === id))
@@ -270,7 +288,8 @@ export function Canvas() {
   // A flow is being dragged from a dot: the context pad steps aside (css), it would cover the target.
   const [connecting, setConnecting] = useState(false)
   useEffect(() => setDropFlow(null), [tool])
-  const edges = useMemo(() => toEdges(model, selected, page, passed, dropFlow, changes, removedFlows), [model, selected, page, passed, dropFlow, changes, removedFlows])
+  const plainEdges = useMemo(() => toEdges(model, selected, page, passed, dropFlow, changes, removedFlows), [model, selected, page, passed, dropFlow, changes, removedFlows])
+  const edges = useMemo(() => withJumps(plainEdges, nodes), [plainEdges, nodes])
   const flow = useReactFlow()
   const fit = useEditor((s) => s.fit)
   useEffect(() => {

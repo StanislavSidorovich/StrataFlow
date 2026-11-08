@@ -2,14 +2,15 @@
 // association and data association (dotted). Drawn along DI waypoints; without them (a new flow, or an
 // end has moved) routed orthogonally between the sides of the two shapes that face each other.
 import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, Position, useInternalNode, useStore, type Edge, type EdgeProps, type InternalNode } from '@xyflow/react'
-import type { Bounds, FlowKind, Side } from '../../core/metamodel'
+import type { Bounds, FlowKind, Point, Side } from '../../core/metamodel'
+import { pathWithJumps } from '../../core/jumps'
 import { route, routeSides } from '../../core/routing'
 import { ChangeBadge, type ChangeMark } from './nodes'
 
-export type FlowData = { kind: FlowKind; name: string; points?: { x: number; y: number }[]; sourceSide?: Side; targetSide?: Side; isDefault?: boolean; conditional?: boolean; passed?: boolean; drop?: boolean; change?: ChangeMark; ghost?: boolean; draw?: 'source' | 'target' }
+export type FlowData = { kind: FlowKind; name: string; points?: { x: number; y: number }[]; sourceSide?: Side; targetSide?: Side; isDefault?: boolean; conditional?: boolean; passed?: boolean; drop?: boolean; change?: ChangeMark; ghost?: boolean; draw?: 'source' | 'target'; jumps?: Point[] }
 export type FlowEdge = Edge<FlowData, 'flow'>
 
-type Box = { x: number; y: number; w: number; h: number; pool: boolean }
+export type Box = { x: number; y: number; w: number; h: number; pool: boolean }
 
 function boxOf(n: InternalNode | undefined): Box | undefined {
   if (!n) return undefined
@@ -29,6 +30,49 @@ export function facingSides(s: Box, t: Box, preferVertical: boolean) {
   return apartY >= 0 ? ([Position.Bottom, Position.Top] as const) : ([Position.Top, Position.Bottom] as const)
 }
 
+/**
+ * The bends a flow is drawn along when they are known: its own, else the route for a side the user chose, else the
+ * route that keeps clear of other shapes. Undefined when the plain smooth-step path is drawn. `others` are all the
+ * other shapes (read only when the route is automatic). The canvas uses it too, to find where flows cross.
+ */
+export function flowPoints(data: FlowData | undefined, sb: Box | undefined, tb: Box | undefined, others: () => Box[]): Point[] | undefined {
+  const kind = data?.kind ?? 'sequence'
+  let pts = data?.points
+  const sides = sb && tb ? facingSides(sb, tb, kind === 'message') : undefined
+  // A side the user chose (a dot of the shape) decides the route; the user's own bends decide it more.
+  if (!(pts && pts.length >= 2) && (data?.sourceSide || data?.targetSide) && sb && tb)
+    pts = routeSides(
+      { x: sb.x, y: sb.y, width: sb.w, height: sb.h },
+      data.sourceSide ?? (sides![0] as Side),
+      { x: tb.x, y: tb.y, width: tb.w, height: tb.h },
+      data.targetSide ?? (sides![1] as Side),
+      { source: sb.pool, target: tb.pool },
+    )
+  // The automatic route keeps clear of other shapes: the vertical step moves into a gap beside them.
+  if (!(pts && pts.length >= 2) && !data?.sourceSide && !data?.targetSide && sb && tb && !sb.pool && !tb.pool) {
+    const s = { x: sb.x, y: sb.y, width: sb.w, height: sb.h }
+    const t = { x: tb.x, y: tb.y, width: tb.w, height: tb.h }
+    const inside = (b: Bounds, x: number, y: number) => x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height
+    const obstacles: Bounds[] = []
+    for (const b of others()) {
+      const box = { x: b.x, y: b.y, width: b.w, height: b.h }
+      if (!inside(box, s.x + s.width, s.y + s.height / 2) && !inside(box, t.x, t.y + t.height / 2)) obstacles.push(box)
+    }
+    const plain = route({ kind, sourceSide: undefined, targetSide: undefined }, s, t)
+    const clear = route({ kind, sourceSide: undefined, targetSide: undefined }, s, t, false, false, obstacles)
+    if (plain && clear && plain.length === 4 && JSON.stringify(plain) !== JSON.stringify(clear)) pts = clear
+  }
+  return pts && pts.length >= 2 ? pts : undefined
+}
+
+/** The corners of every flow as drawn, where the automatic smooth-step path is the plain route; used to find crossings. */
+export function drawnPoints(data: FlowData | undefined, sb: Box | undefined, tb: Box | undefined, others: () => Box[]): Point[] | undefined {
+  const pts = flowPoints(data, sb, tb, others)
+  if (pts || !sb || !tb) return pts
+  const to = (b: Box) => ({ x: b.x, y: b.y, width: b.w, height: b.h })
+  return route({ kind: data?.kind ?? 'sequence', sourceSide: undefined, targetSide: undefined }, to(sb), to(tb), tb.pool, sb.pool)
+}
+
 export function BpmnEdge({ id, source, target, data, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected }: EdgeProps<FlowEdge>) {
   const sb = boxOf(useInternalNode(source))
   const tb = boxOf(useInternalNode(target))
@@ -45,38 +89,13 @@ export function BpmnEdge({ id, source, target, data, sourceX, sourceY, targetX, 
     if (sb.pool && (sp === Position.Top || sp === Position.Bottom)) sourceX = Math.min(Math.max(targetX, sb.x + 40), sb.x + sb.w - 10)
   }
   const kind = data?.kind ?? 'sequence'
-  let pts = data?.points
-  // A side the user chose (a dot of the shape) decides the route; the user's own bends decide it more.
-  if (!(pts && pts.length >= 2) && (data?.sourceSide || data?.targetSide) && sb && tb)
-    pts = routeSides(
-      { x: sb.x, y: sb.y, width: sb.w, height: sb.h },
-      data.sourceSide ?? (sourcePosition as Side),
-      { x: tb.x, y: tb.y, width: tb.w, height: tb.h },
-      data.targetSide ?? (targetPosition as Side),
-      { source: sb.pool, target: tb.pool },
-    )
-  // The automatic route keeps clear of other shapes: the vertical step moves into a gap beside them.
-  if (!(pts && pts.length >= 2) && !data?.sourceSide && !data?.targetSide && sb && tb && !sb.pool && !tb.pool) {
-    const s = { x: sb.x, y: sb.y, width: sb.w, height: sb.h }
-    const t = { x: tb.x, y: tb.y, width: tb.w, height: tb.h }
-    const inside = (b: Bounds, x: number, y: number) => x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height
-    const obstacles: Bounds[] = []
-    for (const n of lookup.values()) {
-      if (n.type !== 'shape' || n.id === source || n.id === target) continue
-      const b = boxOf(n)!
-      const box = { x: b.x, y: b.y, width: b.w, height: b.h }
-      if (!inside(box, s.x + s.width, s.y + s.height / 2) && !inside(box, t.x, t.y + t.height / 2)) obstacles.push(box)
-    }
-    const plain = route({ kind, sourceSide: undefined, targetSide: undefined }, s, t)
-    const clear = route({ kind, sourceSide: undefined, targetSide: undefined }, s, t, false, false, obstacles)
-    if (plain && clear && plain.length === 4 && JSON.stringify(plain) !== JSON.stringify(clear)) pts = clear
-  }
+  const pts = flowPoints(data, sb, tb, () => [...lookup.values()].filter((n) => n.type === 'shape' && n.id !== source && n.id !== target).map((n) => boxOf(n)!))
   let path: string
   let labelX: number
   let labelY: number
   let vertical = false
   if (pts && pts.length >= 2) {
-    path = pts.map((p, i) => `${i ? 'L' : 'M'}${p.x} ${p.y}`).join(' ')
+    path = pathWithJumps(pts, data?.jumps)
     // Label in the middle of the longest segment: it is where a reader looks for it.
     let best = 0
     for (let i = 1; i < pts.length - 1; i++) if (len(pts[i], pts[i + 1]) > len(pts[best], pts[best + 1])) best = i
