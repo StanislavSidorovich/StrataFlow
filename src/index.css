@@ -2334,3 +2334,32 @@ button.link {
   gap: 10px;
   align-items: center;
 }
+
+/* Presentation export (File → Export PNG / SVG for slides): set on <html> only while the picture is drawn, so the
+   editor stays as it is. Thicker lines survive being scaled down on a slide; text size L and Shapes: Colour are
+   set alongside (src/ui/exportImage.ts). */
+:root[data-export='slides'] .bpmn-stroke {
+  stroke-width: 2.6;
+}
+:root[data-export='slides'] .bpmn-event-end.bpmn-stroke {
+  stroke-width: 4.5;
+}
+:root[data-export='slides'] .bpmn-mark-thick {
+  stroke-width: 4;
+}
+:root[data-export='slides'] .bpmn-mark-fill {
+  stroke-width: 1.6;
+}
+:root[data-export='slides'] .react-flow__edge-path.bpmn-edge {
+  stroke-width: 2.4;
+}
+:root[data-export='slides'] .bpmn-pool,
+:root[data-export='slides'] .bpmn-lane {
+  border-width: 2.4px;
+}
+:root[data-export='slides'] .bpmn-lane {
+  border-width: 1.8px;
+}
+:root[data-export='slides'] .bpmn-pool-header {
+  border-right-width: 2px;
+}

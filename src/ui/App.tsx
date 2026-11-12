@@ -46,7 +46,7 @@ import { applyUpdate, checkForUpdates, DEPLOY_DELAY_NOTE, installApp, updateChec
 import { Canvas } from './canvas/Canvas'
 import { TOOLS } from './canvas/Palette'
 import { copySelection, cutSelection, duplicateSelection, groupSelection, layoutNow, pasteClipboard, renameElement, ungroupSelection } from './actions'
-import { exportImage } from './exportImage'
+import { exportImage, type ExportPreset } from './exportImage'
 import { exportBizagiProject, exportBpmn, openFiles, saveModel, saveModelAs } from './files'
 import { FEEDBACK_URL } from './links'
 import { Menu } from './Menu'
@@ -98,11 +98,11 @@ const exportNow = async (reusable = false) => {
   }
 }
 
-const exportPicture = async (format: 'png' | 'svg') => {
+const exportPicture = async (format: 'png' | 'svg', preset: ExportPreset = 'plain') => {
   try {
     // The file shows 0 KB until the picture is drawn, which takes a minute or two for a wide diagram.
     if (format === 'png') useEditor.getState().say('Drawing the picture: a wide diagram can take a minute or two. The file stays empty until it is done.')
-    const name = await exportImage(format)
+    const name = await exportImage(format, preset)
     useEditor.getState().say(name ? `Exported ${name}: the whole diagram as an image, ready for slides and reports.` : 'Export cancelled.')
   } catch (e) {
     useEditor.getState().showError(`Not exported: ${(e as Error).message}`)
@@ -278,6 +278,8 @@ export function App() {
               { label: 'Export for Bizagi, reusable sub-processes', icon: <FileDown size={15} />, title: 'A .zip of BPMN files as the course practice draws them: each sub-process a call activity, its page in a file of its own with the pool and only the lane of the sub-process', testid: 'export-bizagi-project', onPick: () => void exportNow(true) },
               { label: 'Export PNG', icon: <ImageIcon size={15} />, title: 'The whole diagram as a PNG picture, for slides and reports', testid: 'export-png', onPick: () => void exportPicture('png') },
               { label: 'Export SVG', icon: <ImageIcon size={15} />, title: 'The whole diagram as an SVG picture (sharp at any size)', testid: 'export-svg', onPick: () => void exportPicture('svg') },
+              { label: 'Export PNG for slides', icon: <ImageIcon size={15} />, title: 'The same picture with larger text, thicker lines and coloured shapes, so it stays readable when scaled down in a slide or a post. The editor does not change', testid: 'export-png-slides', onPick: () => void exportPicture('png', 'slides') },
+              { label: 'Export SVG for slides', icon: <ImageIcon size={15} />, title: 'The slides version as SVG', testid: 'export-svg-slides', onPick: () => void exportPicture('svg', 'slides') },
               { label: 'Share as file…', icon: <Share2 size={15} />, title: 'One .flow.html file to send: opening it lands in Quaera Flow with this process (or the story on the screen) loaded. Nothing is uploaded', testid: 'share-file', onPick: () => void shareNow(false) },
               { label: 'Copy share link', icon: <Link2 size={15} />, title: 'The same as a link in the clipboard (long; a file is tidier in a chat)', testid: 'share-link', onPick: () => void shareNow(true) },
               'sep',

@@ -137,6 +137,10 @@ Done: an editor that draws every BPMN element the course uses (also loop and mul
 
 ## Sprints
 
+### 2026-11-12 · Export for slides (v0.14.2)
+File → Export PNG / SVG for slides: the same picture with text size L, thicker lines and Shapes: Colour, so a wide diagram stays readable when scaled down in a slide or a LinkedIn carousel. The editor does not change; `ExportPreset` in `src/ui/exportImage.ts`, rules in `src/index.css`. Checked on the owner's L4 model (6000 px): with L, a few long labels overflow their boxes; labels are not shrunk, the author shortens them. 620 tests.
+Built with: Sonnet 5.5 (Claude Code), effort low; released by Opus 5.5.
+
 ### 2026-11-12 · Colour shapes (v0.14.1)
 Asked for the owner's LinkedIn carousel and future exports. Aa → Shapes: Plain (default) / Colour. Colour tints start events green, end events red and gateways amber (`--sc-*` variables per theme, rules under `:root[data-shape-colour='on']` in `src/index.css`, wrapped in `:where()` so selection and change colours still win). The PNG / SVG export inlines computed styles, so it follows the canvas with no extra code. Kept in `strataflow.shapeColour`, set before first paint in `index.html`; `src/core/shapeColors.ts`, `tests/shape-colours.test.ts`. 620 tests. Checked on the dev server (Kaiyo example, and the owner's L4 model exported as a 6000 px colour PNG). Left: intermediate events stay neutral; a "Colour" default is one line if the owner wants it.
 Built with: Sonnet 5.5 (Claude Code), effort low.
