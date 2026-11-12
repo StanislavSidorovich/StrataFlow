@@ -244,7 +244,7 @@ function Figure({ el, w, h }: { el: FlowNode; w: number; h: number }) {
       const c = w / 2
       return (
         <>
-          <path d={`M${c} 1 L${w - 1} ${c} L${c} ${w - 1} L1 ${c} Z`} className="bpmn-stroke bpmn-fill" />
+          <path d={`M${c} 1 L${w - 1} ${c} L${c} ${w - 1} L1 ${c} Z`} className="bpmn-stroke bpmn-fill bpmn-gateway" />
           <g transform={`translate(${c} ${c})`}>
             <GatewayMarker kind={el.kind} s={w / 4} />
           </g>

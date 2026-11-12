@@ -4,6 +4,7 @@
 import { Moon, Sun } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { applyBorders, readBorders, type Borders } from '../core/borders'
+import { applyShapeColour, readShapeColour } from '../core/shapeColors'
 import { CONTRAST_KEY, CONTRASTS, contrastVars, parseContrast, parseUiSize, UI_SIZE_KEY, UI_SIZES, uiScale, type Contrast, type UiSize } from '../core/readability'
 import { LABEL_SIZES, LABELS_KEY, labelScale, lookColor, lookVars, NO_LOOK, parseLabelSize, parseLook, setLookColor, SWATCHES, type LabelSize, type Look, type LookPart } from '../core/look'
 
@@ -45,6 +46,7 @@ export function AppearanceButton({ dark, onToggleTheme }: { dark: boolean; onTog
   const theme = dark ? 'dark' : 'light'
   const [look, setLook] = useState(readLook)
   const [borders, setBorders] = useState<Borders>(readBorders)
+  const [shapeColour, setShapeColour] = useState(readShapeColour)
   const [labels, setLabels] = useState<LabelSize>(readLabelSize)
   const [uiSize, setUiSize] = useState<UiSize>(readUiSize)
   const [contrast, setContrast] = useState<Contrast>(readContrast)
@@ -65,6 +67,7 @@ export function AppearanceButton({ dark, onToggleTheme }: { dark: boolean; onTog
   }, [look, theme])
 
   useEffect(() => applyBorders(borders), [borders])
+  useEffect(() => applyShapeColour(shapeColour), [shapeColour])
 
   useEffect(() => {
     const style = document.documentElement.style
@@ -176,6 +179,16 @@ export function AppearanceButton({ dark, onToggleTheme }: { dark: boolean; onTog
             </div>
           </div>
           <div className="look-row">
+            <div className="look-label">Shapes</div>
+            <div className="look-theme" role="radiogroup" aria-label="Shape colours" title="Start events green, end events red, gateways amber; also in PNG and SVG export">
+              {([false, true] as const).map((on) => (
+                <button key={String(on)} type="button" role="radio" aria-checked={shapeColour === on} className={shapeColour === on ? 'on' : ''} data-testid={`shape-colour-${on ? 'on' : 'off'}`} onClick={() => setShapeColour(on)}>
+                  {on ? 'Colour' : 'Plain'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="look-row">
             <div className="look-label">Diagram text</div>
             <div className="look-theme" role="radiogroup" aria-label="Diagram text size">
               {LABEL_SIZES.map((s) => (
@@ -211,6 +224,7 @@ export function AppearanceButton({ dark, onToggleTheme }: { dark: boolean; onTog
           <button type="button" className="btn look-reset" onClick={() => {
               setLook(NO_LOOK)
               setBorders('strong')
+              setShapeColour(false)
               setLabels('M')
               setUiSize('M')
               setContrast(0)

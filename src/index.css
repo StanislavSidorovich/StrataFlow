@@ -37,6 +37,13 @@
   --lane-tint: rgb(238 242 248 / 0.35);
   --event-start: #e1f5ec;
   --event-end: #fde8e7;
+  /* Colour shapes (Aa → Shapes): fill and stroke per kind; used only under [data-shape-colour] */
+  --sc-start-fill: #dcf3e3;
+  --sc-start-stroke: #2f8f4e;
+  --sc-end-fill: #fde0de;
+  --sc-end-stroke: #c0392b;
+  --sc-gate-fill: #fdf1cc;
+  --sc-gate-stroke: #b7860b;
 
   color-scheme: light;
 }
@@ -66,6 +73,12 @@
   --lane-tint: rgb(42 49 64 / 0.25);
   --event-start: #143329;
   --event-end: #3d1c1a;
+  --sc-start-fill: #143329;
+  --sc-start-stroke: #4fbf7a;
+  --sc-end-fill: #3d1c1a;
+  --sc-end-stroke: #ef6a5e;
+  --sc-gate-fill: #3a2f12;
+  --sc-gate-stroke: #d9a93a;
 
   color-scheme: dark;
 }
@@ -1048,6 +1061,19 @@ h2.with-help {
 .bpmn-event-end {
   fill: var(--event-end);
   stroke-width: 3;
+}
+/* Colour shapes: :where() keeps the specificity low, so selection and change colours still win */
+:where(:root[data-shape-colour='on']) .bpmn-event-start {
+  fill: var(--sc-start-fill);
+  stroke: var(--sc-start-stroke);
+}
+:where(:root[data-shape-colour='on']) .bpmn-event-end {
+  fill: var(--sc-end-fill);
+  stroke: var(--sc-end-stroke);
+}
+:where(:root[data-shape-colour='on']) .bpmn-gateway {
+  fill: var(--sc-gate-fill);
+  stroke: var(--sc-gate-stroke);
 }
 .bpmn-mark-fill {
   fill: var(--shape-stroke);
