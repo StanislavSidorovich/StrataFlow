@@ -269,8 +269,12 @@ Order matters: 1 → 2 → 3, then 4 and 5 in either order. Phase 1 alone is alr
 
 ## 8. Open questions for the owner
 
-1. **Bizagi's "Poisson" arrivals**: in Bizagi, does an interval "Poisson" with a mean behave like random (exponential) arrivals? A 5-minute check: one task, one resource, constant processing; compare the average resource wait in Bizagi with Flow's level 3. Until then Flow says "random arrivals (Poisson process)" and notes that Bizagi's label refers to the interval.
-2. **Calendar (level 4)**: do the course's exercises or the exam use working hours or shifts? If not, phase 6 waits.
-3. **Bizagi simulation figures on import**: would reading the figures a student typed in Bizagi (if Bizagi writes them into the `.bpmn`) be worth it? It needs a small Bizagi file with simulation data, on an own toy process, not a course one.
-4. **Kaiyo peak scenario**: 18 orders a day and a second warehouse person as invented teaching figures: fine as the example's what-if?
-5. **Order against F2**: 6b first, or "show how it is calculated on the diagram" (F2) first? This design assumes 6b phase 1 (cheap, includes M/M/c) can go before F2 either way.
+Answered by the owner on 2026-11-16 (answers first, the original question under each).
+
+1. **Bizagi's "Poisson" arrivals** — answered: the interval is exponential (a Poisson stream of arrivals), as this design assumed. Flow's *Random (Poisson)* draws exponential intervals; no change.
+   Question was: in Bizagi, does an interval "Poisson" with a mean behave like random (exponential) arrivals? A 5-minute check: one task, one resource, constant processing; compare the average resource wait in Bizagi with Flow's level 3.
+2. **Calendar (level 4)** — answered: working hours and shifts have not come up in the course exercises so far. Phase 6 is not built; level 4 stays greyed with "later". Reopen if an exercise needs it.
+   Question was: do the course's exercises or the exam use working hours or shifts?
+3. **Bizagi simulation figures on import** — not asked yet; stays open.
+4. **Kaiyo peak scenario** — answered: Kaiyo's figures may be invented, so the 18 orders a day and the second warehouse person are fine as teaching figures. Also: the owner wants simulation parameters as a second layer on the **built-in examples that already exist** (where they fit), instead of making new examples. Decision for phase 5; for phase 1 the only constraint is not to close that door: parameters live in the model (`sim` on elements, lanes and settings), so an example is a model plus its parameters and any example file can carry them.
+5. **Order against F2** — answered: 6b first, F2 after.
