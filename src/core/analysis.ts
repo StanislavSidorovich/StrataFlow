@@ -11,6 +11,7 @@
 // messages from other pools are not part of the figures (the notes say so when the model has them).
 import type { Flow, FlowModel, FlowNode, TimeUnit } from './metamodel'
 import { isArtifact } from './metamodel'
+import { mmc } from './queue'
 
 export const UNIT_NAMES: Record<TimeUnit, string> = { min: 'min', h: 'h', d: 'days' }
 
@@ -24,6 +25,8 @@ export interface StepFigures {
   duration: number
   wait: number
   cost: number
+  /** What its lane adds per run: the lane's cost per use plus its cost per hour × the duration (0 when the lane has no costs). */
+  laneCost: number
   /** An activity without a duration (counted as 0). */
   missing: boolean
   /** A catching intermediate event: it only waits. */
@@ -38,6 +41,24 @@ export interface ResourceFigures {
   work: number
   /** Share of the lane's time in use, when the arrival rate is known (above 1 = overloaded). */
   utilisation?: number
+  /** Cost added per run of an activity in this lane, and per hour of its processing (blank = 0). */
+  useCost?: number
+  hourlyCost?: number
+}
+
+/** The wait for a person in a lane by queueing theory (M/M/c, Erlang C): one row per lane, only when the arrival rate is known. */
+export interface LaneQueue {
+  laneId: string
+  /** People counted (the lane's capacity rounded, at least 1), activity runs per case in the lane, and the average processing time of one run. */
+  servers: number
+  visits: number
+  meanService: number
+  /** Chance that a case finds everyone busy. */
+  pWait?: number
+  /** Estimated wait per run, in the model's unit: random arrivals and times, one queue. Undefined when the lane is overloaded. */
+  wait?: number
+  /** The arrival rate meets or exceeds what the lane can do: the queue grows with every case and the wait is not finite. */
+  overloaded: boolean
 }
 
 export interface Analysis {
@@ -53,6 +74,8 @@ export interface Analysis {
   cost?: number
   steps: StepFigures[]
   resources: ResourceFigures[]
+  /** Queue estimates per lane (empty without an arrival rate). */
+  queues: LaneQueue[]
   notes: string[]
 }
 
@@ -146,8 +169,26 @@ function analyse(m: FlowModel, top: FlowNode[], poolId: string | undefined, titl
   const level = (nodes: FlowNode[], weight: number): Totals | undefined => {
     const steps0 = nodes.filter((n) => !isArtifact(n) && !(n.type === 'event' && n.position === 'boundary'))
     const ids = new Set(steps0.map((n) => n.id))
-    if (nodes.some((n) => n.type === 'event' && n.position === 'boundary' && seq.some((f) => f.source === n.id)))
-      note('Paths after boundary events are not counted (they are exceptions: give them a probability by modelling the case as a decision if they matter)')
+    // Boundary events with a chance (`sim.fires`) are followed: the path after them counts with that share of the host's runs.
+    const hosts = new Map<string, { p: number; interrupting: boolean; targets: string[] }[]>()
+    for (const b of nodes) {
+      if (!(b.type === 'event' && b.position === 'boundary' && b.attachedTo && ids.has(b.attachedTo))) continue
+      const targets = seq.filter((f) => f.source === b.id && ids.has(f.target)).map((f) => f.target)
+      if (!targets.length) continue
+      const p = b.sim?.fires ?? 0
+      if (!(p > 0)) {
+        note('Paths after boundary events are not counted unless the event has a chance of happening (Boundary events table)')
+        continue
+      }
+      hosts.set(b.attachedTo, [...(hosts.get(b.attachedTo) ?? []), { p, interrupting: b.interrupting !== false, targets }])
+    }
+    /** Share of a host's runs that go on by the normal path: the interrupting events take the rest. */
+    const stay = new Map<string, number>()
+    for (const [h, es] of hosts) {
+      const sum = es.filter((e) => e.interrupting).reduce((t, e) => t + e.p, 0)
+      if (sum > 1 + 1e-9) note(`${name(byId.get(h)!)}: the interrupting boundary events add up to ${Math.round(sum * 100)} %, scaled to 100 %`)
+      stay.set(h, Math.max(0, 1 - sum))
+    }
     const outMap = new Map(steps0.map((n) => [n.id, seq.filter((f) => f.source === n.id && ids.has(f.target))]))
     const inMap = new Map(steps0.map((n) => [n.id, seq.filter((f) => f.target === n.id && ids.has(f.source))]))
     const outs = (id: string) => outMap.get(id)!
@@ -195,6 +236,17 @@ function analyse(m: FlowModel, top: FlowNode[], poolId: string | undefined, titl
               next = plus(together(o.map((f) => (f.target === join ? ZERO : sub.get(f.target)!))), val.get(join)!)
             } else next = together(o.map((f) => val.get(f.target)!))
           } else if (o.length) next = val.get(o[0].target)!
+          const es = hosts.get(n.id)
+          if (es) {
+            const path = (e: { targets: string[] }) => (e.targets.length > 1 ? together(e.targets.map((t) => val.get(t)!)) : val.get(e.targets[0])!)
+            const sum = es.filter((e) => e.interrupting).reduce((t, e) => t + e.p, 0)
+            const k = sum > 1 ? 1 / sum : 1
+            let mixed = scale(next, stay.get(n.id)!)
+            for (const e of es) if (e.interrupting) mixed = plus(mixed, scale(path(e), e.p * k))
+            // A non-interrupting event starts a second path next to the normal one: the longer sets the time, costs add up.
+            for (const e of es) if (!e.interrupting) mixed = plus(scale(mixed, 1 - e.p), scale(together([mixed, path(e)]), e.p))
+            next = mixed
+          }
           const v = plus(own.get(n.id)!, next)
           const old = val.get(n.id)!
           delta = Math.max(delta, Math.abs(v.time - old.time) + Math.abs(v.cost - old.cost) + Math.abs(v.proc - old.proc))
@@ -232,8 +284,12 @@ function analyse(m: FlowModel, top: FlowNode[], poolId: string | undefined, titl
         const into = ins(n.id).map((f) => {
           const src = byId.get(f.source)!
           const share = shares.get(src.id)?.get(f.id) ?? 1
-          return runs.get(src.id)! * share
+          return runs.get(src.id)! * share * (stay.get(src.id) ?? 1)
         })
+        for (const [h, es] of hosts) {
+          const sum = es.filter((e) => e.interrupting).reduce((t, e) => t + e.p, 0)
+          for (const e of es) if (e.targets.includes(n.id)) into.push(runs.get(h)! * e.p * (e.interrupting && sum > 1 ? 1 / sum : 1))
+        }
         const base = first.includes(n) ? 1 / first.length : 0
         const v = base + (isParallelJoin(m, n) ? Math.max(0, ...into) : into.reduce((s, x) => s + x, 0))
         delta = Math.max(delta, Math.abs(v - runs.get(n.id)!))
@@ -260,7 +316,7 @@ function analyse(m: FlowModel, top: FlowNode[], poolId: string | undefined, titl
     const sim = n.sim ?? {}
     const wait = sim.wait ?? 0
     if (n.type === 'event') {
-      if (n.position === 'intermediate' && !n.throwing) steps.push({ id: n.id, name: name(n), laneId: n.laneId, runs: 0, duration: 0, wait, cost: 0, missing: false, event: true })
+      if (n.position === 'intermediate' && !n.throwing) steps.push({ id: n.id, name: name(n), laneId: n.laneId, runs: 0, duration: 0, wait, cost: 0, laneCost: 0, missing: false, event: true })
       return { time: wait, proc: 0, cost: 0 }
     }
     if (n.type !== 'task' && n.type !== 'subProcess') return ZERO
@@ -275,12 +331,20 @@ function analyse(m: FlowModel, top: FlowNode[], poolId: string | undefined, titl
       if (sim.duration !== undefined) note(`${name(n)}: its steps are counted, not its own duration`)
     } else {
       const d = sim.duration ?? 0
-      steps.push({ id: n.id, name: name(n), laneId: n.laneId, runs: 0, duration: d, wait, cost: sim.cost ?? 0, missing: sim.duration === undefined, event: false })
-      work = { time: d, proc: d, cost: sim.cost ?? 0 }
+      const laneCost = laneCostOf(n.laneId, d)
+      steps.push({ id: n.id, name: name(n), laneId: n.laneId, runs: 0, duration: d, wait, cost: sim.cost ?? 0, laneCost, missing: sim.duration === undefined, event: false })
+      work = { time: d, proc: d, cost: (sim.cost ?? 0) + laneCost }
     }
     // Parallel instances run at the same time: the time of one, the cost of all.
     const repeated = n.loop === 'parallel' ? { ...work, cost: work.cost * reps } : scale(work, reps)
     return plus(repeated, { time: wait, proc: 0, cost: content.length ? (sim.cost ?? 0) : 0 })
+  }
+
+  const unit: TimeUnit = m.sim?.unit ?? 'min'
+  /** The lane's cost for one run: per use plus per hour of processing (the hourly rate is always per hour, whatever the model's unit). */
+  function laneCostOf(laneId: string | undefined, duration: number): number {
+    const l = laneId ? m.lanes.find((x) => x.id === laneId) : undefined
+    return l ? (l.useCost ?? 0) + (l.hourlyCost ?? 0) * convertTime(duration, unit, 'h') : 0
   }
 
   const total = level(top, 1)
@@ -291,6 +355,7 @@ function analyse(m: FlowModel, top: FlowNode[], poolId: string | undefined, titl
 
   // Resources: the work per case in each lane, and how busy the lane is at the given arrival rate.
   const resources: ResourceFigures[] = []
+  const queues: LaneQueue[] = []
   const arrivals = m.sim?.arrivals
   for (const l of m.lanes) {
     if (poolId && l.participantId !== poolId) continue
@@ -302,11 +367,25 @@ function analyse(m: FlowModel, top: FlowNode[], poolId: string | undefined, titl
       return s + x.runs * x.duration * reps
     }, 0)
     const capacity = l.capacity ?? 1
-    resources.push({ laneId: l.id, name: l.name || 'Lane', capacity, work, utilisation: arrivals ? (arrivals * work) / capacity : undefined })
+    const visits = mine.reduce((s, x) => {
+      const n = byId.get(x.id)!
+      return s + x.runs * ((n.type === 'task' || n.type === 'subProcess') && n.loop ? (n.sim?.repeats ?? 1) : 1)
+    }, 0)
+    const meanService = visits > 0 ? work / visits : 0
+    const r: ResourceFigures = { laneId: l.id, name: l.name || 'Lane', capacity, work, utilisation: arrivals ? (arrivals * work) / capacity : undefined }
+    if (l.useCost !== undefined) r.useCost = l.useCost
+    if (l.hourlyCost !== undefined) r.hourlyCost = l.hourlyCost
+    if (arrivals && visits > 0) {
+      if (!Number.isInteger(capacity)) note(`${r.name}: capacity ${capacity} counts as ${Math.max(1, Math.round(capacity))} people in the wait estimate`)
+      const servers = Math.max(1, Math.round(capacity))
+      const q = mmc(arrivals * visits, meanService, servers)
+      queues.push({ laneId: l.id, servers, visits, meanService, pWait: q.stable ? q.pWait : undefined, wait: q.stable ? q.wq : undefined, overloaded: !q.stable })
+    }
+    resources.push(r)
   }
   for (const r of resources) if (r.utilisation !== undefined && r.utilisation > 1) note(`${r.name} is overloaded (${Math.round(r.utilisation * 100)} %): the queue grows without end; add capacity or cut the work`)
 
-  const a: Analysis = { poolId, name: title, steps, resources, notes: [...notes] }
+  const a: Analysis = { poolId, name: title, steps, resources, queues, notes: [...notes] }
   if (total) {
     a.cycleTime = total.time
     a.processingTime = total.proc

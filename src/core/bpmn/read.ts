@@ -4,8 +4,9 @@
 // - lane bounds have x relative to the pool (y is absolute): x = header width.
 import { BpmnModdle } from 'bpmn-moddle'
 import { pageOf, place } from '../ops'
+import { cleanShape } from '../random'
 import { SIM_NS } from './write'
-import { isArtifact, type Bounds, type EventTrigger, type Flow, type FlowModel, type FlowNode, type GatewayKind, type Lane, type LoopKind, type Participant, type TaskKind } from '../metamodel'
+import { isArtifact, type Bounds, type EventTrigger, type Flow, type FlowModel, type FlowNode, type GatewayKind, type Lane, type LoopKind, type Participant, type SimFigures, type SimSettings, type TaskKind } from '../metamodel'
 
 /** A moddle element: typed loosely on purpose, the reader checks `$type` itself. */
 interface El {
@@ -293,8 +294,22 @@ export async function readBpmn(xml: string): Promise<ReadResult> {
       const x = v === undefined ? NaN : Number(v)
       return Number.isFinite(x) ? x : undefined
     }
+    const text = (e: El | undefined, key: string) => {
+      const v = e?.$attrs?.[`${prefix}:${key}`]
+      return typeof v === 'string' ? v : undefined
+    }
     for (const n of nodes) {
-      const sim = Object.fromEntries((['duration', 'wait', 'cost', 'repeats'] as const).map((k) => [k, num(byId.get(n.id), k)]).filter(([, v]) => v !== undefined))
+      const e = byId.get(n.id)
+      const sim: SimFigures = Object.fromEntries((['duration', 'wait', 'cost', 'repeats', 'fires'] as const).map((k) => [k, num(e, k)]).filter(([, v]) => v !== undefined))
+      // A shape the reader cannot use (unknown kind, bad numbers) is dropped: the figure stays, as a constant.
+      for (const which of ['duration', 'wait'] as const) {
+        const kind = text(e, `${which}Shape`)
+        if (kind === undefined) continue
+        const shape = cleanShape({ kind, sd: num(e, `${which}Sd`), min: num(e, `${which}Min`), max: num(e, `${which}Max`), mode: num(e, `${which}Mode`) })
+        if (shape) sim[`${which}Shape`] = shape
+        else if (!(kind === 'normal' && num(e, `${which}Sd`) === 0)) warnings.push(`${n.name || n.id}: the ${which} shape "${kind}" is not one Flow knows or its numbers do not fit; counted as a constant`)
+      }
+      if (sim.fires !== undefined && (sim.fires < 0 || sim.fires > 1)) delete sim.fires
       if (Object.keys(sim).length) n.sim = sim
     }
     for (const f of model.flows) {
@@ -304,10 +319,26 @@ export async function readBpmn(xml: string): Promise<ReadResult> {
     for (const l of lanes) {
       const c = num(byId.get(l.id), 'capacity')
       if (c !== undefined) l.capacity = c
+      const use = num(byId.get(l.id), 'useCost')
+      if (use !== undefined) l.useCost = use
+      const hourly = num(byId.get(l.id), 'hourlyCost')
+      if (hourly !== undefined) l.hourlyCost = hourly
     }
     const unit = defs.$attrs?.[`${prefix}:timeUnit`]
     const arrivals = num(defs, 'arrivals')
-    if (unit === 'min' || unit === 'h' || unit === 'd' || arrivals !== undefined) model.sim = { ...((unit === 'min' || unit === 'h' || unit === 'd') && { unit }), ...(arrivals !== undefined && { arrivals }) }
+    const arrivalShape = defs.$attrs?.[`${prefix}:arrivalShape`]
+    const cases = num(defs, 'cases')
+    const runs = num(defs, 'runs')
+    const seed = num(defs, 'seed')
+    const settings: SimSettings = {
+      ...((unit === 'min' || unit === 'h' || unit === 'd') && { unit }),
+      ...(arrivals !== undefined && { arrivals }),
+      ...((arrivalShape === 'exp' || arrivalShape === 'const') && { arrivalShape }),
+      ...(cases !== undefined && Number.isInteger(cases) && cases >= 1 && cases <= 10000 && { cases }),
+      ...(runs !== undefined && Number.isInteger(runs) && runs >= 1 && runs <= 20 && { runs }),
+      ...(seed !== undefined && Number.isInteger(seed) && { seed }),
+    }
+    if (Object.keys(settings).length) model.sim = settings
   }
   return { model, warnings, calls, processes: processesRead }
 }

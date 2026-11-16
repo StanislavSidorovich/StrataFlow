@@ -21,11 +21,13 @@ import {
   type LoopKind,
   type Participant,
   type Point,
+  type Shape,
   type SimFigures,
   type SimSettings,
   type TaskKind,
 } from './metamodel'
 import { adaptRoute, crossesAny, route } from './routing'
+import { shapeMean, shiftShape, validateShape } from './random'
 
 export class ModelError extends Error {}
 
@@ -1445,8 +1447,14 @@ const figure = (v: number | undefined, what: string, min = 0): number | undefine
   return v
 }
 
-/** Sets an activity's duration, waiting time, cost or repeats, or an intermediate event's waiting time (undefined clears it). */
-export function setSim(m: FlowModel, id: string, patch: Partial<Record<keyof SimFigures, number | undefined>>): void {
+type FigureKey = 'duration' | 'wait' | 'cost' | 'repeats'
+
+/**
+ * Sets an activity's duration, waiting time, cost or repeats, or an intermediate event's waiting time (undefined clears it).
+ * A duration or wait is the mean of its shape: with a uniform or triangular shape, a new mean moves the whole shape by the
+ * same amount (the width stays); clearing the mean clears the shape.
+ */
+export function setSim(m: FlowModel, id: string, patch: Partial<Record<FigureKey, number | undefined>>): void {
   const n = nodeOrThrow(m, id)
   const activity = n.type === 'task' || n.type === 'subProcess'
   const waits = n.type === 'event' && n.position === 'intermediate' && !n.throwing
@@ -1456,11 +1464,61 @@ export function setSim(m: FlowModel, id: string, patch: Partial<Record<keyof Sim
     if (!(key in patch)) continue
     if (!activity && key !== 'wait') throw new ModelError('An event only waits: it has no duration or cost')
     const v = figure(patch[key], label(key), key === 'repeats' ? 1 : 0)
+    const shapeKey = key === 'duration' ? 'durationShape' : key === 'wait' ? 'waitShape' : undefined
+    const shape = shapeKey && sim[shapeKey]
+    if (shapeKey && shape && (shape.kind === 'uniform' || shape.kind === 'triangular')) {
+      if (v === undefined) delete sim[shapeKey]
+      else {
+        const moved = shiftShape(shape, v - shapeMean(shape, v))
+        if ((moved as { min: number }).min < -1e-9) throw new ModelError(`${label(key)} ${v} would put the shape's minimum below 0: change the shape first`)
+        sim[shapeKey] = moved
+      }
+    }
     if (v === undefined) delete sim[key]
     else sim[key] = v
   }
+  setOrClear(n, sim)
+}
+
+const setOrClear = (n: { sim?: SimFigures }, sim: SimFigures) => {
   if (Object.keys(sim).length) n.sim = sim
   else delete n.sim
+}
+
+/**
+ * The shape of an activity's duration or of an event's / activity's wait (undefined = constant). A uniform or triangular
+ * shape has its own mean, which is written into the figure so the flow analysis stays right. A normal with σ = 0 is a constant.
+ */
+export function setShape(m: FlowModel, id: string, which: 'duration' | 'wait', shape: Shape | undefined): void {
+  const n = nodeOrThrow(m, id)
+  const activity = n.type === 'task' || n.type === 'subProcess'
+  const waits = n.type === 'event' && n.position === 'intermediate' && !n.throwing
+  if (!activity && !(waits && which === 'wait')) throw new ModelError('Only an activity or a catching intermediate event has times')
+  const key = which === 'duration' ? 'durationShape' : 'waitShape'
+  const sim: SimFigures = { ...n.sim }
+  const why = shape && validateShape(shape)
+  if (why) throw new ModelError(why)
+  const final = shape && shape.kind === 'normal' && shape.sd === 0 ? undefined : shape
+  if (!final) delete sim[key]
+  else {
+    if ((final.kind === 'normal' || final.kind === 'exp') && sim[which] === undefined) throw new ModelError(`Type the average ${which} first: the shape spreads around it`)
+    sim[key] = final
+    if (final.kind === 'uniform' || final.kind === 'triangular') sim[which] = Math.round(shapeMean(final, 0) * 1e9) / 1e9
+  }
+  if (JSON.stringify(sim) === JSON.stringify(n.sim ?? {})) return // the same value again is no edit
+  setOrClear(n, sim)
+}
+
+/** The share of a host's runs in which a boundary event happens, 0–1 (undefined = never). */
+export function setFires(m: FlowModel, id: string, p: number | undefined): void {
+  const n = nodeOrThrow(m, id)
+  if (n.type !== 'event' || n.position !== 'boundary') throw new ModelError('Only a boundary event has a chance of happening')
+  const v = figure(p, 'The chance', 0)
+  if (v !== undefined && v > 1) throw new ModelError('The chance is at most 100 %')
+  const sim: SimFigures = { ...n.sim }
+  if (v === undefined) delete sim.fires
+  else sim.fires = v
+  setOrClear(n, sim)
 }
 
 const label = (key: string) => key.charAt(0).toUpperCase() + key.slice(1)
@@ -1485,9 +1543,49 @@ export function setCapacity(m: FlowModel, laneId: string, capacity: number | und
   else l.capacity = v
 }
 
+/** What a lane costs: a fixed amount per run of an activity in it, and an amount per hour of processing (undefined clears). */
+export function setLaneCost(m: FlowModel, laneId: string, patch: { useCost?: number | undefined; hourlyCost?: number | undefined }): void {
+  const l = laneOf(m, laneId)
+  if (!l) throw new ModelError(`No lane ${laneId}`)
+  for (const key of ['useCost', 'hourlyCost'] as const) {
+    if (!(key in patch)) continue
+    const v = figure(patch[key], key === 'useCost' ? 'The cost per use' : 'The cost per hour')
+    if (v === undefined) delete l[key]
+    else l[key] = v
+  }
+}
+
+/** A whole number in [min, max], or undefined (blank) to clear. */
+const whole = (v: number | undefined, what: string, min: number, max: number): number | undefined => {
+  if (v === undefined || Number.isNaN(v)) return undefined
+  if (!Number.isInteger(v) || v < min || v > max) throw new ModelError(`${what} must be a whole number from ${min} to ${max.toLocaleString('en')}`)
+  return v
+}
+
+export const MAX_CASES = 10000
+export const MAX_RUNS = 20
+export const MAX_TOTAL_CASES = 100000
+
 export function setSimSettings(m: FlowModel, patch: SimSettings): void {
   const sim: SimSettings = { ...m.sim }
   if ('unit' in patch) sim.unit = patch.unit
+  for (const [key, max] of [['cases', MAX_CASES], ['runs', MAX_RUNS]] as const) {
+    if (!(key in patch)) continue
+    const v = whole(patch[key], key === 'cases' ? 'Cases' : 'Runs', 1, max)
+    if (v === undefined) delete sim[key]
+    else sim[key] = v
+  }
+  if (('cases' in patch || 'runs' in patch) && (sim.cases ?? 200) * (sim.runs ?? 5) > MAX_TOTAL_CASES) throw new ModelError(`Cases times runs must be at most ${MAX_TOTAL_CASES.toLocaleString('en')} in total`)
+  if ('seed' in patch) {
+    const v = whole(patch.seed, 'The seed', -2147483648, 2147483647)
+    if (v === undefined) delete sim.seed
+    else sim.seed = v
+  }
+  if ('arrivalShape' in patch) {
+    if (patch.arrivalShape !== undefined && patch.arrivalShape !== 'exp' && patch.arrivalShape !== 'const') throw new ModelError('Arrivals are random (exp) or regular (const)')
+    if (patch.arrivalShape === undefined) delete sim.arrivalShape
+    else sim.arrivalShape = patch.arrivalShape
+  }
   if ('arrivals' in patch) {
     const v = figure(patch.arrivals, 'Arrivals')
     if (v === undefined || v === 0) delete sim.arrivals

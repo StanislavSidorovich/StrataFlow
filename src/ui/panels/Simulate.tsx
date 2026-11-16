@@ -8,10 +8,13 @@ import { FastForward, Pin, PinOff, Play, RotateCcw, StepForward, X } from 'lucid
 import { analyseModel, convertTime, littlesLaw, UNIT_NAMES, type Analysis } from '../../core/analysis'
 import type { FlowModel, TimeUnit } from '../../core/metamodel'
 import { isDecision } from '../../core/analysis'
-import { nodeOf, setCapacity, setProbability, setSim, setSimSettings } from '../../core/ops'
+import { parseNum } from '../../core/number'
+import { nodeOf, setCapacity, setFires, setLaneCost, setProbability, setSim, setSimSettings } from '../../core/ops'
 import { pending, playOn, startPlay, stepPlay, type PlayState } from '../../core/play'
 import { useEditor } from '../store'
 import { HelpQ } from './Help'
+import { NumField } from './NumField'
+import { ShapeCell } from './ShapeCell'
 
 export interface Kpis {
   name: string
@@ -65,7 +68,8 @@ export function useAnalyses(): Analysis[] {
 
 const fmt = (x: number | undefined, digits = 2) => (x === undefined ? '—' : String(Math.round(x * 10 ** digits) / 10 ** digits))
 const pct = (x: number | undefined) => (x === undefined ? '—' : `${x < 0.1 ? Math.round(x * 1000) / 10 : Math.round(x * 100)} %`)
-const num = (v: string) => (v.trim() === '' ? undefined : Number(v.replace(',', '.')))
+/** For the free-text fields of Little's law: whatever does not parse counts as empty. */
+const num = (v: string) => parseNum(v).value
 
 export function SimulatePanel() {
   const model = useEditor((s) => s.model)
@@ -191,7 +195,18 @@ function FiguresTab({ a, model, unit }: { a: Analysis; model: FlowModel; unit: s
     return isDecision(n, outs.length) && (a.poolId ? n.participantId === a.poolId : !n.participantId)
   })
   const steps = showAll ? a.steps : a.steps.filter((s) => s.runs > 0 || s.missing)
-  const edit = (id: string, key: 'duration' | 'wait' | 'cost', v: string) => apply((m) => setSim(m, id, { [key]: num(v) }), { coalesce: `sim:${id}:${key}` })
+  /** Runs an edit; returns why it was refused (shown on the field) and keeps the global banner quiet. */
+  const commit = (edit: (m: FlowModel) => void, coalesce: string): string | void => {
+    if (apply(edit, { coalesce })) return
+    const message = useEditor.getState().error ?? 'Not accepted'
+    useEditor.getState().showError(null)
+    return message
+  }
+  const edit = (id: string, key: 'duration' | 'wait' | 'cost', v: number | undefined) => commit((m) => setSim(m, id, { [key]: v }), `sim:${id}:${key}`)
+  const inPool = (n: { participantId?: string }) => (a.poolId ? n.participantId === a.poolId : !n.participantId)
+  const boundaries = model.nodes.filter(
+    (n) => n.type === 'event' && n.position === 'boundary' && inPool(n) && model.flows.some((f) => f.kind === 'sequence' && f.source === n.id),
+  )
   return (
     <div className="sim-body sim-figures">
       <div className="sim-kpis" data-testid="sim-kpis">
@@ -227,7 +242,7 @@ function FiguresTab({ a, model, unit }: { a: Analysis; model: FlowModel; unit: s
         </label>
         <label title="How many new cases arrive per time unit (for how busy each lane is)">
           New cases per {unit === 'days' ? 'day' : unit}{' '}
-          <input className="sim-num" inputMode="decimal" value={model.sim?.arrivals ?? ''} placeholder="—" onChange={(e) => apply((m) => setSimSettings(m, { arrivals: num(e.target.value) }), { coalesce: 'sim:arrivals' })} data-testid="sim-arrivals" />
+          <NumField value={model.sim?.arrivals} placeholder="—" onCommit={(v) => commit((m) => setSimSettings(m, { arrivals: v }), 'sim:arrivals')} testid="sim-arrivals" />
         </label>
       </div>
 
@@ -238,27 +253,34 @@ function FiguresTab({ a, model, unit }: { a: Analysis; model: FlowModel; unit: s
           <tr>
             <th>Activity</th>
             <th title="Expected runs per case: 0.3 = in 30 % of cases, 1.25 = once plus a 25 % rework">Runs</th>
-            <th title={`Processing time of one run, in ${unit}`}>Duration</th>
-            <th title={`Waiting time before it starts, in ${unit}`}>Waiting</th>
+            <th title={`Processing time of one run, in ${unit}: the average`}>Duration</th>
+            <th title="How the duration varies around its average (the flow analysis uses the average)">Spread</th>
+            <th title={`Waiting time before it starts, in ${unit}: the average`}>Waiting</th>
+            <th title="How the waiting varies around its average">Spread</th>
             <th>Cost</th>
           </tr>
         </thead>
         <tbody>
-          {steps.map((s) => (
-            <tr key={s.id} className={s.missing ? 'is-missing' : undefined}>
-              <td>
-                <button className="link" onClick={() => useEditor.getState().select([s.id])}>
-                  {s.name}
-                </button>
-              </td>
-              <td>{fmt(s.runs)}</td>
-              <td>{s.event ? '' : <input className="sim-num" inputMode="decimal" value={nodeOf(model, s.id)?.sim?.duration ?? ''} placeholder="?" onChange={(e) => edit(s.id, 'duration', e.target.value)} data-testid={`dur:${s.name}`} />}</td>
-              <td>
-                <input className="sim-num" inputMode="decimal" value={nodeOf(model, s.id)?.sim?.wait ?? ''} placeholder="0" onChange={(e) => edit(s.id, 'wait', e.target.value)} data-testid={`wait:${s.name}`} />
-              </td>
-              <td>{s.event ? '' : <input className="sim-num" inputMode="decimal" value={nodeOf(model, s.id)?.sim?.cost ?? ''} placeholder="0" onChange={(e) => edit(s.id, 'cost', e.target.value)} data-testid={`cost:${s.name}`} />}</td>
-            </tr>
-          ))}
+          {steps.map((s) => {
+            const node = nodeOf(model, s.id)
+            return (
+              <tr key={s.id} className={s.missing ? 'is-missing' : undefined}>
+                <td>
+                  <button className="link" onClick={() => useEditor.getState().select([s.id])}>
+                    {s.name}
+                  </button>
+                </td>
+                <td>{fmt(s.runs)}</td>
+                <td>{s.event ? '' : <NumField value={node?.sim?.duration} placeholder="?" onCommit={(v) => edit(s.id, 'duration', v)} testid={`dur:${s.name}`} />}</td>
+                <td>{s.event || !node ? '' : <ShapeCell node={node} which="duration" unit={unit} />}</td>
+                <td>
+                  <NumField value={node?.sim?.wait} placeholder="0" onCommit={(v) => edit(s.id, 'wait', v)} testid={`wait:${s.name}`} />
+                </td>
+                <td>{node ? <ShapeCell node={node} which="wait" unit={unit} /> : ''}</td>
+                <td>{s.event ? '' : <NumField value={node?.sim?.cost} placeholder="0" onCommit={(v) => edit(s.id, 'cost', v)} testid={`cost:${s.name}`} />}</td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
       {steps.length < a.steps.length && (
@@ -285,21 +307,51 @@ function FiguresTab({ a, model, unit }: { a: Analysis; model: FlowModel; unit: s
                       {g.name || 'Decision'} · {f.name || nodeOf(model, f.target)?.name || f.target}
                     </td>
                     <td>
-                      <input
-                        className="sim-num"
-                        inputMode="decimal"
-                        value={f.probability === undefined ? '' : Math.round(f.probability * 1000) / 10}
+                      <NumField
+                        percent
+                        value={f.probability === undefined ? undefined : Math.round(f.probability * 1000) / 10}
                         placeholder="auto"
-                        onChange={(e) => {
-                          const v = num(e.target.value)
-                          apply((m) => setProbability(m, f.id, v === undefined ? undefined : v / 100), { coalesce: `p:${f.id}` })
-                        }}
-                        data-testid={`p:${g.name}:${f.name || nodeOf(model, f.target)?.name}`}
+                        onCommit={(v) => commit((m) => setProbability(m, f.id, v === undefined ? undefined : v / 100), `p:${f.id}`)}
+                        testid={`p:${g.name}:${f.name || nodeOf(model, f.target)?.name}`}
                       />
                     </td>
                   </tr>
                 )),
             )}
+          </tbody>
+        </table>
+      )}
+
+      {boundaries.length > 0 && (
+        <table className="sim-table" data-testid="sim-boundaries">
+          <thead>
+            <tr>
+              <th>Boundary event · activity</th>
+              <th title="Share of the activity's runs in which the event happens; blank = the path after it is not counted">Happens in %</th>
+            </tr>
+          </thead>
+          <tbody>
+            {boundaries.map((b) => (
+              <tr key={b.id}>
+                <td>
+                  <button className="link" onClick={() => useEditor.getState().select([b.id])}>
+                    {b.name || 'Boundary event'}
+                  </button>
+                  {' · '}
+                  {nodeOf(model, b.type === 'event' ? (b.attachedTo ?? '') : '')?.name || 'activity'}
+                  <span className="muted"> ({b.type === 'event' && b.interrupting === false ? 'activity goes on' : 'activity stops'})</span>
+                </td>
+                <td>
+                  <NumField
+                    percent
+                    value={b.sim?.fires === undefined ? undefined : Math.round(b.sim.fires * 1000) / 10}
+                    placeholder="0"
+                    onCommit={(v) => commit((m) => setFires(m, b.id, v === undefined ? undefined : v / 100), `fires:${b.id}`)}
+                    testid={`fires:${b.name}`}
+                  />
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       )}
@@ -312,6 +364,9 @@ function FiguresTab({ a, model, unit }: { a: Analysis; model: FlowModel; unit: s
               <th title="People (or machines) in this role working at once">Capacity</th>
               <th title={`Processing time per case in this lane, in ${unit}`}>Work per case</th>
               <th title="Arrival rate × work per case / capacity">Busy</th>
+              <th title="Added to the cost of every run of an activity in this lane">Cost per use</th>
+              <th title="Added for every hour of processing in this lane, whatever the model's time unit">Cost per hour</th>
+              <th title={`Estimated wait for a person per activity run, in ${unit}: queueing theory (M/M/c, Erlang C) for random arrivals and random times with one queue. A real run or a quiet day will differ.`}>Wait for a person (est.)</th>
             </tr>
           </thead>
           <tbody>
@@ -319,10 +374,19 @@ function FiguresTab({ a, model, unit }: { a: Analysis; model: FlowModel; unit: s
               <tr key={r.laneId} className={r.utilisation !== undefined && r.utilisation > 1 ? 'is-missing' : undefined}>
                 <td>{r.name}</td>
                 <td>
-                  <input className="sim-num" inputMode="decimal" value={model.lanes.find((l) => l.id === r.laneId)?.capacity ?? ''} placeholder="1" onChange={(e) => apply((m) => setCapacity(m, r.laneId, num(e.target.value)), { coalesce: `cap:${r.laneId}` })} data-testid={`cap:${r.name}`} />
+                  <NumField value={model.lanes.find((l) => l.id === r.laneId)?.capacity} placeholder="1" onCommit={(v) => commit((m) => setCapacity(m, r.laneId, v), `cap:${r.laneId}`)} testid={`cap:${r.name}`} />
                 </td>
                 <td>{fmt(r.work)}</td>
                 <td data-testid={`busy:${r.name}`}>{r.utilisation === undefined ? <span className="muted">set new cases</span> : pct(r.utilisation)}</td>
+                <td>
+                  <NumField value={r.useCost} placeholder="0" onCommit={(v) => commit((m) => setLaneCost(m, r.laneId, { useCost: v }), `use:${r.laneId}`)} testid={`usecost:${r.name}`} />
+                </td>
+                <td>
+                  <NumField value={r.hourlyCost} placeholder="0" onCommit={(v) => commit((m) => setLaneCost(m, r.laneId, { hourlyCost: v }), `hour:${r.laneId}`)} testid={`hourcost:${r.name}`} />
+                </td>
+                <td data-testid={`est:${r.name}`}>
+                  <QueueEstimate q={a.queues.find((x) => x.laneId === r.laneId)} unit={unit} />
+                </td>
               </tr>
             ))}
           </tbody>
@@ -337,6 +401,23 @@ function FiguresTab({ a, model, unit }: { a: Analysis; model: FlowModel; unit: s
         </ul>
       )}
     </div>
+  )
+}
+
+/** The M/M/c wait of a lane: a number, "never settles" when the lane is overloaded, or a hint when the arrival rate is missing. */
+function QueueEstimate({ q, unit }: { q: Analysis['queues'][number] | undefined; unit: string }) {
+  if (!q) return <span className="muted">set new cases</span>
+  if (q.overloaded)
+    return (
+      <span className="sim-est is-worse" title="The people cannot keep up with the arrivals: the queue grows with every case and never settles, so there is no average wait">
+        never settles
+      </span>
+    )
+  const chance = q.pWait === undefined ? '' : `A case finds everyone busy ${pct(q.pWait)} of the time. `
+  return (
+    <span className="sim-est" title={`${chance}M/M/${q.servers}: ${fmt(q.visits)} run(s) per case of ${fmt(q.meanService)} ${unit} on average, random arrivals and times, one queue.`}>
+      {fmt(q.wait)} {unit}
+    </span>
   )
 }
 

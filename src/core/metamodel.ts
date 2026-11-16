@@ -42,7 +42,23 @@ export interface SimFigures {
   wait?: number
   cost?: number
   repeats?: number
+  /** The spread of `duration` / `wait` around their mean (the figure). Absent = constant, as before shapes existed. */
+  durationShape?: Shape
+  waitShape?: Shape
+  /** Boundary event only: the share of the host's runs in which the event happens (0–1). Absent = never. */
+  fires?: number
 }
+
+/**
+ * The spread of a time around its mean (stage 6b). The figure typed in `duration` / `wait` is always the mean,
+ * which the flow analysis uses; a shape only says how the real times scatter around it.
+ */
+export type Shape =
+  | { kind: 'exp' } // mean = the figure, sd = mean
+  | { kind: 'normal'; sd: number; min?: number; max?: number } // mean = the figure; cut to [min ?? 0, max ?? ∞]
+  | { kind: 'uniform'; min: number; max: number } // the figure = (min + max) / 2
+  | { kind: 'triangular'; min: number; mode: number; max: number } // the figure = (min + mode + max) / 3
+export type ShapeKind = Shape['kind']
 
 export type TimeUnit = 'min' | 'h' | 'd'
 
@@ -50,6 +66,12 @@ export type TimeUnit = 'min' | 'h' | 'd'
 export interface SimSettings {
   unit?: TimeUnit
   arrivals?: number
+  /** Time between arrivals: random (exponential, a Poisson stream; the default) or regular (constant). */
+  arrivalShape?: 'exp' | 'const'
+  /** Cases per run of the simulation (1–10 000, default 200), replications (1–20, default 5) and the random seed. */
+  cases?: number
+  runs?: number
+  seed?: number
 }
 
 export type FlowNode = NodeBase &
@@ -77,6 +99,9 @@ export interface Lane {
   parentLaneId?: string
   /** How many people (or machines) of this role work in parallel: the resource pool of the analysis. */
   capacity?: number
+  /** Cost added to every run of an activity in this lane, and cost per hour of its processing time (stage 6b). */
+  useCost?: number
+  hourlyCost?: number
 }
 
 export type FlowKind = 'sequence' | 'message' | 'association' | 'data'

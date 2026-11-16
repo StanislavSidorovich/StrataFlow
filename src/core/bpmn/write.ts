@@ -285,11 +285,33 @@ export async function writeBpmn(m: FlowModel, opts: WriteOptions = {}): Promise<
     e.$attrs[`sf:${key}`] = String(v)
     defs.$attrs['xmlns:sf'] = SIM_NS
   }
-  for (const n of m.nodes) for (const [k, v] of Object.entries(n.sim ?? {})) put(el.get(n.id), k, v)
+  for (const n of m.nodes) {
+    const e = el.get(n.id)
+    for (const [k, v] of Object.entries(n.sim ?? {})) if (typeof v === 'number') put(e, k, v)
+    for (const which of ['duration', 'wait'] as const) {
+      const s = n.sim?.[`${which}Shape` as const]
+      if (!s) continue
+      put(e, `${which}Shape`, s.kind)
+      if (s.kind === 'normal') put(e, `${which}Sd`, s.sd)
+      if (s.kind === 'normal' || s.kind === 'uniform' || s.kind === 'triangular') {
+        put(e, `${which}Min`, s.min)
+        put(e, `${which}Max`, s.max)
+      }
+      if (s.kind === 'triangular') put(e, `${which}Mode`, s.mode)
+    }
+  }
   for (const f of m.flows) put(el.get(f.id), 'probability', f.probability)
-  for (const l of m.lanes) put(el.get(l.id), 'capacity', l.capacity)
+  for (const l of m.lanes) {
+    put(el.get(l.id), 'capacity', l.capacity)
+    put(el.get(l.id), 'useCost', l.useCost)
+    put(el.get(l.id), 'hourlyCost', l.hourlyCost)
+  }
   put(defs, 'timeUnit', m.sim?.unit)
   put(defs, 'arrivals', m.sim?.arrivals)
+  put(defs, 'arrivalShape', m.sim?.arrivalShape)
+  put(defs, 'cases', m.sim?.cases)
+  put(defs, 'runs', m.sim?.runs)
+  put(defs, 'seed', m.sim?.seed)
 
   // Empty lists make empty tags in some tools: drop them.
   for (const e of [...el.values(), ...processOf.values(), collaboration, defs].filter(Boolean))

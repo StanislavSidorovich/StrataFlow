@@ -1,6 +1,7 @@
 // `*.flow.json`: the model as JSON (SPEC §10). Reading checks the shape and every reference, so a
 // hand-written or generated file that would break the canvas is refused with a clear message.
 import type { FlowModel, Review, ReviewFix, ReviewNote } from './metamodel'
+import { cleanShape } from './random'
 
 export const FILE_EXTENSION = '.flow.json'
 
@@ -66,8 +67,32 @@ export function parseModel(text: string): FlowModel {
     f.name ??= ''
     for (const end of [f.source, f.target]) if (!nodes.has(end) && !pools.has(end)) fail(`Flow ${f.id}: no element ${end}`)
   }
+  sanitizeSim(m)
   if (m.review !== undefined) m.review = parseReview(m.review, fail)
   return m
+}
+
+/** Simulation fields added in 6b are optional: one a file holds in a form Flow cannot use (unknown shape, number out of range) is dropped, the rest of the file opens. */
+function sanitizeSim(m: FlowModel): void {
+  for (const n of m.nodes) {
+    if (!n.sim || typeof n.sim !== 'object') continue
+    for (const key of ['durationShape', 'waitShape'] as const) {
+      if (!(key in n.sim)) continue
+      const s = cleanShape(n.sim[key])
+      if (s) n.sim[key] = s
+      else delete n.sim[key]
+    }
+    if (n.sim.fires !== undefined && !(n.sim.fires >= 0 && n.sim.fires <= 1)) delete n.sim.fires
+  }
+  for (const l of m.lanes) for (const key of ['useCost', 'hourlyCost'] as const) if (l[key] !== undefined && !(Number.isFinite(l[key]) && l[key]! >= 0)) delete l[key]
+  const s = m.sim
+  if (s && typeof s === 'object') {
+    if (s.arrivalShape !== undefined && s.arrivalShape !== 'exp' && s.arrivalShape !== 'const') delete s.arrivalShape
+    const whole = (v: unknown, min: number, max: number) => Number.isInteger(v) && (v as number) >= min && (v as number) <= max
+    if (s.cases !== undefined && !whole(s.cases, 1, 10000)) delete s.cases
+    if (s.runs !== undefined && !whole(s.runs, 1, 20)) delete s.runs
+    if (s.seed !== undefined && !whole(s.seed, -2147483648, 2147483647)) delete s.seed
+  }
 }
 
 function parseReview(r: unknown, fail: (msg: string) => never): Review {

@@ -1,0 +1,51 @@
+/* Figures tab of Simulate: number fields, shape pickers, queue estimate (stage 6b) */
+.num-field {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+.sim-num.is-small {
+  width: 46px;
+}
+.sim-num.is-invalid {
+  border-color: var(--error);
+  background: var(--error-soft);
+}
+.num-error {
+  max-width: 150px;
+  font-size: 11px;
+  line-height: 1.25;
+  color: var(--error);
+}
+.sim-shape {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 3px;
+  max-width: 156px;
+}
+.sim-shape select {
+  width: 92px;
+  padding: 1px 2px;
+  font: inherit;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  background: var(--panel-bg);
+  color: var(--text);
+}
+.sim-shape-note {
+  flex-basis: 100%;
+  font-size: 11px;
+  color: var(--warning);
+}
+.sim-table th.sim-sub {
+  font-weight: 500;
+  font-size: 11px;
+}
+.sim-est.is-worse {
+  color: var(--error);
+}
+.sim-body {
+  overflow-x: auto;
+}
