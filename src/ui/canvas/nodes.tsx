@@ -7,6 +7,8 @@ import type { Severity } from '../../core/lint'
 import type { FlowNode, LoopKind } from '../../core/metamodel'
 import { rename, resizeElement, resizeLane } from '../../core/ops'
 import { useEditor } from '../store'
+import { useRun } from '../simRun'
+import { count, fmt } from '../panels/simFormat'
 import { ContextPad } from './ContextPad'
 
 /** A numbered change of a compared model (File → Review this model / Compare with), drawn on its element. */
@@ -158,6 +160,10 @@ function NameEditor({ id, name, caret }: { id: string; name: string; caret: numb
 export function BpmnShape({ data, width = 0, height = 0, selected }: NodeProps<ShapeNode>) {
   const el = data.el
   const editing = useEditor((s) => (s.editing?.id === el.id ? s.editing : null))
+  const badge = useRun((s) => (s.badgesOn ? s.badges.get(el.id) : undefined))
+  const level = useRun((s) => s.last?.result.level)
+  const ranOn = useRun((s) => s.last?.model)
+  const stale = useEditor((s) => !!badge && s.model !== ranOn)
   return (
     <div className={`bpmn-shape bpmn-${el.type}${selected ? ' is-selected' : ''}${data.change ? ` chg-${data.change.status}` : ''}`} style={{ width, height }} data-testid={`${el.type}:${el.name}`}>
       {data.change && <ChangeBadge change={data.change} where="shape" />}
@@ -165,6 +171,12 @@ export function BpmnShape({ data, width = 0, height = 0, selected }: NodeProps<S
         <NodeResizer isVisible={selected} minWidth={40} minHeight={30} lineClassName="bpmn-resize-line" handleClassName="bpmn-resize-handle" onResizeEnd={resized(el.id)} />
       )}
       <ContextPad el={el} />
+      {badge && (
+        <span className={`run-badge${badge.worst ? ' is-worst' : ''}${stale ? ' is-stale' : ''}`} title="Last run: times it ran, average time, average wait for a person (Simulate → Run)" data-testid={`badge:${el.name}`}>
+          {count(badge.completed)}× · {fmt(badge.time)}
+          {level === 3 && ` · wait ${fmt(badge.wait)}`}
+        </span>
+      )}
       {data.token && <span className="token-mark" title="A case is here (Simulate → Play a case)" data-testid={`token:${el.name}`} />}
       {data.issue && (
         <span className={`issue-mark is-${data.issue}`} title={`The check found ${data.issue === 'info' ? 'a hint' : `an ${data.issue}`} here: see the Check panel`} data-testid={`mark:${el.name}`}>

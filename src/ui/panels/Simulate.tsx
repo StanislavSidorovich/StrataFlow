@@ -15,6 +15,7 @@ import { useEditor } from '../store'
 import { HelpQ } from './Help'
 import { NumField } from './NumField'
 import { ShapeCell } from './ShapeCell'
+import { SimRunTab } from './SimRun'
 
 export interface Kpis {
   name: string
@@ -37,7 +38,7 @@ const loadBaseline = (): Kpis | null => {
 
 interface SimState {
   open: boolean
-  tab: 'play' | 'figures'
+  tab: 'play' | 'figures' | 'run'
   pool: string | undefined
   play: PlayState | null
   baseline: Kpis | null
@@ -85,6 +86,9 @@ export function SimulatePanel() {
           <button role="tab" aria-selected={tab === 'figures'} className={`btn${tab === 'figures' ? ' is-open' : ''}`} onClick={() => useSim.setState({ tab: 'figures' })} data-testid="sim-tab-figures">
             Times and costs
           </button>
+          <button role="tab" aria-selected={tab === 'run'} className={`btn${tab === 'run' ? ' is-open' : ''}`} onClick={() => useSim.setState({ tab: 'run' })} title="Run hundreds of invented cases: queues, how busy each lane is, next to the formula" data-testid="sim-tab-run">
+            Run
+          </button>
           <button role="tab" aria-selected={tab === 'play'} className={`btn${tab === 'play' ? ' is-open' : ''}`} onClick={() => useSim.setState({ tab: 'play' })} data-testid="sim-tab-play">
             Play a case
           </button>
@@ -104,7 +108,7 @@ export function SimulatePanel() {
           <X size={14} />
         </button>
       </header>
-      {!a ? <p className="check-clean">Draw a process with a start event first.</p> : tab === 'play' ? <PlayTab a={a} unit={unit} /> : <FiguresTab a={a} model={model} unit={unit} />}
+      {tab === 'run' ? <SimRunTab a={a} model={model} /> : !a ? <p className="check-clean">Draw a process with a start event first.</p> : tab === 'play' ? <PlayTab a={a} unit={unit} /> : <FiguresTab a={a} model={model} unit={unit} />}
     </section>
   )
 }

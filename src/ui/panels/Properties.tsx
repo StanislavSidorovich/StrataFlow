@@ -44,6 +44,7 @@ import { cardForElement } from '../../data/help'
 import { ALIGN, DISTRIBUTE } from '../canvas/menu'
 import { useEditor } from '../store'
 import { HelpQ } from './Help'
+import { RunFigures } from './RunFigures'
 import { AuthorLinks } from '../AuthorLinks'
 
 const label = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
@@ -97,7 +98,13 @@ function ProcessProps({ model }: { model: FlowModel }) {
 
 function ElementProps({ model, id }: { model: FlowModel; id: string }) {
   const node = nodeOf(model, id)
-  if (node) return <NodeProps model={model} n={node} />
+  if (node)
+    return (
+      <>
+        <NodeProps model={model} n={node} />
+        <RunFigures id={id} />
+      </>
+    )
   const pool = poolOf(model, id)
   if (pool)
     return (
@@ -132,6 +139,7 @@ function ElementProps({ model, id }: { model: FlowModel; id: string }) {
           </button>
         )}
         <DeleteButton ids={[id]} note="Its room and its steps go to the lane next to it." />
+        <RunFigures id={id} />
       </section>
     )
   const flow = flowOf(model, id)

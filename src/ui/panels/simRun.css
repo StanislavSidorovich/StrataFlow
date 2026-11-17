@@ -1,0 +1,194 @@
+/* Run tab of Simulate (stage 6b phase 3): levels, progress, results, badges on the canvas, figures in Properties */
+.run-levels {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.run-hint {
+  margin: 4px 0 6px;
+  max-width: 70ch;
+  font-size: 12px;
+}
+.run-settings label {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 5px;
+}
+.run-go {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+.run-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.run-progress progress {
+  width: 160px;
+  height: 10px;
+  accent-color: var(--accent);
+}
+.run-banner {
+  margin: 4px 0 8px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  max-width: 90ch;
+}
+.run-banner.is-info {
+  background: var(--accent-soft);
+}
+.run-banner.is-warn {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+.run-banner.is-error {
+  background: var(--error-soft);
+  color: var(--error);
+}
+.run-results.is-stale .run-kpis,
+.run-results.is-stale .run-strip,
+.run-results.is-stale .run-scroll,
+.run-results.is-stale .run-little {
+  opacity: 0.55;
+}
+.run-head {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+.run-badges {
+  font-weight: 400;
+}
+.run-cases {
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+.run-kpi small.run-half {
+  font-weight: 400;
+}
+.run-results.is-unstable .run-kpi {
+  border-style: dashed;
+  border-color: var(--error);
+}
+.run-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+.run-strip svg {
+  max-width: 100%;
+}
+.strip-axis {
+  stroke: var(--panel-border);
+  stroke-width: 1;
+}
+.strip-mean {
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 2;
+}
+.strip-dot {
+  fill: var(--accent);
+  fill-opacity: 0.75;
+  stroke: var(--panel-bg);
+  stroke-width: 1;
+}
+.strip-formula {
+  fill: var(--brand);
+}
+.run-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  margin-bottom: 4px;
+}
+.run-table {
+  display: table;
+  margin-right: 0;
+}
+.run-table th,
+.run-table td {
+  white-space: nowrap;
+}
+.run-table td.run-num,
+.run-table th + th {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  padding-left: 12px;
+}
+.run-table tr.is-worst td:first-child,
+.run-table tr.is-over td:first-child {
+  color: var(--warning);
+  font-weight: 600;
+}
+.run-table tr.is-over td {
+  color: var(--error);
+}
+.run-unreached {
+  font-size: 12px;
+  margin: 4px 0;
+}
+
+/* Badges under the activities on the canvas (Show on diagram) */
+.run-badge {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 3px;
+  padding: 1px 5px;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  background: var(--panel-bg);
+  color: var(--text);
+  font-size: 10px;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 4;
+}
+.run-badge.is-worst {
+  border-color: var(--warning);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-weight: 600;
+}
+.run-badge.is-stale {
+  opacity: 0.55;
+}
+
+/* Properties: figures of the last run */
+.run-props {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--panel-border);
+  font-size: 12px;
+}
+.run-props h3 {
+  margin: 0 0 2px;
+  font-size: 12px;
+}
+.run-props p {
+  margin: 0 0 4px;
+}
+.run-props dl {
+  margin: 0;
+}
+.run-props dt {
+  color: var(--muted);
+}
+.run-props dd {
+  margin: 0 0 3px;
+}
+.run-props.is-stale {
+  opacity: 0.7;
+}
