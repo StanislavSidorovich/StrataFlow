@@ -1,0 +1,110 @@
+/* What-if, pinned runs and export in the Run tab (stage 6b phase 4) */
+.wi {
+  margin: 10px 0 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--panel-border);
+}
+.wi h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+.wi h3 .muted {
+  font-weight: 400;
+  font-size: 12px;
+  margin-left: 6px;
+}
+.wi-sub {
+  margin: 10px 0 4px;
+  font-size: 12px;
+}
+.wi-form,
+.wi-name,
+.wi-go,
+.wi-window,
+.wi-head,
+.wi-judge {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+.wi-form select,
+.wi-text {
+  max-width: 100%;
+}
+.wi-text {
+  width: 200px;
+}
+.wi-changes {
+  list-style: none;
+  margin: 4px 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.wi-changes li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 9px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  font-size: 12px;
+}
+.wi-changes li.is-dead {
+  border-style: dashed;
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.wi-changes li.is-dead em {
+  text-decoration: none;
+}
+.wi-compare.is-stale .wi-table {
+  opacity: 0.55;
+}
+.wi-table th .btn.icon {
+  margin-left: 4px;
+  padding: 0 2px;
+}
+.wi-table .is-better,
+.wi-compare .is-better,
+.wi-pins .is-better {
+  color: var(--brand);
+  font-weight: 600;
+}
+.wi-table .is-worse,
+.wi-compare .is-worse,
+.wi-pins .is-worse {
+  color: var(--error);
+  font-weight: 600;
+}
+.wi-legend {
+  font-size: 12px;
+  max-width: 80ch;
+  margin: 4px 0;
+}
+.wi-conv {
+  font-size: 11px;
+  margin-left: 4px;
+}
+.wi-export,
+.wi-pinwrap {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.wi-copy {
+  font-size: 12px;
+}
+@media (max-width: 600px) {
+  .wi-form select,
+  .wi-text {
+    width: 100%;
+  }
+  .wi-form .sim-num {
+    width: 100%;
+  }
+}

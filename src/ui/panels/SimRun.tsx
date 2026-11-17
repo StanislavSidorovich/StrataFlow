@@ -12,6 +12,9 @@ import { useRun, type RunResult } from '../simRun'
 import { HelpQ } from './Help'
 import { NumField } from './NumField'
 import { count, fmt, pct, pm } from './simFormat'
+import { elementRows, laneRows, processRows } from '../../core/simTables'
+import { useWhatIf } from '../whatIf'
+import { CopyTable, DurationHelper, ExportButton, PinButton, WhatIfSection } from './WhatIf'
 import './simRun.css'
 
 const LEVELS: { level: SimLevel; name: string; hint: string }[] = [
@@ -26,6 +29,7 @@ const perUnit = (u: string) => (u === 'days' ? 'day' : u)
 export function SimRunTab({ a, model }: { a: Analysis | undefined; model: FlowModel }) {
   const run = useRun()
   const apply = useEditor((s) => s.apply)
+  const cycleTarget = useWhatIf((s) => s.targets.cycle)
   const tu = model.sim?.unit ?? 'min'
   const unit = UNIT_NAMES[tu]
   const arrivals = model.sim?.arrivals
@@ -40,7 +44,7 @@ export function SimRunTab({ a, model }: { a: Analysis | undefined; model: FlowMo
     useEditor.getState().showError(null)
     return message
   }
-  const go = () => run.start(a?.poolId)
+  const go = () => run.start(a?.poolId, cycleTarget !== undefined ? { target: cycleTarget } : {})
   const newSeed = () => {
     if (run.running) return
     if (apply((m) => setSimSettings(m, { seed: (m.sim?.seed ?? 1) + 1 }))) go()
@@ -83,6 +87,8 @@ export function SimRunTab({ a, model }: { a: Analysis | undefined; model: FlowMo
         </label>
       </div>
 
+      <DurationHelper model={model} />
+
       <div className="row run-go">
         <button className="btn is-primary" onClick={go} disabled={run.running || needArrivals} data-testid="run-go" title={needArrivals ? `Level 3 needs the arrival rate: how many new cases per ${perUnit(unit)}?` : 'Run the simulation'}>
           <Play size={14} /> Run
@@ -116,6 +122,7 @@ export function SimRunTab({ a, model }: { a: Analysis | undefined; model: FlowMo
       )}
 
       {last && <Results run={last} stale={stale} unit={unit} onRun={go} />}
+      <WhatIfSection a={a} model={model} needArrivals={needArrivals} />
     </div>
   )
 }
@@ -146,6 +153,8 @@ function Results({ run, stale, unit, onRun }: { run: RunResult; stale: boolean; 
           <input type="checkbox" checked={badgesOn} onChange={(e) => useRun.setState({ badgesOn: e.target.checked })} data-testid="run-badges" />
           Show on diagram
         </label>
+        <PinButton run={run} />
+        <ExportButton run={run} />
       </div>
       {stale && (
         <p className="run-banner is-warn" role="status" data-testid="run-stale">
@@ -302,6 +311,7 @@ function ProcessTable({ r, f, unit }: { r: SimResult; f?: Analysis; unit: string
   const per = perUnit(unit)
   return (
     <div className="run-scroll">
+      <CopyTable rows={() => processRows(r, f)} testid="run-copy-process" />
       <table className="sim-table run-table" data-testid="run-table-process">
         <thead>
           <tr>
@@ -347,6 +357,7 @@ function ElementTable({ r, f, unit }: { r: SimResult; f?: Analysis; unit: string
   const select = (id: string) => useEditor.getState().select([id])
   return (
     <div className="run-scroll">
+      <CopyTable rows={() => elementRows(r)} testid="run-copy-elements" />
       <table className="sim-table run-table" data-testid="run-table-elements">
         <thead>
           <tr>
@@ -397,6 +408,7 @@ function LaneTable({ r, f, unit }: { r: SimResult; f?: Analysis; unit: string })
   const cases = Math.max(1, r.started)
   return (
     <div className="run-scroll">
+      <CopyTable rows={() => laneRows(r, f)} testid="run-copy-lanes" />
       <table className="sim-table run-table" data-testid="run-table-lanes">
         <thead>
           <tr>

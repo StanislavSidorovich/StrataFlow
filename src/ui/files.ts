@@ -197,6 +197,7 @@ const IMAGE_KINDS = {
   bpmn: { description: 'BPMN 2.0 XML', accept: { 'application/xml': ['.bpmn'] } },
   zip: { description: 'ZIP archive', accept: { 'application/zip': ['.zip'] } },
   html: { description: 'Quaera Flow share file', accept: { 'text/html': ['.html'] } },
+  xlsx: { description: 'Excel workbook', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } },
 }
 
 /**

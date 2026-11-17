@@ -14,6 +14,7 @@ import { pending, playOn, startPlay, stepPlay, type PlayState } from '../../core
 import { useEditor } from '../store'
 import { HelpQ } from './Help'
 import { NumField } from './NumField'
+import { QueuePanel } from './QueuePanel'
 import { ShapeCell } from './ShapeCell'
 import { SimRunTab } from './SimRun'
 
@@ -396,6 +397,8 @@ function FiguresTab({ a, model, unit }: { a: Analysis; model: FlowModel; unit: s
           </tbody>
         </table>
       )}
+
+      <QueuePanel a={a} model={model} />
 
       {a.notes.length > 0 && (
         <ul className="sim-notes" data-testid="sim-notes">

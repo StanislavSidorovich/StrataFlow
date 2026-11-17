@@ -1,0 +1,50 @@
+/* Queue panel of the Times and costs tab (stage 6b phase 4) */
+.qp {
+  margin: 10px 0 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--panel-border);
+}
+.qp h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+.qp h4 {
+  margin: 10px 0 4px;
+  font-size: 12px;
+}
+.qp-inputs,
+.qp-note {
+  font-size: 12px;
+  max-width: 80ch;
+  margin: 3px 0 6px;
+}
+.qp-target {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+.qp-table {
+  display: table;
+  max-width: 100%;
+}
+.qp-table td.run-num,
+.qp-table th + th {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  padding-left: 12px;
+}
+.qp .is-better {
+  color: var(--brand);
+  font-weight: 600;
+}
+.qp .is-worse {
+  color: var(--error);
+  font-weight: 600;
+}
+@media (max-width: 600px) {
+  .qp-table {
+    display: block;
+    overflow-x: auto;
+  }
+}
