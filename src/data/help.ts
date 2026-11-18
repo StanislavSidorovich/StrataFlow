@@ -18,6 +18,8 @@ export interface HelpCard {
   seeAlso: string[]
   /** Cases that use the idea, besides the ones found in the reference models (`data/caseRefs.ts`). */
   caseRefs?: string[]
+  /** A picture from `public/` shown under the one-liner (its text stands without it). */
+  image?: { file: string; alt: string }
 }
 
 export const HELP_CARDS: HelpCard[] = [
@@ -439,12 +441,99 @@ export const HELP_CARDS: HelpCard[] = [
       'Cycle time efficiency = theoretical cycle time (processing only) / cycle time. Below 10–20 % is common: most of a case is waiting, and that is where redesign starts.',
       'A lane is a resource pool: utilisation = new cases per time unit × work per case in the lane / people in the lane. Near 100 % queues grow fast; above 100 % they never stop growing.',
       'Keep as AS-IS remembers the figures; change the model into the TO-BE and every figure shows the change.',
+      'Run it: the flow analysis gives averages. Simulate → Run sends hundreds of invented cases through the process, with random arrivals and random times and a limited number of people, and puts every figure next to its formula. It also shows what the formula cannot see: how long cases wait for a person. Start with Simulation levels.',
     ],
     whenToUse: ['"takes 10 minutes", "on average"', '"in 30 % of the cases"', '"two clerks", "50 orders a day"', 'comparing AS-IS with TO-BE'],
     miniModel: 'start > task:Check claim > xor > task:Pay | Assess > xor > end',
     typicalMistake: 'Adding the times of parallel branches (only the longest counts for time), or forgetting the waiting time, which is usually most of the cycle time.',
-    seeAlso: ['as-is-to-be', 'parallel-gateway', 'exclusive-gateway', 'lane'],
-    caseRefs: ['expense-claim'],
+    seeAlso: ['as-is-to-be', 'parallel-gateway', 'exclusive-gateway', 'lane', 'sim-levels'],
+    caseRefs: ['expense-claim', 'kaiyo-order'],
+    image: { file: 'flow-simulation.webp', alt: 'A warehouse worker packs bottles into a box. A tray of order slips waits on the desk beside, and a second packing table stands empty.' },
+  },
+  {
+    id: 'sim-levels',
+    title: 'Simulation levels',
+    oneLiner: 'Each level adds one thing: paths, times, people, working hours.',
+    body: [
+      'A simulation sends many invented cases through the process, each with its own random times, and counts what happened. Bizagi Modeler offers it in four levels, and Simulate → Run uses the same ladder.',
+      '1 Validate: only the flows and the shares at gateways. Does every case reach an end, which steps are never reached, where do cases get stuck? 2 Time: adds durations and waits, with as many people as needed, so nobody ever queues. Its average cycle time should match the flow analysis. 3 Resources: adds the limited number of people in each lane. Now cases wait for a person, and how busy each lane is and what the lanes cost appear. 4 Calendar: working hours and shifts. Flow shows it greyed out, for later.',
+      'Each level adds one thing, so the change between two columns is the effect of that one thing: put level 2 beside level 3 and you see what limited people cost in waiting.',
+    ],
+    whenToUse: ['"simulate", "run the scenario"', '"with unlimited resources" (level 2)', '"with the available staff" (level 3)'],
+    typicalMistake: 'Reading the level 2 time as the real time. It has no queues for people, so the real time is longer: level 3 adds the waiting.',
+    seeAlso: ['simulation', 'sim-queue', 'sim-shape'],
+    caseRefs: ['kaiyo-order'],
+  },
+  {
+    id: 'sim-shape',
+    title: 'Shape of a duration',
+    oneLiner: 'How single times scatter around their average: constant, normal, exponential, uniform or triangular.',
+    body: [
+      'The figure typed for a task is always the average. The shape says how single times scatter around it. The flow analysis uses only the average; the run draws every time from the shape.',
+      'Constant: a rule or a machine ("the system posts the order in 5 minutes"), or when you only know an average. Normal: routine human work with a typical time and a small spread ("packing takes 1 h, give or take 15 min"); times below zero are drawn again, so with a large spread the real average ends up above the figure and Flow tells you. Exponential: no typical value, many short times and a few very long ones (a customer answering). Uniform: anywhere between two limits and nothing else known. Triangular: a three-point estimate from an interview, "usually 30 min, at best 15, at worst 45"; its average is (shortest + most likely + longest) / 3.',
+      'Bizagi offers about fifteen distributions. Fixed, normal and exponential times cover most textbook examples, and the others need measured data to choose between them, so Flow keeps these five.',
+    ],
+    whenToUse: ['"takes 20 minutes on average"', '"between 2 and 4 hours"', '"usually 1 h, at best 30 min, at worst 3 h"', '"give or take 15 minutes"'],
+    typicalMistake: 'Choosing a shape because it looks exact. With no data, a constant or a triangular is more honest than a normal with an invented spread.',
+    seeAlso: ['simulation', 'sim-arrivals', 'sim-randomness'],
+    caseRefs: ['kaiyo-order'],
+  },
+  {
+    id: 'sim-arrivals',
+    title: 'Random arrivals (Poisson)',
+    oneLiner: 'New cases arrive at random: give a rate per time unit, or think "one every so often on average".',
+    body: [
+      'If cases arrive independently of one another at an average rate, the number arriving in a period follows a Poisson distribution, and the time between two arrivals follows an exponential distribution. They are two views of one thing. Flow asks for the rate and draws exponential gaps.',
+      'Rate and interval convert both ways: 12 a day = 0.5 per hour = one every 2 hours on average. The field is labelled with the unit of the model: Kaiyo\'s model counts in hours, so it asks for new cases per hour.',
+      'Regular arrivals (exactly one every 2 hours) with constant work times never make a queue for people: someone who needs 1.5 h per case is always done before the next case comes. With random arrivals two cases sometimes come close together, and the second one waits. That is why a lane that is busy 75 % of the time still has a queue.',
+    ],
+    whenToUse: ['"12 orders a day"', '"a customer every 5 minutes on average"', '"calls come in randomly"'],
+    typicalMistake: 'Typing the interval where the rate is asked (2 instead of 0.5). Read the label: "New cases per hour".',
+    seeAlso: ['sim-queue', 'sim-randomness', 'simulation'],
+    caseRefs: ['kaiyo-order'],
+  },
+  {
+    id: 'sim-queue',
+    title: 'Utilisation and queues',
+    oneLiner: 'Queues come from random arrivals and times, not from too few people on average.',
+    body: [
+      'Utilisation is how busy a lane is: new cases per time unit × work per case ÷ people. A lane busy 68 % is idle a third of the time and still has a queue, because cases arrive at random and work times vary: sometimes three cases come within the hour, sometimes none.',
+      'Waiting grows faster and faster as a lane fills up. For one person with random arrivals and times (M/M/1) the average wait in the queue is ρ ÷ (1 − ρ) times the work per case: at ρ = 0.75 it is 3 times the work, at 0.9 it is 9 times, at 0.95 it is 19 times. At 100 % or more the queue never settles: it grows with every case, and the run shows a red warning.',
+      'With several people the formula is M/M/c (Erlang C): c people serve c cases at once, each case taking the full time of one person. A second person in a busy lane cuts the wait by far more than half, because a queue forms only when everybody is busy.',
+      'The course folds a team into one fast server with the summed speed (μ = c·μ1) and uses the M/M/1 formulas. Times and costs shows that way next to M/M/c. The one-server shortcut understates W, the total time in the system, and overstates Wq, the wait in the queue. Example, the warehouse of Kaiyo with two people: 0.9 requests an hour, 0.75 h of work each. As one server of double speed: Wq 0.19 h, W 0.57 h. As two people (M/M/c): Wq 0.1 h, W 0.85 h. W comes out too low because a real team member still needs the full 0.75 h for a case. Wq comes out too high because with two people a case often finds one of them free.',
+    ],
+    whenToUse: ['"two clerks", "one packer"', '"orders wait for the warehouse"', '"how busy is the team"'],
+    typicalMistake: '"Busy under 100 % means no queue." At 68 % cases wait, and at 90 % they wait 9 times the work.',
+    seeAlso: ['sim-arrivals', 'sim-what-if', 'simulation', 'lane'],
+    caseRefs: ['kaiyo-order'],
+  },
+  {
+    id: 'sim-randomness',
+    title: 'Why two runs differ',
+    oneLiner: 'Every run draws its own dice; a seed and an interval keep that honest.',
+    body: [
+      'A run draws random arrivals and times, so one run is one possible history, not the truth. A run of 200 cases can be 60 % off the long-run average. Flow runs the process several times (Runs) with different dice and shows the average with a 95 % interval: the long-run average is very probably inside it. The strip of dots shows the mean of each run.',
+      'The seed starts the dice. The same model, settings and seed give exactly the same numbers; New seed moves the dots. In a what-if both scenarios use the same seed, so the difference you read comes from the change, not from luck.',
+      'The first cases find an empty process and wait for nobody, so a short run reads lower than the steady state (the warm-up). More cases per run narrow the interval and shrink the warm-up effect.',
+    ],
+    whenToUse: ['"run it again and the numbers changed"', '"how many runs"', '"is the difference real?"'],
+    typicalMistake: 'Comparing two runs made with different seeds and calling the gap an effect. Use the same seed, or look at the interval.',
+    seeAlso: ['sim-what-if', 'sim-queue', 'simulation'],
+    caseRefs: ['kaiyo-order'],
+  },
+  {
+    id: 'sim-what-if',
+    title: 'What-if scenarios',
+    oneLiner: 'Change one thing, run again on the same seed, read the difference.',
+    body: [
+      'A what-if runs the model next to a copy with one change: more arrivals, another number of people, a shorter wait, a skipped step. Both runs use the same seed, so the same orders arrive with the same durations, and whatever differs comes from the change. The changes only affect the run: the model is not edited until you choose Apply to the model.',
+      'Change one thing at a time, otherwise you cannot say which one did it. Pin a run to keep its figures as a column and compare up to three.',
+      'The cheapest lever is often not the people. In Kaiyo a second warehouse person shortens the wait for a packer, but the cycle time hardly moves, because the typed waits (23 h before packing, 47.5 h before shipping) dominate. Where cases wait between steps, not where people work, is where a redesign starts. The expense claim case has the same lesson: its AS-IS pays in a monthly run, so run both models at level 3.',
+    ],
+    whenToUse: ['"what if we added a clerk"', '"what happens at the peak"', '"which change helps most"'],
+    typicalMistake: 'Changing three things and crediting the one you like. One change per scenario, then combine.',
+    seeAlso: ['sim-queue', 'sim-randomness', 'as-is-to-be'],
+    caseRefs: ['kaiyo-order', 'expense-claim'],
   },
 ]
 

@@ -1,7 +1,7 @@
 // The own cases in `cases/`, drawn with the editor's operations. `tests/cases.test.ts` lays each one out and
 // checks it against `cases/<id>.flow.json` (UPDATE_CASES=1 writes the files).
 import type { FlowModel } from '../../src/core/metamodel'
-import { addBoundaryEvent, addLane, addNode, addPool, appendNode, connect, moveElements, rename, resizeElement, resizeLane, setCapacity, setDefaultFlow, setFlow, setFlowRoute, setProbability, setSim, setSimSettings, updateNode } from '../../src/core/ops'
+import { addBoundaryEvent, addLane, addNode, addPool, appendNode, connect, moveElements, rename, resizeElement, resizeLane, setCapacity, setDefaultFlow, setFlow, setFlowRoute, setProbability, setShape, setSim, setSimSettings, updateNode } from '../../src/core/ops'
 import { route } from '../../src/core/routing'
 import { drawOrderFulfilment } from './order-fulfilment'
 
@@ -409,7 +409,11 @@ function drawKaiyoOrder(m: FlowModel) {
   setProbability(m, no.id, 0.1)
   setProbability(m, yes.id, 0.9)
   for (const l of [sales, warehouse, finance]) setCapacity(m, l.id, 1)
-  setSimSettings(m, { unit: 'h', arrivals: 0.5 }) // 12 orders a day round the clock
+  // Shapes (v0.18.0, stage 6b phase 5): the means above do not move, so the analysis figures stay.
+  setShape(m, post.id, 'duration', { kind: 'triangular', min: 0.25, mode: 0.5, max: 0.75 })
+  setShape(m, pack.id, 'duration', { kind: 'normal', sd: 0.25 })
+  setShape(m, ship.id, 'duration', { kind: 'triangular', min: 0.25, mode: 0.5, max: 0.75 })
+  setSimSettings(m, { unit: 'h', arrivals: 0.5, cases: 200, runs: 5, seed: 1 }) // 12 orders a day round the clock, random (Poisson) arrivals
 }
 
 /** `md`: the case file when two models share one (AS-IS and TO-BE). `drawn`: placed by hand, auto layout would tangle its message flows. */

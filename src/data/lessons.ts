@@ -23,6 +23,10 @@ export interface Lesson {
   test: Question[]
   cards: string[]
   practice?: { caseId: string; level: 1 | 2 | 3 }
+  /** Practice on the Kaiyo example in Simulate → Run at this level (the example is not a trainer case). */
+  runPractice?: { level: 2 | 3 }
+  /** A picture from `public/` under the goal; the text stands without it. */
+  image?: { file: string; alt: string }
 }
 
 export const LESSONS: Lesson[] = [
@@ -196,6 +200,33 @@ export const LESSONS: Lesson[] = [
     ],
     cards: ['sub-process', 'data-object', 'data-store', 'inclusive-gateway'],
     practice: { caseId: 'hospital-admission', level: 2 },
+  },
+  {
+    id: 'simulate',
+    title: 'Simulate a process',
+    goal: 'Run a process with random arrivals and times, and read the queues, how busy each lane is and a what-if next to the formula.',
+    image: { file: 'flow-simulation.webp', alt: 'A warehouse worker packs bottles into a box. A tray of order slips waits on the desk beside, and a second packing table stands empty.' },
+    guess: {
+      q: "Kaiyo's warehouse has one packer who is busy 68 % of the time (12 orders a day). Orders arrive at random. What do you expect?",
+      options: ['No queue: the packer is idle a third of the time', 'A queue: orders wait, on average about as long as the work itself takes', 'A wait of a few minutes at most'],
+      answer: 1,
+      explain: 'Orders arrive at random and the work times vary, so orders bunch up while the packer is idle at other moments. In the example the wait is about 0.7 h for 0.75 h of work.',
+    },
+    gist: [
+      'The flow analysis gives averages. A **simulation** sends hundreds of invented cases through the process with random arrivals and times, and counts what happened: Simulate → Run. It has levels: **1 Validate** (paths), **2 Time** (times, nobody ever queues, the average matches the formula), **3 Resources** (limited people, so queues and how busy each lane is appear).',
+      'Cases arrive at random: 12 a day is 0.5 an hour, one every 2 hours on average (a **Poisson** stream; the gaps are exponential). Times scatter around their average in a **shape**: constant, normal, exponential, uniform or triangular.',
+      '**Utilisation** is how busy a lane is. A lane busy 75 % still has a queue, and the wait grows faster and faster: for one person (M/M/1) it is 3 times the work at 75 %, 9 times at 90 %, 19 times at 95 %. At 100 % or more the queue never settles.',
+      'A run is one possible history: another **seed** gives another run, and the 95 % interval says how far one run can be from the long-run average. A **what-if** changes one thing and runs both on the same seed, so the difference is the change.',
+      'Next to M/M/c, the course counts a team as one fast server (μ = c·μ1, M/M/1). That shortcut understates W, the total time in the system, and overstates Wq, the wait in the queue.',
+    ],
+    trap: 'Reading "busy under 100 %" as "no queue". Even a lane busy 68 % has cases waiting, and a second person helps the wait for a person a lot but the cycle time little when the typed waits between steps are long.',
+    test: [
+      { q: 'Orders arrive at random, 12 a day. The time between two orders is…', options: ['always 2 hours', 'exponential with an average of 2 hours', 'Poisson with an average of 12'], answer: 1, explain: 'The number of orders in a period is Poisson, the gap between two orders is exponential: two views of one stream.' },
+      { q: "With constant times and no queue for people (level 2), the run's average cycle time should…", options: ['match the flow analysis', 'always be higher than the flow analysis', 'be half of it'], answer: 0, explain: 'Level 2 adds the times and nothing else, so it must agree with the formula; level 3 then adds the waiting for people on top.' },
+      { q: 'A lane is busy 75 % with one person. A second person joins. The wait for a person…', options: ['halves', 'falls by far more than half', 'stays the same'], answer: 1, explain: 'A queue forms only when everybody is busy, and with two people that happens much less often.' },
+    ],
+    cards: ['sim-levels', 'sim-shape', 'sim-arrivals', 'sim-queue', 'sim-randomness', 'sim-what-if'],
+    runPractice: { level: 2 },
   },
 ]
 

@@ -7,6 +7,8 @@ import { cardById, HELP_CARDS, type HelpCard } from '../../data/help'
 import { useEditor } from '../store'
 import { useTrainer } from '../trainer/trainerStore'
 import { AuthorLinks } from '../AuthorLinks'
+import { Picture } from '../Picture'
+import { openKaiyoOnRun } from '../exampleLink'
 
 /** A small "?" that opens a help card. */
 export function HelpQ({ card, label }: { card: string; label?: string }) {
@@ -85,6 +87,7 @@ function CardView({ card }: { card: HelpCard }) {
     <article className="help-card" data-testid="help-card">
       <h2>{card.title}</h2>
       <p className="help-one">{card.oneLiner}</p>
+      {card.image && <Picture pic={card.image} />}
       {card.miniModel && <MiniModel spec={card.miniModel} />}
       {card.body.map((p, i) => (
         <p key={i}>{p}</p>
@@ -113,8 +116,9 @@ function CardView({ card }: { card: HelpCard }) {
               <button
                 key={r.caseId}
                 className="chip"
-                title="Watch the case built, from the step where this appears"
+                title={r.example ? 'Open the example on the Run tab' : 'Watch the case built, from the step where this appears'}
                 onClick={() => {
+                  if (r.example) return openKaiyoOnRun()
                   if (useEditor.getState().backup && !useTrainer.getState().session) return
                   useTrainer.getState().start(r.caseId, 0, { walk: true })
                   useTrainer.getState().walkTo(r.step)

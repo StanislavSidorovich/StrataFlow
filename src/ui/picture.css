@@ -1,0 +1,11 @@
+.teach-picture {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  height: auto;
+  max-height: 200px;
+  object-fit: cover;
+  margin: 8px 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+}

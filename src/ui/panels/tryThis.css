@@ -1,0 +1,44 @@
+.try-this {
+  border: 1px solid var(--panel-border);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 8px 0;
+  background: var(--accent-soft);
+}
+.try-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.try-head .btn {
+  margin-left: auto;
+}
+.try-this ol {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.try-this li {
+  margin-bottom: 8px;
+}
+.try-this li p {
+  margin: 0 0 4px;
+}
+.try-this summary {
+  cursor: pointer;
+  font-size: 12px;
+  margin-top: 4px;
+}
+.try-this li {
+  display: block;
+}
+.try-this li > .btn {
+  display: inline-block;
+  white-space: nowrap;
+}
+.try-this li > details {
+  display: inline-block;
+  margin-left: 10px;
+  vertical-align: middle;
+}

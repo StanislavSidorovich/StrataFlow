@@ -303,7 +303,7 @@ describe('queue estimate per lane', () => {
 })
 
 describe('files from before 6b keep their numbers', () => {
-  it('the Kaiyo example (v0.14.0): same cycle time, cost and lane figures, and no new fields', () => {
+  it('the Kaiyo example (v0.14.0): same cycle time, cost and lane figures', () => {
     const m = parseModel(readFileSync('cases/kaiyo-order.flow.json', 'utf8'))
     const [a] = analyseModel(m)
     expect(a.cycleTime).toBeCloseTo(68.8, 9)
@@ -312,7 +312,8 @@ describe('files from before 6b keep their numbers', () => {
     expect(Object.fromEntries(a.resources.map((r) => [r.name, r.utilisation]))).toMatchObject({ Sales: 0.25, Warehouse: 0.675 })
     expect(a.resources.every((r) => r.useCost === undefined && r.hourlyCost === undefined)).toBe(true)
     expect(a.steps.every((s) => s.laneCost === 0)).toBe(true)
-    expect(JSON.stringify(m)).not.toMatch(/Shape|fires|useCost|hourlyCost|"cases"|"runs"|"seed"/)
+    // since v0.18.0 the example carries shapes and run settings (means unchanged: tests/kaiyo-teaching.test.ts); no costs or chances
+    expect(JSON.stringify(m)).not.toMatch(/fires|useCost|hourlyCost|waitShape/)
   })
   it('every shipped case analyses with no lane cost and no new field', () => {
     for (const f of readdirSync('cases').filter((x) => x.endsWith('.flow.json') || x.endsWith('.flow-case.json'))) {

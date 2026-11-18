@@ -121,7 +121,7 @@ How the numbers come about (AS-IS): the check part is a rework loop, X = 16.17 +
 
 AS-IS problems: almost all of the time is waiting (the tray, the internal mail and above all the monthly payment run); a quarter of the forms loop back; Finance types in what the employee already wrote; the manager checks every claim.
 
-TO-BE ideas (redesign heuristics): task automation (the app checks completeness), task elimination (no typing in Finance, no internal mail), triage (approval only above 200 EUR), parallelism (approval and receipts check at the same time), shorter batches (weekly instead of monthly payment). The cycle time efficiency stays low because the weekly run still dominates: a daily run would be the next step. Goal check: paid within a week (24.5 h ≈ 3 days, yes), half the cost (−66 %, yes).
+TO-BE ideas (redesign heuristics): task automation (the app checks completeness), task elimination (no typing in Finance, no internal mail), triage (approval only above 200 EUR), parallelism (approval and receipts check at the same time), shorter batches (weekly instead of monthly payment). The cycle time efficiency stays low because the weekly run still dominates: a daily run would be the next step. To see it run, open Simulate → Run and run both models at level 3: the AS-IS has a monthly payment run, a good what-if. Goal check: paid within a week (24.5 h ≈ 3 days, yes), half the cost (−66 %, yes).
 
 ## 7. Hints per level, synonyms
 

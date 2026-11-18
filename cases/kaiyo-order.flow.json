@@ -54,7 +54,13 @@
       "sim": {
         "duration": 0.5,
         "wait": 3.5,
-        "cost": 6
+        "cost": 6,
+        "durationShape": {
+          "kind": "triangular",
+          "min": 0.25,
+          "mode": 0.5,
+          "max": 0.75
+        }
       }
     },
     {
@@ -94,7 +100,11 @@
       "sim": {
         "duration": 1,
         "wait": 23,
-        "cost": 30
+        "cost": 30,
+        "durationShape": {
+          "kind": "normal",
+          "sd": 0.25
+        }
       }
     },
     {
@@ -107,7 +117,13 @@
       "sim": {
         "duration": 0.5,
         "wait": 47.5,
-        "cost": 45
+        "cost": 45,
+        "durationShape": {
+          "kind": "triangular",
+          "min": 0.25,
+          "mode": 0.5,
+          "max": 0.75
+        }
       }
     },
     {
@@ -685,6 +701,9 @@
   },
   "sim": {
     "unit": "h",
+    "cases": 200,
+    "runs": 5,
+    "seed": 1,
     "arrivals": 0.5
   }
 }

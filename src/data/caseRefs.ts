@@ -11,7 +11,12 @@ export interface CaseRef {
   title: string
   /** The walkthrough step to open. */
   step: number
+  /** An example model, not a trainer case: the chip opens it (on the Run tab) instead of a walkthrough. */
+  example?: boolean
 }
+
+/** Examples a card may name in `caseRefs` besides the trainer cases. */
+export const EXAMPLE_REFS: Record<string, string> = { 'kaiyo-order': 'Kaiyo Trading order (example)' }
 
 /** The cards an element stands for (its own card and the ideas it shows). */
 function cardsOfNode(m: FlowModel, n: FlowNode): string[] {
@@ -58,5 +63,6 @@ export function caseRefs(cardId: string): CaseRef[] {
     const step = refs.get(cardId) ?? (named.includes(c.id) ? 0 : undefined)
     if (step !== undefined) out.push({ caseId: c.id, title: c.title, step })
   }
+  for (const id of named) if (EXAMPLE_REFS[id]) out.push({ caseId: id, title: EXAMPLE_REFS[id], step: 0, example: true })
   return out
 }

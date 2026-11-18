@@ -9,7 +9,9 @@ import { setSimSettings } from '../../core/ops'
 import { SIM_LIMITS, type Interval, type SimLevel, type SimResult } from '../../core/simulate'
 import { useEditor } from '../store'
 import { useRun, type RunResult } from '../simRun'
+import { isKaiyo } from '../exampleLink'
 import { HelpQ } from './Help'
+import { TryThis } from './TryThis'
 import { NumField } from './NumField'
 import { count, fmt, pct, pm } from './simFormat'
 import { elementRows, laneRows, processRows } from '../../core/simTables'
@@ -52,6 +54,7 @@ export function SimRunTab({ a, model }: { a: Analysis | undefined; model: FlowMo
 
   return (
     <div className="sim-body sim-run" data-testid="run-tab">
+      {isKaiyo(model) && <TryThis model={model} />}
       <div className="run-levels" role="radiogroup" aria-label="Simulation level">
         {LEVELS.map((l) => (
           <button key={l.level} role="radio" aria-checked={run.level === l.level} className={`btn${run.level === l.level ? ' is-open' : ''}`} onClick={() => useRun.setState({ level: l.level })} disabled={run.running} title={l.hint} data-testid={`run-level-${l.level}`}>

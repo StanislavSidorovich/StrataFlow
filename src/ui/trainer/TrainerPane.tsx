@@ -5,6 +5,8 @@ import { ArrowLeft, ArrowRight, CircleCheck, CircleX, Clapperboard, Eye, EyeOff,
 import type { CompareItem } from '../../core/compare'
 import { UNIT_NAMES } from '../../core/analysis'
 import { CASES, caseById, FILE_CASES, TAGS, tagFits, type TrainerCase } from '../../data/cases'
+import { Picture } from '../Picture'
+import { openKaiyoOnRun } from '../exampleLink'
 import { LESSONS, lessonById, type Lesson, type Question } from '../../data/lessons'
 import { findCues } from '../../data/textcues'
 import { DONE_AT, LEVELS, levelsOf, paragraphParts, progressKey, viewCase, type GoalCheck, type Level } from '../../data/trainer'
@@ -567,6 +569,7 @@ function LessonView({ lesson }: { lesson: Lesson }) {
     <article className="lesson" data-testid="lesson">
       <h2>{lesson.title}</h2>
       <p className="muted">{lesson.goal}</p>
+      {lesson.image && <Picture pic={lesson.image} />}
       <h3>Guess first</h3>
       <Ask q={lesson.guess} index={0} answers={answers} />
       {guessed && (
@@ -597,6 +600,11 @@ function LessonView({ lesson }: { lesson: Lesson }) {
           {lesson.practice && (
             <button className="btn accent" onClick={() => useTrainer.getState().start(lesson.practice!.caseId, lesson.practice!.level)} data-testid="lesson-practice">
               <Play size={14} /> Practice: {caseById(lesson.practice.caseId)?.title}, level {lesson.practice.level}
+            </button>
+          )}
+          {lesson.runPractice && (
+            <button className="btn accent" onClick={() => openKaiyoOnRun(lesson.runPractice!.level)} data-testid="lesson-practice">
+              <Play size={14} /> Practice: Kaiyo order on the Run tab, level {lesson.runPractice.level}
             </button>
           )}
         </>

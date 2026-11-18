@@ -248,7 +248,7 @@ tests/         core unit tests
 | 3. Linter + Help | P01–P17 with tests; reference cases lint clean; ≥ 20 help cards; `?` on every property |
 | 4. Trainer | 3 cases × levels 0–3; text cues; comparator right on references and seeded wrong models; welcome tour; lessons |
 | 5. Story | `*.flow-story.json` opens, Present mode, token beats; in-app story editor; recording script makes an MP4 |
-| 6. Simulate | Token play-through; time analysis (durations, probabilities, resources) → cycle time and waiting time; AS-IS vs TO-BE comparison. 6b (later): queues from resource contention (Monte Carlo, Bizagi-like resource and calendar analysis) |
+| 6. Simulate | Token play-through; time analysis (durations, probabilities, resources) → cycle time and waiting time; AS-IS vs TO-BE comparison. 6b: queues from resource contention (Monte Carlo, Bizagi-like levels 1 to 3; calendar level 4 later), taught by six help cards, lesson 8 and the Kaiyo example with its questions (v0.18.0) |
 | 7. AI | Optional, behind a user-provided API key: generate a process from text, review a student's model |
 
 ## 13. Open questions

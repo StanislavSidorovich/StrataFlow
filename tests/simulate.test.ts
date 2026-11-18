@@ -498,7 +498,12 @@ describe('7. edges', () => {
 // ---------------------------------------------------------------- what-if overrides (phase 4 input)
 
 describe('what-if overrides', () => {
-  const kaiyo = () => parseModel(readFileSync('cases/kaiyo-order.flow.json', 'utf8'))
+  // constant times: the sums below are exact; the shapes of the example (v0.18.0) are taken off
+  const kaiyo = () => {
+    const m = parseModel(readFileSync('cases/kaiyo-order.flow.json', 'utf8'))
+    for (const n of m.nodes) if (n.sim) delete n.sim.durationShape
+    return m
+  }
   it('the same seed gives the same arrivals and the same task times in both scenarios (common random numbers)', () => {
     const m = queue(1.5, 0.5)
     const base = run(m, { level: 3, cases: 2000, runs: 2 })

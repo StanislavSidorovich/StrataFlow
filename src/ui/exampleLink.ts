@@ -2,13 +2,34 @@
 import { parseModel } from '../core/serialize'
 import kaiyoOrder from '../../cases/kaiyo-order.flow.json?raw'
 import { openProcess, switchTo, useDocs } from './docs'
+import type { FlowModel } from '../core/metamodel'
+import type { SimLevel } from '../core/simulate'
+import { useSim } from './panels/Simulate'
+import { useRun } from './simRun'
 import { hadStoredModel, useEditor } from './store'
+import { useTry } from './panels/tryQuestions'
 
-const NOTICE = 'Kaiyo Trading: an illustrative order process. The notes show what the data keeps; the times, costs and shares in Simulate are teaching figures, not the real Kaiyo figures. Help explains each element. Your other processes stay in their tabs.'
+const NOTICE = 'Kaiyo Trading: an illustrative order process. The notes show what the data keeps; the times, costs and shares in Simulate are teaching figures, not the real Kaiyo figures. Help explains each element. Simulate → Run shows the queues, with three questions to try. Your other processes stay in their tabs.'
 
 export function openKaiyo() {
   openProcess(parseModel(kaiyoOrder))
   useEditor.getState().say(NOTICE)
+}
+
+/** The Kaiyo example is recognised by its name (what its file says), so edits to the figures do not lose it. */
+export const KAIYO_NAME = parseModel(kaiyoOrder).name
+export const isKaiyo = (m: FlowModel) => m.name === KAIYO_NAME
+
+/**
+ * The Kaiyo example on the Run tab at a level (the lesson's practice and the cards' Kaiyo chip). A Kaiyo tab that is
+ * already open is switched to, never opened a second time; whatever the student had open stays in its tab. The
+ * "Try this" questions come back if they had been dismissed.
+ */
+export function openKaiyoOnRun(level: SimLevel = 2) {
+  showKaiyo(false)
+  useTry.getState().show()
+  useSim.setState({ open: true, tab: 'run', play: null })
+  useRun.setState({ level })
 }
 
 let fromLink = false
