@@ -207,17 +207,16 @@ export const LESSONS: Lesson[] = [
     goal: 'Run a process with random arrivals and times, and read the queues, how busy each lane is and a what-if next to the formula.',
     image: { file: 'flow-simulation.webp', alt: 'A warehouse worker packs bottles into a box. A tray of order slips waits on the desk beside, and a second packing table stands empty.' },
     guess: {
-      q: "Kaiyo's warehouse has one packer who is busy 68 % of the time (12 orders a day). Orders arrive at random. What do you expect?",
-      options: ['No queue: the packer is idle a third of the time', 'A queue: orders wait, on average about as long as the work itself takes', 'A wait of a few minutes at most'],
+      q: "Kaiyo's warehouse has one person who is busy 68 % of the time (12 orders a day, 1.35 h of warehouse work for each order that ships). Orders arrive at random. What do you expect?",
+      options: ['No queue: the person is idle a third of the time', 'A queue: orders wait, on average about as long as the work itself takes', 'A wait of a few minutes at most'],
       answer: 1,
-      explain: 'Orders arrive at random and the work times vary, so orders bunch up while the packer is idle at other moments. In the example the wait is about 0.7 h for 0.75 h of work.',
+      explain: 'Orders arrive at random and the work times vary, so orders bunch up while the person is idle at other moments. In the example each task of 0.75 h waits about 0.7 h.',
     },
     gist: [
       'The flow analysis gives averages. A **simulation** sends hundreds of invented cases through the process with random arrivals and times, and counts what happened: Simulate → Run. It has levels: **1 Validate** (paths), **2 Time** (times, nobody ever queues, the average matches the formula), **3 Resources** (limited people, so queues and how busy each lane is appear).',
-      'Cases arrive at random: 12 a day is 0.5 an hour, one every 2 hours on average (a **Poisson** stream; the gaps are exponential). Times scatter around their average in a **shape**: constant, normal, exponential, uniform or triangular.',
-      '**Utilisation** is how busy a lane is. A lane busy 75 % still has a queue, and the wait grows faster and faster: for one person (M/M/1) it is 3 times the work at 75 %, 9 times at 90 %, 19 times at 95 %. At 100 % or more the queue never settles.',
-      'A run is one possible history: another **seed** gives another run, and the 95 % interval says how far one run can be from the long-run average. A **what-if** changes one thing and runs both on the same seed, so the difference is the change.',
-      'Next to M/M/c, the course counts a team as one fast server (μ = c·μ1, M/M/1). That shortcut understates W, the total time in the system, and overstates Wq, the wait in the queue.',
+      '**Utilisation** is how busy a lane is: new cases per hour × work per case ÷ people. Kaiyo: 0.5 orders an hour × 1.35 h of warehouse work per order ÷ 1 person = 68 %. A lane busy 75 % still has a queue, and the wait grows faster and faster: for one person it is 3 times the work at 75 %, 9 times at 90 %, 19 times at 95 %. At 100 % or more the queue never settles. A second person cuts the wait by far more than half.',
+      'A **what-if** changes one thing (more arrivals, another number of people) and runs both on the same seed, so the difference is the change, not luck.',
+      'See cards: Random arrivals (Poisson), Shape of a duration, Why two runs differ (seed and interval), Utilisation and queues (M/M/c against the course shortcut).',
     ],
     trap: 'Reading "busy under 100 %" as "no queue". Even a lane busy 68 % has cases waiting, and a second person helps the wait for a person a lot but the cycle time little when the typed waits between steps are long.',
     test: [

@@ -100,6 +100,55 @@ describe('the figures the texts print are the ones the app computes', () => {
   })
 })
 
+describe('the Kaiyo numbers in the texts agree with the model', () => {
+  const m = kaiyo()
+  const q = analyseModel(m)[0].queues.find((x) => x.laneId === lane(m, 'Warehouse'))!
+  const rate = m.sim!.arrivals!
+  const workPerOrder = q.visits * q.meanService
+  const texts = () => ({
+    arrivals: cardById('sim-arrivals')!.body.join(' '),
+    queue: cardById('sim-queue')!.body.join(' '),
+    gist: lessonById('simulate')!.gist.join(' '),
+    guess: lessonById('simulate')!.guess.q,
+    tries: TRY_QUESTIONS.map((t) => t.text + ' ' + t.answer).join(' '),
+  })
+  it('12 orders a day is 0.5 an hour, and the warehouse does 1.35 h of work per order, so it is busy 68 %', () => {
+    expect(rate * 24).toBeCloseTo(12, 9)
+    expect(q.servers).toBe(1)
+    expect(workPerOrder).toBeCloseTo(1.35, 9) // 90 % ship, pack 1 h + ship 0.5 h
+    expect(rate * workPerOrder).toBeCloseTo(0.675, 9)
+    expect(Math.round(rate * workPerOrder * 100)).toBe(68)
+    // the same load per task: 0.9 requests an hour of 0.75 h each
+    expect(r2(rate * q.visits)).toBe(0.9)
+    expect(q.meanService).toBeCloseTo(0.75, 9)
+    // peak: the formula says 101 %, a second person says 34 %
+    expect(Math.round(rate * 1.5 * workPerOrder * 100)).toBe(101)
+    expect(Math.round((rate * workPerOrder * 100) / 2)).toBe(34)
+  })
+  it('the texts print exactly those figures', () => {
+    const t = texts()
+    expect(t.arrivals).toContain('12 orders a day is typed as 0.5')
+    expect(t.queue).toContain('0.5 orders an hour, 90 % of them pass the stock check')
+    expect(t.queue).toContain('1.35 h of warehouse work per order')
+    expect(t.queue).toContain('0.5 × 1.35 ÷ 1 = 0.675, busy 68 %')
+    expect(t.queue).toContain('0.9 requests an hour of 0.75 h each')
+    expect(t.queue).toContain('0.9 task requests an hour')
+    expect(t.gist).toContain('0.5 orders an hour × 1.35 h of warehouse work per order ÷ 1 person = 68 %')
+    expect(t.guess).toContain('12 orders a day')
+    expect(t.guess).toContain('1.35 h')
+    expect(t.tries).toContain('0.5 orders an hour × 1.35 h of work per order')
+    expect(t.tries).toContain('101 %')
+    expect(t.tries).toContain('0.5 × 1.35 ÷ 2 says 34 %')
+  })
+  it('the estimate 1.56 h is M/M/1 on those figures', () => {
+    expect(r2(monolith(rate * q.visits, q.meanService, 1).wq)).toBe(1.56)
+  })
+  it('no text mixes a rate in per day with a per-hour figure that does not belong to it', () => {
+    const all = Object.values(texts()).join(' ')
+    expect(all).not.toMatch(/12 (orders )?a day[^.]{0,40}0\.9 (an hour|\/ ?h)/)
+  })
+})
+
 describe('help cards of the simulation', () => {
   const ids = ['sim-levels', 'sim-shape', 'sim-arrivals', 'sim-queue', 'sim-randomness', 'sim-what-if']
   it('exist, link to cards that exist and name Kaiyo (case 7 too for the what-if card)', () => {

@@ -456,7 +456,10 @@ export const HELP_CARDS: HelpCard[] = [
     oneLiner: 'Each level adds one thing: paths, times, people, working hours.',
     body: [
       'A simulation sends many invented cases through the process, each with its own random times, and counts what happened. Bizagi Modeler offers it in four levels, and Simulate → Run uses the same ladder.',
-      '1 Validate: only the flows and the shares at gateways. Does every case reach an end, which steps are never reached, where do cases get stuck? 2 Time: adds durations and waits, with as many people as needed, so nobody ever queues. Its average cycle time should match the flow analysis. 3 Resources: adds the limited number of people in each lane. Now cases wait for a person, and how busy each lane is and what the lanes cost appear. 4 Calendar: working hours and shifts. Flow shows it greyed out, for later.',
+      '1 Validate: only the flows and the shares at gateways. Does every case reach an end, which steps are never reached, where do cases get stuck?',
+      '2 Time: adds durations and waits, with as many people as needed, so nobody ever queues. Its average cycle time should match the flow analysis.',
+      '3 Resources: adds the limited number of people in each lane. Now cases wait for a person, and how busy each lane is and what the lanes cost appear.',
+      '4 Calendar: working hours and shifts. Flow shows it greyed out, for later.',
       'Each level adds one thing, so the change between two columns is the effect of that one thing: put level 2 beside level 3 and you see what limited people cost in waiting.',
     ],
     whenToUse: ['"simulate", "run the scenario"', '"with unlimited resources" (level 2)', '"with the available staff" (level 3)'],
@@ -484,7 +487,7 @@ export const HELP_CARDS: HelpCard[] = [
     oneLiner: 'New cases arrive at random: give a rate per time unit, or think "one every so often on average".',
     body: [
       'If cases arrive independently of one another at an average rate, the number arriving in a period follows a Poisson distribution, and the time between two arrivals follows an exponential distribution. They are two views of one thing. Flow asks for the rate and draws exponential gaps.',
-      'Rate and interval convert both ways: 12 a day = 0.5 per hour = one every 2 hours on average. The field is labelled with the unit of the model: Kaiyo\'s model counts in hours, so it asks for new cases per hour.',
+      'Rate and interval convert both ways: 12 a day = 0.5 per hour = one every 2 hours on average. The field is labelled with the unit of the model: Kaiyo\'s model counts in hours, so it asks for new cases per hour: 12 orders a day is typed as 0.5.',
       'Regular arrivals (exactly one every 2 hours) with constant work times never make a queue for people: someone who needs 1.5 h per case is always done before the next case comes. With random arrivals two cases sometimes come close together, and the second one waits. That is why a lane that is busy 75 % of the time still has a queue.',
     ],
     whenToUse: ['"12 orders a day"', '"a customer every 5 minutes on average"', '"calls come in randomly"'],
@@ -497,10 +500,11 @@ export const HELP_CARDS: HelpCard[] = [
     title: 'Utilisation and queues',
     oneLiner: 'Queues come from random arrivals and times, not from too few people on average.',
     body: [
-      'Utilisation is how busy a lane is: new cases per time unit × work per case ÷ people. A lane busy 68 % is idle a third of the time and still has a queue, because cases arrive at random and work times vary: sometimes three cases come within the hour, sometimes none.',
+      'Utilisation is how busy a lane is: new cases per time unit × work per case ÷ people. The work per case counts every visit of the case to the lane and the share of cases that get there. Kaiyo, one person in the warehouse: 0.5 orders an hour, 90 % of them pass the stock check, and each of those needs packing (1 h) and shipping (0.5 h), so 1.35 h of warehouse work per order. 0.5 × 1.35 ÷ 1 = 0.675, busy 68 %. Seen per task, the same load is 0.9 requests an hour of 0.75 h each (0.9 × 0.75 = 0.675).',
+      'A lane busy 68 % is idle a third of the time and still has a queue, because cases arrive at random and work times vary: sometimes three cases come within the hour, sometimes none.',
       'Waiting grows faster and faster as a lane fills up. For one person with random arrivals and times (M/M/1) the average wait in the queue is ρ ÷ (1 − ρ) times the work per case: at ρ = 0.75 it is 3 times the work, at 0.9 it is 9 times, at 0.95 it is 19 times. At 100 % or more the queue never settles: it grows with every case, and the run shows a red warning.',
       'With several people the formula is M/M/c (Erlang C): c people serve c cases at once, each case taking the full time of one person. A second person in a busy lane cuts the wait by far more than half, because a queue forms only when everybody is busy.',
-      'The course folds a team into one fast server with the summed speed (μ = c·μ1) and uses the M/M/1 formulas. Times and costs shows that way next to M/M/c. The one-server shortcut understates W, the total time in the system, and overstates Wq, the wait in the queue. Example, the warehouse of Kaiyo with two people: 0.9 requests an hour, 0.75 h of work each. As one server of double speed: Wq 0.19 h, W 0.57 h. As two people (M/M/c): Wq 0.1 h, W 0.85 h. W comes out too low because a real team member still needs the full 0.75 h for a case. Wq comes out too high because with two people a case often finds one of them free.',
+      'The course folds a team into one fast server with the summed speed (μ = c·μ1) and uses the M/M/1 formulas. Times and costs shows that way next to M/M/c. The one-server shortcut understates W, the total time in the system, and overstates Wq, the wait in the queue. Example, the warehouse of Kaiyo with two people instead of one: 0.9 task requests an hour (12 orders a day, 90 % shipped, two tasks each), 0.75 h of work each. As one server of double speed: Wq 0.19 h, W 0.57 h. As two people (M/M/c): Wq 0.1 h, W 0.85 h. W comes out too low because a real team member still needs the full 0.75 h for a case. Wq comes out too high because with two people a case often finds one of them free.',
     ],
     whenToUse: ['"two clerks", "one packer"', '"orders wait for the warehouse"', '"how busy is the team"'],
     typicalMistake: '"Busy under 100 % means no queue." At 68 % cases wait, and at 90 % they wait 9 times the work.',
@@ -528,7 +532,7 @@ export const HELP_CARDS: HelpCard[] = [
     body: [
       'A what-if runs the model next to a copy with one change: more arrivals, another number of people, a shorter wait, a skipped step. Both runs use the same seed, so the same orders arrive with the same durations, and whatever differs comes from the change. The changes only affect the run: the model is not edited until you choose Apply to the model.',
       'Change one thing at a time, otherwise you cannot say which one did it. Pin a run to keep its figures as a column and compare up to three.',
-      'The cheapest lever is often not the people. In Kaiyo a second warehouse person shortens the wait for a packer, but the cycle time hardly moves, because the typed waits (23 h before packing, 47.5 h before shipping) dominate. Where cases wait between steps, not where people work, is where a redesign starts. The expense claim case has the same lesson: its AS-IS pays in a monthly run, so run both models at level 3.',
+      'The cheapest lever is often not the people. In Kaiyo a second warehouse person shortens the wait for a person, but the cycle time hardly moves, because the typed waits (23 h before packing, 47.5 h before shipping) dominate. Where cases wait between steps, not where people work, is where a redesign starts. The expense claim case teaches the same lesson: its AS-IS cycle time is about 113 h, and 80 h of it is the wait for the monthly payment run, which no extra clerk shortens. Open the AS-IS and the TO-BE in Simulate → Run, type an arrival rate for level 3, run both and compare the wait for people with the typed waits.',
     ],
     whenToUse: ['"what if we added a clerk"', '"what happens at the peak"', '"which change helps most"'],
     typicalMistake: 'Changing three things and crediting the one you like. One change per scenario, then combine.',

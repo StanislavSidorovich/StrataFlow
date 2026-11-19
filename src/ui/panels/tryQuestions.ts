@@ -17,26 +17,26 @@ export const TRY_QUESTIONS: TryQuestion[] = [
   {
     id: 'wait',
     title: 'Guess the wait',
-    text: 'At 12 orders a day the warehouse is busy about 68 % of the time. Guess the average wait for a packer, then run level 3 and read Wait (run) in the Warehouse row.',
+    text: 'At 12 orders a day the one person in the warehouse is busy about 68 % of the time (0.5 orders an hour × 1.35 h of work per order). Guess how long a warehouse task (0.75 h of work) waits for the person, then run level 3 and read Wait (run) in the Warehouse row.',
     action: 'Go to level 3',
     answer:
-      'About 0.7 h of waiting for 0.75 h of work (200 cases × 5 runs; with 2 000 cases about 0.75 h). The estimate beside it, 1.56 h, is about twice as much: it assumes exponential work times, and the packing and shipping times here vary less. Busy 68 % is not "no queue".',
+      'About 0.7 h of waiting before each task of 0.75 h (200 cases × 5 runs, seed 1; with 2 000 cases about 0.75 h). The estimate beside it, 1.56 h, is about twice as much: it assumes exponential work times, and the packing and shipping times here vary less. Busy 68 % is not "no queue".',
   },
   {
     id: 'peak',
     title: 'Peak season',
-    text: 'In peak season 18 orders a day come, 1.5 times as many. Set up What if: arrivals × 1.5, then Run both with 200 cases and again with 400. The warehouse goes to 101 %. What happens to the wait for a person?',
+    text: 'In peak season 18 orders a day come, 1.5 times as many. Set up What if: arrivals × 1.5, then Run both with 200 cases and again with 400. The formula puts the warehouse at 101 % (the run shows about 105 %). What happens to the wait for a person?',
     action: 'Set up arrivals × 1.5',
     answer:
-      'It keeps growing with the length of the run: Waiting for a person is about 11 h at 200 cases and 17 h at 400. Above 100 % there is no steady state: the queue grows with every case, and Run shows the red warning.',
+      'It keeps growing with the length of the run: Waiting for a person (per case) is about 11 h at 200 cases and 17 h at 400 (5 runs, seed 1). Above 100 % there is no steady state: the queue grows with every case, and Run shows the red warning.',
   },
   {
     id: 'second',
     title: 'A second packer',
-    text: 'Set up What if: Warehouse 2 people, then Run both. The warehouse falls to about 35 % busy. How much of the wait for a person is left, and is the cycle time much shorter? Why not?',
+    text: 'Set up What if: Warehouse 2 people, then Run both. The warehouse falls to about 35 % busy in the run (the formula 0.5 × 1.35 ÷ 2 says 34 %). How much of the wait for a person is left, and is the cycle time much shorter? Why not?',
     action: 'Set up Warehouse 2',
     answer:
-      'Waiting for a person nearly vanishes (from about 1.4 h to 0.2 h per case), but the cycle time only falls from about 70 h to 69 h. The typed waits, 23 h before packing and 47.5 h before shipping, dominate: the lever is the hand-over, not the people. Waiting, not work, is the target.',
+      'Waiting for a person nearly vanishes (from about 1.4 h to 0.2 h per case, 200 cases × 5 runs, seed 1), but the cycle time only falls from about 70 h to 69 h. The typed waits, 23 h before packing and 47.5 h before shipping, dominate: the lever is the hand-over, not the people. Waiting, not work, is the target.',
   },
 ]
 
