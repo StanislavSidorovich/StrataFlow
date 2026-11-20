@@ -188,9 +188,18 @@ export async function writeBpmn(m: FlowModel, opts: WriteOptions = {}): Promise<
         e = calls[n.id] ? make('bpmn:CallActivity', { ...base, calledElement: calls[n.id] }) : make('bpmn:SubProcess', { ...base, flowElements: [], artifacts: [] })
         if (n.loop) e.loopCharacteristics = loopMarker(n.loop)
         break
-      case 'gateway':
+      case 'gateway': {
         e = make(GATEWAYS[n.kind], base)
+        // Bizagi writes the direction itself and its validation counts on it: a gateway splits (Diverging) or merges (Converging).
+        const ins = m.flows.filter((f) => f.kind === 'sequence' && f.target === n.id).length
+        const outs = m.flows.filter((f) => f.kind === 'sequence' && f.source === n.id).length
+        if (n.kind !== 'complex') {
+          if (ins > 1 && outs > 1) e.gatewayDirection = 'Mixed'
+          else if (outs > 1) e.gatewayDirection = 'Diverging'
+          else if (ins > 1) e.gatewayDirection = 'Converging'
+        }
         break
+      }
       case 'event': {
         const type =
           n.position === 'start' ? 'bpmn:StartEvent'
@@ -363,7 +372,9 @@ export async function writeBpmn(m: FlowModel, opts: WriteOptions = {}): Promise<
   for (const n of ordered) {
     const b = m.diagram.shapes[n.id]
     if (!b) continue
-    planeOf(hidden(n)).push(shape(n.id, b, n.type === 'subProcess' ? { isExpanded: !n.collapsed } : {}))
+    // An exclusive gateway is drawn with its X: without isMarkerVisible Bizagi draws an empty diamond.
+    const extra = n.type === 'subProcess' ? { isExpanded: !n.collapsed } : n.type === 'gateway' && n.kind === 'exclusive' ? { isMarkerVisible: true } : {}
+    planeOf(hidden(n)).push(shape(n.id, b, extra))
   }
   const boxOf = (id: string): Bounds | undefined => m.diagram.shapes[id]
   for (const f of m.flows) {

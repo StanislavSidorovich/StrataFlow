@@ -4,7 +4,7 @@
 import { isArtifact, type FlowModel, type FlowNode } from './metamodel'
 
 export type Severity = 'error' | 'warning' | 'info'
-export type RuleId = `P${'01' | '02' | '03' | '04' | '05' | '06' | '07' | '08' | '09' | '10' | '11' | '12' | '13' | '14' | '15' | '16' | '17' | '18' | '19' | '20'}`
+export type RuleId = `P${'01' | '02' | '03' | '04' | '05' | '06' | '07' | '08' | '09' | '10' | '11' | '12' | '13' | '14' | '15' | '16' | '17' | '18' | '19' | '20' | '21'}`
 
 export interface Issue {
   rule: RuleId
@@ -42,6 +42,7 @@ export const RULES: Record<RuleId, { severity: Severity; title: string; card: st
   P18: { severity: 'warning', title: 'Waiting for a message that may never come', card: 'event-based-gateway' },
   P19: { severity: 'error', title: 'Sequence flow across a sub-process border', card: 'sub-process' },
   P20: { severity: 'info', title: 'Sub-process across lanes', card: 'sub-process' },
+  P21: { severity: 'warning', title: 'Gateway with one way in and one way out', card: 'split-join' },
 }
 
 const SEVERITY_ORDER: Record<Severity, number> = { error: 0, warning: 1, info: 2 }
@@ -294,6 +295,9 @@ export function lintModel(m: FlowModel, opts: LintOptions = {}): Issue[] {
     if (n.type === 'gateway') {
       // P05: one gateway, one job.
       if (ins.length > 1 && outs.length > 1) add('P05', `${cap(label(n))} both joins (${ins.length} in) and splits (${outs.length} out): use two gateways, one joins, the next splits.`, [n.id])
+      // P21: neither splits nor joins. Bizagi's diagram validation refuses it ("a gateway should be used either to split
+      // or to merge") and its simulation does not start.
+      if (ins.length === 1 && outs.length === 1 && (n.kind === 'exclusive' || n.kind === 'parallel' || n.kind === 'inclusive')) add('P21', `${cap(label(n))} has one flow in and one flow out, so it neither splits nor joins: remove it (Bizagi's validation refuses such a gateway), or add the branch it was meant to split or join.`, [n.id])
       // P06: the branches of a decision say when they are taken.
       if ((n.kind === 'exclusive' || n.kind === 'inclusive') && of.length > 1) {
         const bare = of.filter((f) => !f.name.trim() && !f.condition?.trim() && f.id !== n.defaultFlow)

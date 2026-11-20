@@ -107,7 +107,7 @@ function download(): string {
 }
 
 /** The rules Bizagi complains about when it opens a file: the export tells the owner before the file goes there. */
-const BIZAGI_RULES = ['P05', 'P07', 'P10', 'P19']
+const BIZAGI_RULES = ['P05', 'P07', 'P10', 'P19', 'P21']
 
 /** Export: BPMN 2.0 XML with the diagram, saved beside the process's own file (a download where there is no file dialog). */
 export async function exportBpmn(): Promise<{ note: string; problems: number } | null> {
@@ -125,6 +125,17 @@ export async function exportBpmn(): Promise<{ note: string; problems: number } |
   const problems = lintModel(model).filter((i) => BIZAGI_RULES.includes(i.rule)).length
   const pages = collapsed ? ` ${collapsed === 1 ? 'The sub-process is' : `${collapsed} sub-processes are`} saved collapsed, its steps on a page of its own: Bizagi draws an expanded one as a huge empty box. Your drawing here is unchanged.` : ''
   return { note: `Exported ${name}: BPMN 2.0 XML. In Bizagi Modeler use Import, BPMN; bpmn.io opens it directly.${pages}`, problems }
+}
+
+/** The figures of Simulate as a sheet in Bizagi's units and field order: Bizagi does not read them from the .bpmn. */
+export async function exportBizagiSheet(): Promise<{ note: string; problems: number } | null> {
+  const { model } = useEditor.getState()
+  const { bizagiSheet, bizagiSheetFileName } = await import('../core/bizagiSheet')
+  const { xlsxBlob } = await import('../core/xlsx')
+  const sheet = bizagiSheet(model)
+  const name = await saveExport(bizagiSheetFileName(model), 'xlsx', async () => xlsxBlob(sheet.sheets))
+  if (!name) return null
+  return { note: sheet.rows ? `Saved ${name}: ${sheet.rows} settings in Bizagi's units (minutes, Most likely / Min / Max) to type into Simulation View.` : `Saved ${name}: Flow holds no simulation figures yet, so the sheet only says so.`, problems: 0 }
 }
 
 /** Export for Bizagi with reusable sub-processes (the course practice's style): one .bpmn per page, in a .zip. */

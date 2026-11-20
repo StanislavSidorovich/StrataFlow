@@ -173,7 +173,7 @@ describe('BPMN export for Bizagi', () => {
     const { model } = await readBpmn(xml)
     const at = (id: string) => model.diagram.shapes[id]
     const labelOf = (id: string) => {
-      const m = xml.match(new RegExp(String.raw`bpmnElement="${id}">[\s\S]*?<bpmndi:BPMNLabel>\s*<dc:Bounds x="(-?\d+)" y="(-?\d+)" width="(\d+)" height="(\d+)"`))!
+      const m = xml.match(new RegExp(String.raw`bpmnElement="${id}"[^>]*>[\s\S]*?<bpmndi:BPMNLabel>\s*<dc:Bounds x="(-?\d+)" y="(-?\d+)" width="(\d+)" height="(\d+)"`))!
       return { x: +m[1], y: +m[2], width: +m[3], height: +m[4] }
     }
     const g = labelOf('Gateway_valid')
