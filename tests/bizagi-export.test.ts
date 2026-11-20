@@ -148,7 +148,7 @@ describe('Bizagi simulation copy', () => {
     expect(w).toHaveLength(2)
     expect(gateways).toHaveLength(1)
     const reply = model.nodes.find((n) => n.name === 'Reply')!
-    expect(reply).toMatchObject({ type: 'task', kind: 'receive' })
+    expect(reply).toMatchObject({ type: 'task', kind: 'task' })
     expect(reply.sim).toMatchObject({ duration: 13, durationShape: { kind: 'triangular', mode: 12 } })
     expect(reply.sim).not.toHaveProperty('wait')
     expect(model.nodes.find((n) => n.name === 'Next day')).toMatchObject({ type: 'task', kind: 'task', sim: { duration: 24 } })

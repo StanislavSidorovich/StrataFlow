@@ -2,7 +2,7 @@
 // Tried in Bizagi on cut-down copies of one real model: a timer or message event that WAITS (an intermediate
 // catch event) after a gateway makes "The simulation has failed" at once, with an event-based gateway as well as
 // with an exclusive one; the same model with those waits drawn as activities simulates. So for the copy a waiting
-// event becomes an activity (a receive task for a message) that takes the wait as its time, and an event-based
+// event becomes an activity that takes the wait as its time, and an event-based
 // gateway becomes an exclusive one (Bizagi's help: an event gateway followed by anything but plain events is not
 // simulated). Boundary events, start and end events, and throwing events stay. The drawing in Flow is not touched:
 // this is only what the "for Bizagi simulation" export writes.
@@ -39,7 +39,7 @@ export function forBizagiSimulation(model: FlowModel): SimCopy {
     delete sim.wait
     delete sim.waitShape
     const { position: _p, trigger: _t, throwing: _th, interrupting: _i, attachedTo: _a, ...rest } = n as FlowNode & Record<string, unknown>
-    const task = { ...rest, type: 'task', kind: (n as Extract<FlowNode, { type: 'event' }>).trigger === 'message' ? 'receive' : 'task', sim: Object.keys(sim).length ? sim : undefined } as unknown as FlowNode
+    const task = { ...rest, type: 'task', kind: 'task', sim: Object.keys(sim).length ? sim : undefined } as unknown as FlowNode
     const b = m.diagram.shapes[n.id]
     if (b) {
       const cx = b.x + b.width / 2
