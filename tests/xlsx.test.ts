@@ -96,7 +96,7 @@ describe('simulation workbook', () => {
     const sum = p.get('xl/worksheets/sheet1.xml')!
     expect(sum).toContain('2026-11-17')
     expect(sum).toMatch(/Cycle time \(h\)/)
-    expect(p.get('xl/worksheets/sheet4.xml')).toContain('No run pinned')
+    expect(p.get('xl/worksheets/sheet4.xml')).toContain('Run both')
   })
 
   it('the Scenarios sheet lists pinned runs with Δ against the first, the target and the verdict', async () => {
@@ -104,13 +104,38 @@ describe('simulation workbook', () => {
     const pins = [pinRun(result, 'Base', []), { ...pinRun(scen, 'Packer 1 → 2', ['Warehouse 1 → 2']), cost: 1200 }]
     const rows = scenarioRows(pins, { cycle: 80 }, 'cycle')
     const flat = rows.map((r) => r.map((c) => (c !== null && typeof c === 'object' ? c.v : c)))
-    expect(flat[0]).toEqual(['Variant', 'Changes', 'Cost of the variant', 'Seed', 'Cases × runs'])
-    expect(flat[2][2]).toBe(1200)
+    expect(flat[0]).toEqual(['Scenario', 'Changes', 'KPI', 'Base', 'Scenario value', 'Δ', 'Δ %'])
+    const cyc = flat.find((r) => r[0] === 'Packer 1 → 2' && r[2] === 'Cycle time')!
+    expect(cyc[1]).toBe('Warehouse 1 → 2')
+    expect(cyc[3]).toBeGreaterThan(0)
+    expect(cyc[5]).toBeCloseTo((cyc[4] as number) - (cyc[3] as number), 6)
+    expect(flat.find((r) => r[0] === 'Variant')![2]).toBe('Cost of the variant')
+    expect(flat.find((r) => r[0] === 'Packer 1 → 2' && r[1] === 'Warehouse 1 → 2' && r[2] === 1200)).toBeTruthy()
     expect(flat.some((r) => r[0] === 'Packer 1 → 2' && r[1] === 'Cycle time' && (r[5] === 'meets the target' || r[5] === 'misses the target'))).toBe(true)
     const header = flat.find((r) => r[0] === 'Figure')!
     expect(header).toEqual(['Figure', 'Base', 'Packer 1 → 2', 'Δ', 'Δ %'])
     const p = await parts(buildXlsx(buildWorkbookSheets({ result, formula, pins, targets: { cycle: 80 }, judge: 'cycle', date: 'd' })))
     expect(p.get('xl/worksheets/sheet4.xml')).toContain('Packer 1 → 2')
+  })
+
+  it('the Scenarios sheet is filled with the base against the scenario, even for a name Excel would refuse as a sheet name', async () => {
+    const scen = simulate(kaiyo, { level: 3, cases: 100, runs: 2, seed: 1, overrides: { capacity: { Lane_2: 2 } } })
+    const weird = 'S2 [Stock]: a/b? *x*'
+    const pins = [pinRun(result, 'Base', []), pinRun(scen, weird, ['Pack more'])]
+    const p = await parts(buildXlsx(buildWorkbookSheets({ result, formula, pins, targets: {}, date: 'd' })))
+    const sheet = p.get('xl/worksheets/sheet4.xml')!
+    expect(sheet).toContain('S2 [Stock]: a/b? *x*')
+    expect(sheet).toContain('Pack more')
+    expect(sheet).toContain('Scenario value')
+    expect(sheet).not.toContain('No scenario to list yet')
+    // Nothing pinned: the sheet says what to do, it is not silently empty.
+    const none = await parts(buildXlsx(buildWorkbookSheets({ result, formula, pins: [], targets: {}, date: 'd' })))
+    expect(none.get('xl/worksheets/sheet4.xml')).toContain('Run both')
+    // Only the base pinned: a note, no invented scenario.
+    const one = scenarioRows([pins[0]], {}, undefined)
+    expect(JSON.stringify(one)).toContain('Only the base is pinned')
+    // The file name carries the scenario without the characters a file system refuses.
+    expect(xlsxFileName(result, weird)).toBe('Kaiyo simulation S2 Stock a b x L3 seed1.xlsx'.replace('Kaiyo', result.name || 'process').replace('S2 Stock a b x', 'S2 [Stock] a b x'))
   })
 
   it('file name follows the design and drops characters a file system refuses', () => {

@@ -6,14 +6,14 @@
 import { branchShares, isDecision, UNIT_NAMES } from './analysis'
 import type { FlowModel, TimeUnit } from './metamodel'
 import { parseNum } from './number'
-import { ModelError, flowOf, laneOf, nodeOf, setCapacity, setFires, setProbability, setSim, setSimSettings } from './ops'
+import { ModelError, flowOf, laneOf, nodeOf, setCapacity, setFires, setShape, setProbability, setSim, setSimSettings } from './ops'
 import { foldRepeats, labelOf, plainLabel } from './simLabels'
 import type { SimOverrides, SimResult } from './simulate'
 
 export type Change =
   | { kind: 'arrivals'; factor: number }
   | { kind: 'capacity'; id: string; value: number }
-  | { kind: 'duration' | 'wait' | 'cost'; id: string; value: number }
+  | { kind: 'duration' | 'wait' | 'cost'; id: string; value: number; /** Typed wait only: replace the shape with a triangular one (value is its mean). */ tri?: { min: number; mode: number; max: number } }
   | { kind: 'branch'; id: string; value: number }
   | { kind: 'fires'; id: string; value: number }
   | { kind: 'skip'; id: string }
@@ -182,7 +182,11 @@ export function resolveChanges(m: FlowModel, changes: Change[]): Resolved {
       const hosts = m.nodes.filter((n) => n.type === 'event' && n.position === 'boundary' && n.attachedTo === c.id)
       if (hosts.length) notes.push(`${nm(m, c.id)} is skipped, so its boundary event${hosts.length > 1 ? 's' : ''} (${hosts.map((h) => h.name || 'event').join(', ')}) never happen${hosts.length > 1 ? '' : 's'}`)
     } else if (c.kind === 'fires') el(c.id).fires = clamp01(c.value)
-    else el(c.id)[c.kind] = Math.max(0, c.value)
+    else if (c.kind === 'wait' && c.tri) {
+      const e = el(c.id)
+      e.waitShape = { kind: 'triangular', ...c.tri }
+      e.wait = (c.tri.min + c.tri.mode + c.tri.max) / 3
+    } else el(c.id)[c.kind] = Math.max(0, c.value)
   }
 
   // Branches: a changed branch takes its share, the others of that gateway share what is left in proportion to
@@ -243,6 +247,7 @@ export function describeChange(m: FlowModel, c: Change, plain = false): string {
     case 'wait': {
       const n = nodeOf(m, c.id)
       const was = n?.sim?.[c.kind]
+      if (c.kind === 'wait' && c.tri) return `${n ? nm(m, c.id) : c.id} wait ${was === undefined ? '0' : r(was)} → triangular ${r(c.tri.min)} / ${r(c.tri.mode)} / ${r(c.tri.max)} ${unit}`
       return `${n ? nm(m, c.id) : c.id} ${c.kind === 'wait' ? 'wait' : 'time'} ${was === undefined ? '0' : r(was)} → ${r(c.value)} ${unit}`
     }
     case 'cost': {
@@ -278,7 +283,25 @@ export function checkChange(m: FlowModel, c: Change): string | undefined {
   if (c.kind === 'capacity' && c.value < 1) return 'At least 1 person'
   if ((c.kind === 'branch' || c.kind === 'fires') && (c.value < 0 || c.value > 1)) return 'A share is from 0 to 100 %'
   if (c.value < 0) return 'Not below 0'
+  if (c.kind === 'wait' && c.tri) {
+    const { min, mode, max } = c.tri
+    if (![min, mode, max].every(Number.isFinite) || min < 0) return 'min, likely and max: numbers from 0 up'
+    if (!(min <= mode && mode <= max) || min === max) return 'Needs min ≤ likely ≤ max, and min below max'
+  }
   return undefined
+}
+
+/** What a new typed wait does to the element's distribution shape, in words (shown under the Typed wait form). */
+export function waitShapeNote(m: FlowModel, id: string): string {
+  const unit = UNIT_NAMES[m.sim?.unit ?? 'min']
+  const sh = nodeOf(m, id)?.sim?.waitShape
+  const r = (x: number) => String(Math.round(x * 100) / 100)
+  const tail = ' To replace the shape, fill min / likely / max (a triangular wait).'
+  if (!sh) return `This wait is one fixed number now: the new average replaces it.${tail}`
+  if (sh.kind === 'exp') return `This wait is random (exponential): it follows the new average.${tail}`
+  if (sh.kind === 'normal') return `This wait is normal: it follows the new average and keeps its σ of ${r(sh.sd)} ${unit}.${tail}`
+  const was = sh.kind === 'uniform' ? `uniform ${r(sh.min)} to ${r(sh.max)}` : `triangular ${r(sh.min)} / ${r(sh.mode)} / ${r(sh.max)}`
+  return `This wait is ${was} ${unit} now. A new average rescales it: min${sh.kind === 'triangular' ? ', likely' : ''} and max are all multiplied by the same factor, so the shape stays. To replace it, fill min / likely / max (a triangular wait).`
 }
 
 // ---------------------------------------------------------------- apply to the model
@@ -302,7 +325,8 @@ export function applyChanges(m: FlowModel, changes: Change[]): string[] {
       case 'duration':
       case 'wait':
       case 'cost':
-        setSim(m, c.id, { [c.kind]: c.value })
+        if (c.kind === 'wait' && c.tri) setShape(m, c.id, 'wait', { kind: 'triangular', ...c.tri })
+        else setSim(m, c.id, { [c.kind]: c.value })
         break
       case 'fires':
         setFires(m, c.id, clamp01(c.value))

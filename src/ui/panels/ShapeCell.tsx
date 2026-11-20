@@ -5,6 +5,7 @@ import { setShape } from '../../core/ops'
 import { defaultShape, SHAPE_KINDS, SHAPE_LABELS, shapeMean, validateShape } from '../../core/random'
 import { useEditor } from '../store'
 import { NumField } from './NumField'
+import { ShapeChart } from './ShapeChart'
 
 type Param = 'sd' | 'min' | 'mode' | 'max'
 const PARAMS: Record<Shape['kind'], { key: Param; label: string; title: string; optional?: boolean }[]> = {
@@ -95,6 +96,7 @@ export function ShapeCell({ node, which, unit }: { node: FlowNode; which: 'durat
             }}
           />
         ))}
+      <ShapeChart shape={shape} figure={figure} unit={unit} name={name} />
       {moved && (
         <span className="sim-shape-note" title={`The cut at 0 makes the real average ${Math.round(cutMean! * 100) / 100} ${unit}; the analysis uses the typed ${figure}`}>
           cut at 0: real average {Math.round(cutMean! * 100) / 100}

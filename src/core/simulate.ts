@@ -58,6 +58,8 @@ export interface ElementOverride {
   /** A new mean processing / typed waiting time. Exponential and normal follow the mean (σ kept); uniform and triangular are scaled. */
   duration?: number
   wait?: number
+  /** A typed wait with a new triangular shape (min, likely, max): replaces the old shape; `wait` is then its mean. */
+  waitShape?: Shape
   /** A new cost per run of the activity. */
   cost?: number
   /** Boundary event: a new chance of happening (0–1). */
@@ -636,7 +638,7 @@ export class Simulation {
           if (sim.duration === undefined && eo?.duration === undefined && L >= 2 && !info.skip) this.note('Activities without a duration count as 0')
           if (n.laneId && !info.skip) info.lane = this.laneIndex(m, n.laneId, ov)
         }
-        ;[info.wait, info.waitShape] = this.figure(name, 'wait', sim.wait, sim.waitShape, eo?.wait)
+        ;[info.wait, info.waitShape] = this.figure(name, 'wait', sim.wait, sim.waitShape, eo?.wait, eo?.waitShape)
         const cost = eo?.cost ?? sim.cost ?? 0
         info.cost = fin(cost) ? cost : 0
       } else if (n.type === 'event') {
@@ -645,7 +647,7 @@ export class Simulation {
           info.terminate = n.trigger === 'terminate'
         } else if (n.position === 'intermediate' && !n.throwing) {
           info.role = 'catch'
-          ;[info.wait, info.waitShape] = this.figure(name, 'wait', sim.wait, sim.waitShape, eo?.wait)
+          ;[info.wait, info.waitShape] = this.figure(name, 'wait', sim.wait, sim.waitShape, eo?.wait, eo?.waitShape)
         }
       } else if (n.type === 'gateway') {
         info.role = 'gateway'
@@ -697,7 +699,7 @@ export class Simulation {
   }
 
   /** A time figure with its shape after an override; bad numbers count as 0 or constant, with a note. */
-  private figure(name: string, what: 'duration' | 'wait', raw: number | undefined, shape: Shape | undefined, override: number | undefined): [number, Shape | undefined] {
+  private figure(name: string, what: 'duration' | 'wait', raw: number | undefined, shape: Shape | undefined, override: number | undefined, overrideShape?: Shape): [number, Shape | undefined] {
     let mean = raw ?? 0
     if (!fin(mean) || mean < 0) {
       this.note(`${name}: a ${what} below 0 counts as 0`)
@@ -708,7 +710,10 @@ export class Simulation {
       this.note(`${name}: the shape of its ${what} is not valid (${validateShape(sh)}), counted as constant`)
       sh = undefined
     }
-    if (override !== undefined) {
+    if (overrideShape && !validateShape(overrideShape)) {
+      sh = overrideShape
+      mean = sh.kind === 'triangular' ? (sh.min + sh.mode + sh.max) / 3 : sh.kind === 'uniform' ? (sh.min + sh.max) / 2 : mean
+    } else if (override !== undefined) {
       const v = fin(override) && override >= 0 ? override : 0
       if (sh && (sh.kind === 'uniform' || sh.kind === 'triangular')) {
         const old = sh.kind === 'uniform' ? (sh.min + sh.max) / 2 : (sh.min + sh.mode + sh.max) / 3

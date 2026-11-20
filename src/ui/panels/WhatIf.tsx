@@ -23,6 +23,7 @@ import {
   resolveChanges,
   summaryRows,
   validTarget,
+  waitShapeNote,
   type Change,
   type ChangeKind,
   type Delta,
@@ -114,7 +115,7 @@ export function ExportButton({ run }: { run: RunResult }) {
   const go = async () => {
     setMsg(null)
     try {
-      const entries = pins.length ? pins : compare ? [pinRun(compare.base.result, 'Base', []), pinRun(compare.scenario.result, compare.name || 'Scenario', compare.described)] : []
+      const entries = pins.length >= 2 || !compare ? pins : compare ? [pinRun(compare.base.result, 'Base', []), pinRun(compare.scenario.result, compare.name || 'Scenario', compare.described)] : []
       const sheets = buildWorkbookSheets({ result: run.result, formula: run.formula, pins: entries, targets, judge, date: todayIso() })
       const name = await saveExport(xlsxFileName(run.result), 'xlsx', async () => xlsxBlob(sheets))
       setMsg(name ? `Saved ${name}` : null)
@@ -233,6 +234,7 @@ function ChangeForm({ model }: { model: FlowModel }) {
   const [kind, setKind] = useState<ChangeKind>('capacity')
   const [target, setTarget] = useState('')
   const [text, setText] = useState('')
+  const [tri, setTri] = useState({ min: '', mode: '', max: '' })
   const [error, setError] = useState<string | null>(null)
   const selection = useEditor((s) => s.selection)
   const picks = useMemo(() => picksFor(model, kind), [model, kind])
@@ -263,7 +265,22 @@ function ChangeForm({ model }: { model: FlowModel }) {
     if (p.error || p.value === undefined) return { error: p.error ?? 'Type a number' }
     return { value: percent ? p.value / 100 : p.value }
   }
+  const triOn = kind === 'wait' && (tri.min || tri.mode || tri.max)
   const add = () => {
+    if (triOn) {
+      const p = (['min', 'mode', 'max'] as const).map((k) => parseTime(tri[k], unit))
+      const bad = p.find((x) => x.error || x.value === undefined)
+      if (bad) return setError(bad.error ?? 'Fill min, likely and max')
+      const [min, mode, max] = p.map((x) => x.value!)
+      const c: Change = { kind: 'wait', id: target, value: (min + mode + max) / 3, tri: { min, mode, max } }
+      const why = checkChange(model, c)
+      if (why) return setError(why)
+      useWhatIf.getState().addChange(c)
+      setError(null)
+      setTri({ min: '', mode: '', max: '' })
+      setText('')
+      return
+    }
     const v = parseValue()
     if (v.error || (v.value === undefined && kind !== 'skip')) return setError(v.error ?? 'Type a number')
     const c: Change = kind === 'arrivals' ? { kind, factor: v.value! } : kind === 'skip' ? { kind, id: target } : ({ kind, id: target, value: v.value! } as Change)
@@ -296,6 +313,7 @@ function ChangeForm({ model }: { model: FlowModel }) {
       )}
       {needsValue && (
         <input
+          disabled={!!triOn}
           className={`sim-num${error ? ' is-invalid' : ''}`}
           value={text}
           onChange={(e) => {
@@ -309,9 +327,21 @@ function ChangeForm({ model }: { model: FlowModel }) {
           data-testid="wi-value"
         />
       )}
+      {kind === 'wait' && (
+        <span className="wi-tri" data-testid="wi-tri">
+          {(['min', 'mode', 'max'] as const).map((k) => (
+            <input key={k} className="sim-num" value={tri[k]} onChange={(e) => (setTri({ ...tri, [k]: e.target.value }), setError(null))} onKeyDown={(e) => e.key === 'Enter' && add()} placeholder={k === 'mode' ? 'likely' : k} aria-label={`Triangular ${k === 'mode' ? 'likely' : k}`} data-testid={`wi-tri-${k}`} />
+          ))}
+        </span>
+      )}
       <button className="btn" onClick={add} data-testid="wi-add">
         <Plus size={13} /> Add change
       </button>
+      {kind === 'wait' && (
+        <p className="muted wi-shape-note" data-testid="wi-shape-note">
+          {target ? waitShapeNote(model, target) : 'Pick the wait to see what happens to its shape. A new average keeps the shape (rescaled or following the average); min / likely / max replace it with a triangular one.'}
+        </p>
+      )}
       {error && (
         <span className="num-error" role="alert" data-testid="wi-error">
           {error}
@@ -455,6 +485,37 @@ function TargetCell({ metric, value, unit }: { metric: MetricValue; value: numbe
   )
 }
 
+/** The Excel file of this comparison: the Scenarios sheet is filled from the base and the scenario (or the pinned runs). */
+function CompareExcel({ compare }: { compare: NonNullable<ReturnType<typeof useRun.getState>['compare']> }) {
+  const pins = useWhatIf((s) => s.pins)
+  const targets = useWhatIf((s) => s.targets)
+  const judge = useWhatIf((s) => s.judge)
+  const [msg, setMsg] = useState<string | null>(null)
+  const go = async () => {
+    setMsg(null)
+    try {
+      const entries = pins.length >= 2 ? pins : [pinRun(compare.base.result, 'Base', []), pinRun(compare.scenario.result, compare.name || 'Scenario', compare.described)]
+      const sheets = buildWorkbookSheets({ result: compare.scenario.result, pins: entries, targets, judge, date: todayIso() })
+      const name = await saveExport(xlsxFileName(compare.scenario.result, `what-if ${compare.name || 'Scenario'}`), 'xlsx', async () => xlsxBlob(sheets))
+      setMsg(name ? `Saved ${name}` : null)
+    } catch (e) {
+      setMsg(`Could not save: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+  return (
+    <span className="wi-export">
+      <button className="btn" onClick={go} title="An Excel file with the base, the scenario, Δ and Δ % on the sheet Scenarios" data-testid="wi-xlsx">
+        <Download size={13} /> Excel (.xlsx)
+      </button>
+      {msg && (
+        <span className="muted" role="status" data-testid="wi-xlsx-msg">
+          {msg}
+        </span>
+      )}
+    </span>
+  )
+}
+
 function CompareView({ model }: { model: FlowModel }) {
   const compare = useRun((s) => s.compare)!
   const unit = model.sim?.unit ?? 'min'
@@ -476,7 +537,7 @@ function CompareView({ model }: { model: FlowModel }) {
     setMsg(null)
   }
   const r = compare.scenario.result
-  const tableRows = () => [['Figure', 'Base', compare.name || 'Scenario', 'Δ', 'Δ %'] as Cell[], ...rows.map((x): Cell[] => [x.metric.label, { v: x.base, fmt: x.metric.kind === 'pct' ? 'pct' : undefined }, { v: x.scenario, fmt: x.metric.kind === 'pct' ? 'pct' : undefined }, x.delta?.delta, { v: x.delta?.pct, fmt: 'pct' }])]
+  const tableRows = () => [['Scenario', compare.name || 'Scenario'] as Cell[], ['Changes', compare.described.join('; ') || 'none'] as Cell[], [] as Cell[], ['Figure', 'Base', compare.name || 'Scenario', 'Δ', 'Δ %'] as Cell[], ...rows.map((x): Cell[] => [x.metric.label, { v: x.base, fmt: x.metric.kind === 'pct' ? 'pct' : undefined }, { v: x.scenario, fmt: x.metric.kind === 'pct' ? 'pct' : undefined }, x.delta?.delta, { v: x.delta?.pct, fmt: 'pct' }])]
   return (
     <div className={`wi-compare${stale ? ' is-stale' : ''}`} data-testid="wi-compare">
       <div className="row wi-head">
@@ -490,6 +551,7 @@ function CompareView({ model }: { model: FlowModel }) {
           <Pin size={13} /> Pin scenario
         </button>
         <CopyTable rows={tableRows} testid="wi-copy-compare" />
+        <CompareExcel compare={compare} />
         {msg && <span className="muted" role="status">{msg}</span>}
       </div>
       {stale && (

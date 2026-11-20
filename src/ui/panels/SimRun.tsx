@@ -14,7 +14,9 @@ import { HelpQ } from './Help'
 import { TryThis } from './TryThis'
 import { NumField } from './NumField'
 import { count, fmt, pct, pm } from './simFormat'
-import { hasRates, sig } from '../../core/simLabels'
+import { hasRates, labelOf, sig } from '../../core/simLabels'
+import { overloadedLanes, whyRunHigher } from '../../core/runNotes'
+import { useShowElements } from './Check'
 import { useRowLink } from './rowLink'
 import { elementRows, laneRows, processRows } from '../../core/simTables'
 import { useWhatIf } from '../whatIf'
@@ -146,11 +148,18 @@ function Progress({ done, total }: { done: number; total: number }) {
 
 function Results({ run, stale, unit, onRun }: { run: RunResult; stale: boolean; unit: string; onRun: () => void }) {
   const { result: r, formula: f } = run
-  const rated = hasRates(useEditor((s) => s.model))
+  const model = useEditor((s) => s.model)
+  const rated = hasRates(model)
+  const showElements = useShowElements()
+  const over = overloadedLanes(r, f)
+  const why = whyRunHigher(r, f, model)
   const badgesOn = useRun((s) => s.badgesOn)
   const timed = r.level >= 2
   return (
     <div className={`run-results${stale ? ' is-stale' : ''}${r.unstable ? ' is-unstable' : ''}`} data-testid="run-results">
+      <p className="run-finished" role="status" data-testid="run-finished">
+        <strong>Run finished:</strong> {count(r.cases)} cases × {r.runs.length} {r.runs.length === 1 ? 'run' : 'runs'}, seed {r.seed}
+      </p>
       <div className="run-head row">
         <strong>
           {r.name || 'Process'} · level {r.level} · {r.runs.length} × {count(r.cases)} cases · seed {r.seed}
@@ -170,9 +179,9 @@ function Results({ run, stale, unit, onRun }: { run: RunResult; stale: boolean; 
           </button>
         </p>
       )}
-      {r.unstable && (
+      {over.length > 0 && (
         <p className="run-banner is-error" role="alert" data-testid="run-unstable">
-          Someone is busy 100 % of the time or more: the queue grows with every case and never settles. The waiting times below depend on how many cases you run, so treat them as unreliable.
+          <strong>Overloaded: {over.map((l) => `${l.name} ${pct(l.load)}`).join(', ')}.</strong> People are busy 100 % of the time or more, so there is no steady state: the queue grows with every case. The waiting times and the cycle time depend on how long the run is (more cases, longer waits), and Formula and Run will not agree. Treat them as unreliable; add people or cut the work, or lower the arrivals.
         </p>
       )}
       {r.stopped && (
@@ -183,10 +192,29 @@ function Results({ run, stale, unit, onRun }: { run: RunResult; stale: boolean; 
       {r.stuck > 0 && (
         <p className="run-banner is-warn" role="status" data-testid="run-stuck">
           {count(r.stuck)} of {count(r.started)} cases never reached an end
-          {r.stuckAt.length > 0 && <>: stuck at {r.stuckAt.map((s) => `${s.name} (${count(s.cases)})`).join(', ')}</>}.
+          {r.stuckAt.length > 0 && (
+            <>
+              : stuck at{' '}
+              {r.stuckAt.map((s, k) => (
+                <span key={s.id}>
+                  {k > 0 && ', '}
+                  <button className="link" onClick={() => showElements([s.id])} title="Show it on the diagram" data-testid={`run-stuck-el:${s.id}`}>
+                    {model.nodes.some((n) => n.id === s.id) ? labelOf(model, s.id) : s.name}
+                  </button>{' '}
+                  ({count(s.cases)})
+                </span>
+              ))}
+            </>
+          )}
+          .
         </p>
       )}
       <CaseLine r={r} />
+      {why && (
+        <p className="muted run-why" data-testid="run-why">
+          {why}
+        </p>
+      )}
       {timed && <Tiles r={r} f={f} unit={unit} rated={rated} />}
       {timed && <Strip r={r} f={f} unit={unit} />}
       {timed && <ProcessTable r={r} f={f} unit={unit} />}
@@ -433,10 +461,18 @@ function LaneTable({ r, f, unit, rated }: { r: SimResult; f?: Analysis; unit: st
           {r.lanes.map((l) => {
             const res = f?.resources.find((x) => x.laneId === l.laneId)
             const q = f?.queues.find((x) => x.laneId === l.laneId)
-            const over = l.utilisation.mean >= 1
+            const over = Math.max(l.utilisation.mean, res?.utilisation ?? 0) >= 1
             return (
               <tr key={l.laneId} className={over ? 'is-over' : undefined} data-testid={`run-lane:${l.name}`}>
-                <td>{l.name}</td>
+                <td>
+                  {l.name}
+                  {over && (
+                    <span className="run-overmark" title="Busy 100 % or more: no steady state" data-testid={`run-overmark:${l.name}`}>
+                      {' '}
+                      ⚠ overloaded
+                    </span>
+                  )}
+                </td>
                 <td className="run-num">{l.capacity}</td>
                 <td className="run-num" data-testid={`run-busy:${l.name}`}>
                   {pct(l.utilisation.mean)}

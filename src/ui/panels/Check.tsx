@@ -27,20 +27,26 @@ export function issueSummary(issues: Issue[]): string {
   return parts.length ? parts.join(' · ') : 'No issues'
 }
 
-export function CheckPanel() {
-  const issues = useIssues()
+/** Selects elements, opens the page they are on and brings them into view (a click on a Check or Run message). */
+export function useShowElements() {
   const flow = useReactFlow()
-  const show = (i: Issue) => {
+  return (ids: string[]) => {
     const s = useEditor.getState()
     const m = s.model
     // A flow's ends tell where it is drawn.
-    const first = i.elements.map((id) => nodeOf(m, id)?.id ?? m.flows.find((f) => f.id === id)?.source).find(Boolean)
+    const first = ids.map((id) => nodeOf(m, id)?.id ?? m.flows.find((f) => f.id === id)?.source).find(Boolean)
     const page = first ? (pageOf(m, first) ?? null) : null
     if (page !== s.page) s.openPage(page)
-    s.select(i.elements)
-    const nodes = i.elements.filter((id) => nodeOf(m, id) || m.participants.some((p) => p.id === id) || m.lanes.some((l) => l.id === id))
+    s.select(ids)
+    const nodes = ids.filter((id) => nodeOf(m, id) || m.participants.some((p) => p.id === id) || m.lanes.some((l) => l.id === id))
     if (nodes.length) requestAnimationFrame(() => void flow.fitView({ nodes: nodes.map((id) => ({ id })), maxZoom: 1.2, padding: 0.4, duration: 300 }))
   }
+}
+
+export function CheckPanel() {
+  const issues = useIssues()
+  const showElements = useShowElements()
+  const show = (i: Issue) => showElements(i.elements)
   return (
     <section className="check-panel" aria-label="Model check" data-testid="check-panel">
       <header>

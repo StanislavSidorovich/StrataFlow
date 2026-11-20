@@ -1,0 +1,10 @@
+/* A small distribution picture in the Spread cell; it grows on hover or focus (v0.20.0). */
+.shape-chart { position: relative; display: inline-block; vertical-align: middle; line-height: 0; border-radius: 4px; outline-offset: 2px; }
+.shape-chart svg { display: block; }
+.shape-chart .sc-area { fill: var(--accent-soft); }
+.shape-chart .sc-line { fill: none; stroke: var(--accent); stroke-width: 1.3; stroke-linejoin: round; }
+.shape-chart .sc-axis { stroke: var(--panel-border); stroke-width: 1; }
+.shape-chart .sc-ends { display: none; justify-content: space-between; font-size: 10px; line-height: 1.2; color: var(--muted, inherit); }
+.shape-chart:hover, .shape-chart:focus { z-index: 30; }
+.shape-chart:hover svg, .shape-chart:focus svg { transform: scale(3.2); transform-origin: left top; background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 4px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25); }
+.shape-chart:hover .sc-ends, .shape-chart:focus .sc-ends { display: flex; position: absolute; left: 0; top: 76px; width: 192px; z-index: 31; background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 3px; padding: 0 3px; box-sizing: border-box; color: inherit; }

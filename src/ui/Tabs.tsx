@@ -1,5 +1,6 @@
 // The open processes as tabs under the top bar. Shown from two processes on; during a trainer task they wait.
 import { Plus, X } from 'lucide-react'
+import { uniqueNames } from '../core/uniqueNames'
 import { newProcess, closeTab, switchTo, useDocs } from './docs'
 import { useEditor } from './store'
 
@@ -10,10 +11,12 @@ export function Tabs() {
   const liveName = useEditor((s) => s.model.name)
   const locked = useEditor((s) => s.backup !== null)
   if (tabs.length < 2) return null
+  const raw = tabs.map((t) => (t.id === active ? liveName : parked[t.id]?.model.name) || 'Untitled process')
+  const names = uniqueNames(raw)
   return (
     <div className="tabs" role="tablist" aria-label="Open processes" data-testid="tabs">
-      {tabs.map((t) => {
-        const name = (t.id === active ? liveName : parked[t.id]?.model.name) || 'Untitled process'
+      {tabs.map((t, i) => {
+        const name = names[i]
         const on = t.id === active
         return (
           <div key={t.id} className={`tab${on ? ' is-active' : ''}`} data-testid="tab">

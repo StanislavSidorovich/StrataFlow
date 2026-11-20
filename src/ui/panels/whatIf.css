@@ -108,3 +108,8 @@
     width: 100%;
   }
 }
+
+/* v0.20.0 typed wait shape */
+.wi-tri { display: inline-flex; gap: 4px; }
+.wi-tri .sim-num { width: 4.5em; }
+.wi-shape-note { flex-basis: 100%; margin: 2px 0 0; }

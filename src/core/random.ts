@@ -215,3 +215,38 @@ export function sample(shape: Shape | undefined, figure: number, rng: Rng, onCut
     }
   }
 }
+
+/** A sketch of a shape's density for the small chart: points on x ∈ [x0, x1], y from 0 to 1 (the highest point = 1).
+ *  Undefined when there is nothing to draw: no figure for exp and normal, a zero spread, or bad numbers. */
+export function shapeCurve(shape: Shape | undefined, figure: number | undefined, steps = 48): { x0: number; x1: number; pts: [number, number][] } | undefined {
+  if (!shape || validateShape(shape)) return undefined
+  const ok = (v: number | undefined): v is number => v !== undefined && Number.isFinite(v)
+  if (shape.kind === 'uniform') {
+    if (!(shape.max > shape.min)) return undefined
+    return { x0: shape.min, x1: shape.max, pts: [[shape.min, 0], [shape.min, 1], [shape.max, 1], [shape.max, 0]] }
+  }
+  if (shape.kind === 'triangular') {
+    if (!(shape.max > shape.min)) return undefined
+    return { x0: shape.min, x1: shape.max, pts: [[shape.min, 0], [shape.mode, 1], [shape.max, 0]] }
+  }
+  if (!ok(figure) || figure <= 0) return undefined
+  const dens: (x: number) => number = shape.kind === 'exp' ? (x) => Math.exp(-x / figure) : (x) => Math.exp(-0.5 * ((x - figure) / shape.sd) ** 2)
+  let x0 = 0
+  let x1 = figure * 5
+  if (shape.kind === 'normal') {
+    if (!(shape.sd > 0)) return undefined
+    const { lo, hi } = cutOf(shape)
+    x0 = Math.max(lo, figure - 3 * shape.sd)
+    x1 = Math.min(hi, figure + 3 * shape.sd)
+    if (!(x1 > x0)) return undefined
+  }
+  const pts: [number, number][] = []
+  let top = 0
+  for (let i = 0; i <= steps; i++) {
+    const x = x0 + ((x1 - x0) * i) / steps
+    const y = dens(x)
+    top = Math.max(top, y)
+    pts.push([x, y])
+  }
+  return { x0, x1, pts: pts.map(([x, y]) => [x, y / top] as [number, number]) }
+}

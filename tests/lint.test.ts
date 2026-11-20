@@ -1,4 +1,4 @@
-// The model check P01–P20 (SPEC §7): each rule fires on a small wrong model and stays quiet on the right one;
+// The model check P01–P22 (SPEC §7): each rule fires on a small wrong model and stays quiet on the right one;
 // the reference models lint clean.
 import { describe, expect, it } from 'vitest'
 import { emptyModel, type FlowModel, type FlowNode } from '../src/core/metamodel'
@@ -515,5 +515,67 @@ describe('P02 reports the cause, not every step after it', () => {
     const c = mk(stock.id, 'confirm order')
     expect(only(m, 'P14')[0].elements.sort()).toEqual([b.id, c.id].sort())
     expect(a).toBeTruthy()
+  })
+
+  /** start → AND split → [Fetch stock (with a boundary timer) → Use old figures], [Pack goods] → AND join → end. */
+  function fallbackJoin(merge: boolean) {
+    const m = emptyModel()
+    const s = put(m, START, 'Order received')
+    const sp = appendNode(m, s.id, AND, 'Split')
+    const t1 = put(m, TASK, 'Fetch stock')
+    const t2 = put(m, TASK, 'Pack goods')
+    connect(m, sp.id, t1.id)
+    connect(m, sp.id, t2.id)
+    const b = addBoundaryEvent(m, t1.id, 'timer')
+    const old = put(m, TASK, 'Use old figures')
+    connect(m, b.id, old.id)
+    const j = put(m, AND, 'All ready')
+    if (merge) {
+      const mx = put(m, XOR, 'Stock known')
+      connect(m, t1.id, mx.id)
+      connect(m, old.id, mx.id)
+      connect(m, mx.id, j.id)
+    } else {
+      connect(m, t1.id, j.id)
+      connect(m, old.id, j.id)
+    }
+    connect(m, t2.id, j.id)
+    appendNode(m, j.id, END, 'Order done')
+    return { m, j, b, t1 }
+  }
+
+  it('P22: an AND join fed by the fallback of a boundary event is a likely deadlock', () => {
+    const { m, j, t1 } = fallbackJoin(false)
+    const [hit] = only(m, 'P22')
+    expect(hit.severity).toBe('warning')
+    expect(hit.elements).toEqual([j.id, t1.id])
+    expect(hit.message).toContain('"All ready"')
+  })
+
+  it('P22: silent when an XOR merges the normal and the fallback way before the join', () => {
+    expect(rules(fallbackJoin(true).m)).not.toContain('P22')
+  })
+
+  it('P22: one XOR branch that skips an AND-join input; silent without any fallback', () => {
+    const m = emptyModel()
+    const s = put(m, START, 'Order received')
+    const sp = appendNode(m, s.id, AND, 'Split')
+    const a = put(m, TASK, 'Pack goods')
+    const c = put(m, TASK, 'Print label')
+    connect(m, sp.id, a.id)
+    connect(m, sp.id, c.id)
+    const x1 = put(m, XOR, 'Fragile?')
+    connect(m, a.id, x1.id)
+    const wrap = put(m, TASK, 'Wrap goods')
+    connect(m, x1.id, wrap.id)
+    const e2 = put(m, END, 'Skipped')
+    connect(m, x1.id, e2.id)
+    const j = put(m, AND, 'All ready')
+    connect(m, wrap.id, j.id)
+    connect(m, c.id, j.id)
+    appendNode(m, j.id, END, 'Order done')
+    expect(only(m, 'P22')).toHaveLength(1)
+    // The plain fork-and-join diamond has no fallback.
+    expect(rules(diamond(AND, AND).m)).not.toContain('P22')
   })
 })

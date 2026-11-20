@@ -1,10 +1,10 @@
-// The model check (SPEC §7): rules P01–P20. Each issue names its elements and a help card.
+// The model check (SPEC §7): rules P01–P22. Each issue names its elements and a help card.
 // A warning is a question, not a verdict: the student decides. Conventions follow the NOVA BPM
 // course (Dumas et al. 2013, Chapter 3) and the 7PMG from Chapter 4.
 import { isArtifact, type FlowModel, type FlowNode } from './metamodel'
 
 export type Severity = 'error' | 'warning' | 'info'
-export type RuleId = `P${'01' | '02' | '03' | '04' | '05' | '06' | '07' | '08' | '09' | '10' | '11' | '12' | '13' | '14' | '15' | '16' | '17' | '18' | '19' | '20' | '21'}`
+export type RuleId = `P${'01' | '02' | '03' | '04' | '05' | '06' | '07' | '08' | '09' | '10' | '11' | '12' | '13' | '14' | '15' | '16' | '17' | '18' | '19' | '20' | '21' | '22'}`
 
 export interface Issue {
   rule: RuleId
@@ -43,6 +43,7 @@ export const RULES: Record<RuleId, { severity: Severity; title: string; card: st
   P19: { severity: 'error', title: 'Sequence flow across a sub-process border', card: 'sub-process' },
   P20: { severity: 'info', title: 'Sub-process across lanes', card: 'sub-process' },
   P21: { severity: 'warning', title: 'Gateway with one way in and one way out', card: 'split-join' },
+  P22: { severity: 'warning', title: 'Parallel join fed by a fallback path', card: 'split-join' },
 }
 
 const SEVERITY_ORDER: Record<Severity, number> = { error: 0, warning: 1, info: 2 }
@@ -354,6 +355,45 @@ export function lintModel(m: FlowModel, opts: LintOptions = {}): Issue[] {
             ? 'an OR join belongs after an OR split'
             : 'the join does not match the split'
     add('P07', `${cap(label(s))} is closed by ${label(j)}: ${effect}. Close a split with a gateway of the same kind.`, [s.id, j.id])
+  }
+
+  // P22: an AND join with an input that does not always arrive (a fallback after a boundary event, one branch of an XOR
+  // that the normal case does not take) waits forever: a likely deadlock. Silent when an XOR merges every way before the join.
+  for (const j of steps) {
+    if (j.type !== 'gateway' || j.kind !== 'parallel' || g.inc.get(j.id)!.length < 2) continue
+    const ins = g.inc.get(j.id)!
+    // R(i): everything that can feed input i (backwards, a boundary event is fed by its host; the join itself is a wall).
+    const back = (from: string) => reach([from], (id) => (id === j.id ? [] : backward(id)))
+    const R = ins.map((src) => back(src))
+    const feeds = (x: string) => R.map((r, i) => (r.has(x) ? i : -1)).filter((i) => i >= 0)
+    const reachSet = (a: string) => R.map((r, i) => (r.has(a) ? i : -1)).filter((i) => i >= 0)
+    const same = (u: number[], v: number[]) => u.length === v.length && u.every((x, k) => x === v[k])
+    const split = matchingSplit(j.id, g, byId)
+    let culprit: FlowNode | undefined
+    const check = (x: FlowNode, alts: string[]) => {
+      if (culprit || alts.length < 2) return
+      const A = feeds(x.id)
+      if (!A.length) return
+      const sets = alts.map(reachSet)
+      const some = sets.filter((u) => u.length)
+      const harmful = (A.length < ins.length && sets.some((u) => !same(u, A))) || some.some((u) => some.some((v) => !same(u, v)))
+      if (harmful) culprit = x
+    }
+    for (const x of steps) {
+      if (x.id === j.id || x.id === split) continue
+      if (x.type === 'gateway' && (x.kind === 'exclusive' || x.kind === 'eventBased')) check(x, g.out.get(x.id)!)
+      if (isActivity(x)) {
+        const bs = boundaryOf(x.id).map((id) => byId.get(id)!).filter((b) => b.type === 'event' && b.interrupting !== false)
+        if (bs.length) check(x, [...g.out.get(x.id)!, ...bs.flatMap((b) => g.out.get(b.id)!)])
+      }
+    }
+    // A non-interrupting boundary event fires only sometimes: its path into only some inputs may never arrive.
+    for (const b of steps) {
+      if (culprit || b.type !== 'event' || b.position !== 'boundary' || b.interrupting !== false) continue
+      const A = feeds(b.id)
+      if (A.length && A.length < ins.length) culprit = b
+    }
+    if (culprit) add('P22', `${cap(label(j))} waits for every branch, but ${culprit.type === 'gateway' ? `${label(culprit)} sends the case down only one of its ways` : `the path of a boundary event on ${label(culprit)} only runs when that event happens (otherwise the task finishes normally)`}, so a branch into the join may never arrive and the join may wait forever (deadlock). Merge the ways with an exclusive (XOR) gateway before the join.`, [j.id, culprit.id])
   }
 
   // P14: two tasks (or two end events) with one name in a pool are confusing.

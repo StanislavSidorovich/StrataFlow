@@ -1,7 +1,7 @@
 // The tables of a simulation result as rows of cells: the sheets of the .xlsx export and the "Copy table" text
 // (stage 6b phase 4; design §4.5). One place builds them, so the file and the clipboard agree.
 import { UNIT_NAMES, type Analysis } from './analysis'
-import { pinTable, summaryRows, type PinnedRun, type Targets } from './whatIf'
+import { deltaOf, pinTable, summaryRows, type PinnedRun, type Targets } from './whatIf'
 import type { Cell, Sheet } from './xlsx'
 import type { SimResult } from './simulate'
 
@@ -57,8 +57,19 @@ const metricCell = (kind: string, v: number | undefined): Cell => (kind === 'pct
 
 /** The pinned runs: one block "variant / metric / target / cost / verdict" and the figures in columns with Δ against the first. */
 export function scenarioRows(pins: PinnedRun[], targets: Targets, judge: string | undefined): Cell[][] {
-  if (!pins.length) return [['No run pinned and no scenario run yet. Use "Run both" or "Pin this run" in the Run tab.']]
+  if (!pins.length) return [['No scenario to list yet.'], ['Run a what-if with "Run both", or press Pin base and Pin scenario, then export again.']]
   const rows: Cell[][] = []
+  // One line per scenario and figure, against the first run (the base): the table a report needs.
+  rows.push(head('Scenario', 'Changes', 'KPI', 'Base', 'Scenario value', 'Δ', 'Δ %'))
+  if (pins.length < 2) rows.push(['Only the base is pinned: press Pin scenario (or Run both) to compare.'])
+  for (const p of pins.slice(1)) {
+    for (const mv of pins[0].values) {
+      const v = p.values.find((x) => x.key === mv.key)
+      const d = deltaOf(mv.value, v?.value, mv.better)
+      rows.push([p.label, p.changes.join('; ') || 'none', mv.label, metricCell(mv.kind, mv.value), metricCell(mv.kind, v?.value), d === undefined ? null : metricCell(mv.kind, d.delta), d?.pct === undefined ? null : pctCell(d.pct)])
+    }
+  }
+  rows.push([])
   rows.push(head('Variant', 'Changes', 'Cost of the variant', 'Seed', 'Cases × runs'))
   for (const p of pins) rows.push([p.label, p.changes.join('; ') || 'none (base)', p.cost, p.seed, `${p.cases} × ${p.runs}`])
   const sum = summaryRows(pins, judge, targets)
@@ -115,12 +126,14 @@ export function buildWorkbookSheets(i: WorkbookInput): Sheet[] {
     { name: 'Summary', rows: summary, widths: [44, 22, 18, 14] },
     { name: 'Elements', rows: elementRows(r), widths: [28, 14, 12, 12, 12, 12, 12, 12, 16, 12, 12, 14, 16, 14, 12, 12] },
     { name: 'Lanes', rows: laneRows(r, i.formula), widths: [26, 10, 16, 14, 18, 12, 12, 18, 22, 14, 14, 12] },
-    { name: 'Scenarios', rows: scenarioRows(i.pins, i.targets, i.judge), widths: [34, 30, 18, 14, 16, 18] },
+    { name: 'Scenarios', rows: scenarioRows(i.pins, i.targets, i.judge), widths: [34, 40, 28, 16, 16, 14, 12] },
   ]
 }
 
 /** File name: `<process> simulation L<level> seed<seed>.xlsx`, without characters a file system refuses. */
-export function xlsxFileName(r: SimResult): string {
-  const base = (r.name || 'process').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim() || 'process'
-  return `${base} simulation L${r.level} seed${r.seed}.xlsx`
+export function xlsxFileName(r: SimResult, tag?: string): string {
+  const clean = (t: string) => t.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim()
+  const base = clean(r.name || 'process') || 'process'
+  const extra = tag && clean(tag) ? ` ${clean(tag).slice(0, 40)}` : ''
+  return `${base} simulation${extra} L${r.level} seed${r.seed}.xlsx`
 }

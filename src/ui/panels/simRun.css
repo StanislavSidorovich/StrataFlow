@@ -192,3 +192,9 @@
 .run-props.is-stale {
   opacity: 0.7;
 }
+
+/* v0.20.0: run finished line, overload mark, reason line */
+.run-finished { margin: 4px 0 2px; font-size: 0.95em; }
+.run-why { margin: 2px 0 6px; }
+.run-overmark { color: var(--error); font-size: 0.85em; white-space: nowrap; }
+.run-banner .link { font: inherit; }

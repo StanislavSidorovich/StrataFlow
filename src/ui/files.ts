@@ -267,13 +267,15 @@ export async function saveModel(): Promise<string> {
     return `Saved to ${back.name}`
   }
   const name = download()
-  return picker() ? `Downloaded ${name}. Save as picks a folder; Ctrl+S then saves there.` : `Downloaded ${name}`
+  return picker()
+    ? `Downloaded ${name} to your browser's Downloads folder (a "(2)" in the name means a file of that name was already there). Save as… picks the folder and the name; Ctrl+S then writes to that file, no copies.`
+    : `Downloaded ${name} to your browser's Downloads folder (a "(2)" in the name means a file of that name was already there; this browser cannot overwrite it).`
 }
 
 /** Save as: pick a folder and a name. Returns a note for the user, or null when cancelled. */
 export async function saveModelAs(): Promise<string | null> {
   const show = picker()
-  if (!show) return `Saved as ${download()} in your downloads folder (to choose the folder, use Chrome or Edge).`
+  if (!show) return `Saved as ${download()} in your browser's Downloads folder (a "(2)" in the name means a file of that name was already there). To choose the folder and overwrite one file, use Chrome or Edge.`
   const { model, doc } = useEditor.getState()
   let file: WritableFile
   try {
