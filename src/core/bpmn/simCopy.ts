@@ -1,4 +1,4 @@
-// A copy of the model that Bizagi Modeler's Simulation View accepts (v0.21.1).
+// A copy of the model that Bizagi Modeler's Simulation View accepts (v0.21.2).
 // Tried in Bizagi on cut-down copies of one real model: a timer or message event that WAITS (an intermediate
 // catch event) after a gateway makes "The simulation has failed" at once, with an event-based gateway as well as
 // with an exclusive one; the same model with those waits drawn as activities simulates. So for the copy a waiting
@@ -13,6 +13,8 @@ export interface SimCopy {
   /** Waiting events drawn as activities, event-based gateways made exclusive. */
   waits: string[]
   gateways: string[]
+  /** End events removed because a sibling branch of the same exclusive gateway already ends in another one. */
+  mergedEnds: string[]
 }
 
 const WAITING = ['timer', 'message', 'signal', 'conditional'] as const
@@ -50,5 +52,56 @@ export function forBizagiSimulation(model: FlowModel): SimCopy {
   })
   // A flow's drawn route ends at the old, smaller shape: let the writer route it again.
   for (const f of m.flows) if (waits.includes(f.source) || waits.includes(f.target)) delete m.diagram.edges[f.id]
-  return { model: m, waits, gateways }
+  const mergedEnds = mergeSiblingEnds(m)
+  return { model: m, waits, gateways, mergedEnds }
+}
+
+const isPlainEnd = (n: FlowNode | undefined): boolean =>
+  !!n && n.type === 'event' && n.position === 'end' && n.trigger === 'none'
+
+/**
+ * Bizagi's engine fails ("The simulation has failed") when the branches of one exclusive gateway each finish in their
+ * own end event (tried on cut-down copies of a real model: three branches to three ends fail, the same three branches
+ * to one end simulate). For the copy, the plain end events that closed branches of one exclusive gateway become one.
+ * A branch is followed through activities that have one way in and one way out. Exclusive branches never run together,
+ * so one shared end changes no path.
+ */
+function mergeSiblingEnds(m: FlowModel): string[] {
+  const byId = new Map(m.nodes.map((n) => [n.id, n]))
+  const removed: string[] = []
+  for (const g of m.nodes) {
+    if (g.type !== 'gateway' || g.kind !== 'exclusive') continue
+    const ends: FlowNode[] = []
+    for (const out of m.flows.filter((f) => f.source === g.id && f.kind === 'sequence')) {
+      let cur = byId.get(out.target)
+      const seen = new Set<string>()
+      while (cur && !seen.has(cur.id)) {
+        seen.add(cur.id)
+        if (isPlainEnd(cur)) {
+          if (m.flows.filter((f) => f.target === cur!.id).length === 1 && !ends.includes(cur)) ends.push(cur)
+          break
+        }
+        if (cur.type !== 'task') break
+        const next = m.flows.filter((f) => f.source === cur!.id && f.kind === 'sequence')
+        const into = m.flows.filter((f) => f.target === cur!.id)
+        if (next.length !== 1 || into.length !== 1) break
+        cur = byId.get(next[0].target)
+      }
+    }
+    const same = ends.filter((e) => e.participantId === ends[0]?.participantId && e.laneId === ends[0]?.laneId)
+    if (same.length < 2) continue
+    const keep = same[0]
+    for (const e of same.slice(1)) {
+      for (const f of m.flows) if (f.target === e.id) {
+        f.target = keep.id
+        delete m.diagram.edges[f.id]
+        delete f.targetSide
+      }
+      m.nodes = m.nodes.filter((n) => n.id !== e.id)
+      byId.delete(e.id)
+      delete m.diagram.shapes[e.id]
+      removed.push(e.id)
+    }
+  }
+  return removed
 }

@@ -181,4 +181,44 @@ describe('Bizagi simulation copy', () => {
     expect(time.map((r) => r[2]).sort()).toEqual(['Next day', 'Reply'])
     expect(time.find((r) => r[2] === 'Reply')!.slice(4, 10)).toEqual(['Triangular', null, 720, 240, 1440, null])
   })
+  /** start → XOR → (A → end 1 | B → end 2 | end 3 directly); a second XOR with one end of its own. */
+  function threeEnds(): FlowModel {
+    const m = emptyModel('Ends')
+    const s = addNode(m, { type: 'event', position: 'start' }, { x: 100, y: 100 }, 'Start')
+    const x = appendNode(m, s.id, { type: 'gateway', kind: 'exclusive' })
+    const a = appendNode(m, x.id, { type: 'task' }, 'A')
+    const b = addNode(m, { type: 'task' }, { x: 400, y: 260 }, 'B')
+    connect(m, x.id, b.id)
+    appendNode(m, a.id, { type: 'event', position: 'end' }, 'End 1')
+    appendNode(m, b.id, { type: 'event', position: 'end' }, 'End 2')
+    const e3 = addNode(m, { type: 'event', position: 'end' }, { x: 500, y: 400 }, 'End 3')
+    connect(m, x.id, e3.id)
+    return m
+  }
+
+  it('lets the branches of one exclusive gateway finish in one end event (Bizagi fails on several)', async () => {
+    const m = threeEnds()
+    const copy = forBizagiSimulation(m)
+    const ends = copy.model.nodes.filter((n) => n.type === 'event' && n.position === 'end')
+    expect(ends).toHaveLength(1)
+    expect(copy.mergedEnds).toHaveLength(2)
+    expect(copy.model.flows).toHaveLength(m.flows.length)
+    expect(copy.model.flows.filter((f) => f.target === ends[0].id)).toHaveLength(3)
+    expect(Object.keys(copy.model.diagram.shapes)).not.toContain(copy.mergedEnds[0])
+    const xml = await writeBpmn(copy.model)
+    expect((xml.match(/<bpmn:endEvent /g) ?? []).length).toBe(1)
+    expect(m.nodes.filter((n) => n.type === 'event' && n.position === 'end')).toHaveLength(3)
+  })
+
+  it('keeps ends that are not siblings of one exclusive gateway', () => {
+    const copy = forBizagiSimulation(diamond())
+    expect(copy.mergedEnds).toEqual([])
+    const m = emptyModel('Par')
+    const s = addNode(m, { type: 'event', position: 'start' }, { x: 100, y: 100 }, 'Start')
+    const p = appendNode(m, s.id, { type: 'gateway', kind: 'parallel' })
+    appendNode(m, p.id, { type: 'event', position: 'end' }, 'End 1')
+    const e2 = addNode(m, { type: 'event', position: 'end' }, { x: 500, y: 300 }, 'End 2')
+    connect(m, p.id, e2.id)
+    expect(forBizagiSimulation(m).model.nodes.filter((n) => n.type === 'event' && n.position === 'end')).toHaveLength(2)
+  })
 })
