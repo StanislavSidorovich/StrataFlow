@@ -1,0 +1,8 @@
+/* A flow name placed by core/edgeLabel: its top-left corner is the box, one line high. */
+.bpmn-edge-label.is-placed {
+  height: 16px;
+  line-height: 16px;
+  padding: 0 3px;
+  white-space: nowrap;
+  box-sizing: border-box;
+}

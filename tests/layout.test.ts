@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { emptyModel, isArtifact, type Bounds, type FlowModel, type FlowNode } from '../src/core/metamodel'
 import { addLane, addNode, addPool, connect } from '../src/core/ops'
 import { autoLayout, LEFT_MARGIN } from '../src/core/layout'
+import { isOrthogonal } from '../src/core/routing'
 import { readBpmn } from '../src/core/bpmn/read'
 import { writeBpmn } from '../src/core/bpmn/write'
 import { parseModel } from '../src/core/serialize'
@@ -32,7 +33,11 @@ async function expectLaidOut(m: FlowModel) {
   await autoLayout(m)
   const s = m.diagram.shapes
   expect(where(m)).toEqual(before)
-  expect(m.diagram.edges).toEqual({})
+  // Every flow is routed again: its stored path is orthogonal, and none is left from the old drawing.
+  for (const [id, pts] of Object.entries(m.diagram.edges)) {
+    expect(m.flows.some((f) => f.id === id), id).toBe(true)
+    expect(isOrthogonal(pts), id).toBe(true)
+  }
 
   const hidden = hiddenIds(m)
   const shown = m.nodes.filter((n) => !hidden.has(n.id) && !(n.type === 'event' && n.attachedTo))

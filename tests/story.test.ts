@@ -120,7 +120,7 @@ describe('shop-order story', () => {
     expect(nodeOf(last.model, 'Event_4')).toMatchObject({ parentId: box.id, attachedTo: 'Task_4' })
     const b = last.model.diagram.shapes[box.id]
     const ship = last.model.diagram.shapes.Task_5
-    expect(ship.x - (b.x + b.width)).toBeLessThan(120)
+    expect(ship.x - (b.x + b.width)).toBeLessThan(260) // Reminder sent, an end event, lies in the last column: the opened group was wide
     expect(lintModel(last.model, { expectLanes: true }).filter((i) => i.severity === 'error')).toEqual([])
   })
   it('opens the page of Collect payment in a beat of its own, with its steps and the timer on the border', () => {

@@ -3,9 +3,11 @@
 // end has moved) routed orthogonally between the sides of the two shapes that face each other.
 import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, Position, useInternalNode, useStore, type Edge, type EdgeProps, type InternalNode } from '@xyflow/react'
 import type { Bounds, FlowKind, Point, Side } from '../../core/metamodel'
+import { labelBox } from '../../core/edgeLabel'
 import { pathWithJumps } from '../../core/jumps'
 import { route, routeSides } from '../../core/routing'
 import { ChangeBadge, type ChangeMark } from './nodes'
+import './edge-label.css'
 
 export type FlowData = { kind: FlowKind; name: string; points?: { x: number; y: number }[]; sourceSide?: Side; targetSide?: Side; isDefault?: boolean; conditional?: boolean; passed?: boolean; drop?: boolean; change?: ChangeMark; ghost?: boolean; draw?: 'source' | 'target'; jumps?: Point[] }
 export type FlowEdge = Edge<FlowData, 'flow'>
@@ -93,15 +95,14 @@ export function BpmnEdge({ id, source, target, data, sourceX, sourceY, targetX, 
   let path: string
   let labelX: number
   let labelY: number
-  let vertical = false
+  let placed = false
   if (pts && pts.length >= 2) {
     path = pathWithJumps(pts, data?.jumps)
-    // Label in the middle of the longest segment: it is where a reader looks for it.
-    let best = 0
-    for (let i = 1; i < pts.length - 1; i++) if (len(pts[i], pts[i + 1]) > len(pts[best], pts[best + 1])) best = i
-    labelX = (pts[best].x + pts[best + 1].x) / 2
-    labelY = (pts[best].y + pts[best + 1].y) / 2
-    vertical = pts[best].x === pts[best + 1].x
+    // The name sits beside the start of the line, off it (core/edgeLabel: the layout measure reads the same rule).
+    const box = labelBox(pts, data?.name ?? '', [...lookup.values()].filter((n) => n.type === 'shape').map((n) => { const b = boxOf(n)!; return { x: b.x, y: b.y, width: b.w, height: b.h } }))
+    labelX = box.x
+    labelY = box.y
+    placed = true
   } else {
     ;[path, labelX, labelY] = getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 0 })
   }
@@ -125,7 +126,7 @@ export function BpmnEdge({ id, source, target, data, sourceX, sourceY, targetX, 
       )}
       {data?.name && (
         <EdgeLabelRenderer>
-          <div className="bpmn-edge-label nodrag nopan" style={{ transform: vertical ? `translate(4px, -50%) translate(${labelX}px, ${labelY}px)` : `translate(-50%, -100%) translate(${labelX}px, ${labelY - 2}px)` }}>
+          <div className={`bpmn-edge-label${placed ? ' is-placed' : ''} nodrag nopan`} style={{ transform: placed ? `translate(${labelX}px, ${labelY}px)` : `translate(-50%, -100%) translate(${labelX}px, ${labelY - 2}px)` }}>
             {data.name}
           </div>
         </EdgeLabelRenderer>
@@ -133,8 +134,6 @@ export function BpmnEdge({ id, source, target, data, sourceX, sourceY, targetX, 
     </>
   )
 }
-
-const len = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
 
 /** Marker shapes, rendered once per canvas. */
 export function EdgeMarkers() {

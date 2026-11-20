@@ -3,7 +3,9 @@
 // a step never leaves its lane, pool or sub-process. Data and annotations go in a row at the bottom of
 // their step's lane, under that step. planLayout is async (elkjs is); applyLayout is the undoable op.
 import ELK from 'elkjs/lib/elk.bundled.js'
-import { isArtifact, POOL_HEADER, type Bounds, type FlowModel, type FlowNode, type Lane } from './metamodel'
+import { routeFlows } from './autoRoute'
+import { layoutQuality } from './layoutQuality'
+import { isArtifact, POOL_HEADER, type Bounds, type FlowModel, type FlowNode, type Lane, type Point } from './metamodel'
 import { nodeOf, place, topLanes } from './ops'
 
 /** Room left of the first step: Bizagi writes lane names without a strip, right where a step would sit. */
@@ -38,6 +40,18 @@ const ELK_OPTIONS = {
   'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
 }
 
+/** Ways to ask elkjs for the order inside a column; the first is the default. */
+const VARIANTS: Record<string, string>[] = [
+  {},
+  { 'elk.layered.crossingMinimization.forceNodeModelOrder': 'true' },
+  { 'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX' },
+  { 'elk.layered.thoroughness': '40' },
+  { 'elk.layered.layering.strategy': 'LONGEST_PATH' },
+  { 'elk.layered.thoroughness': '40', 'elk.layered.crossingMinimization.forceNodeModelOrder': 'true', 'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX' },
+]
+/** Up to this many elements a drawing is laid out in every variant. */
+const SMALL_MODEL = 45
+
 type Size = { width: number; height: number }
 
 /** A container whose steps are laid out together: a pool, an expanded sub-process, or the canvas outside pools. */
@@ -63,8 +77,35 @@ interface ScopeLayout {
   width: number
 }
 
-/** New bounds for every shape that moves. Pools are stacked in their order, all as wide as the widest. */
-export async function planLayout(src: FlowModel): Promise<Record<string, Bounds>> {
+/** The new place of every shape that moves, and the route of every flow that is routed again. */
+export interface LayoutPlan {
+  bounds: Record<string, Bounds>
+  routes: Record<string, Point[]>
+}
+
+/** New bounds for every shape that moves (pools stacked in their order, all as wide as the widest) and the routes between them. */
+export async function planLayout(src: FlowModel): Promise<LayoutPlan> {
+  const shapesFor = (bounds: Record<string, Bounds>): FlowModel => ({ ...src, diagram: { shapes: { ...src.diagram.shapes, ...bounds }, edges: {} } })
+  // A large drawing is laid out once (routing is the cost); a small one is cheap to lay out again, and the
+  // variant of elkjs's ordering with the tidiest result wins.
+  if (src.nodes.length > SMALL_MODEL) {
+    const bounds = await planShapes(src, VARIANTS[0])
+    return { bounds, routes: await routeFlows(shapesFor(bounds)) }
+  }
+  let best: { bounds: Record<string, Bounds>; score: number; variant: number } | undefined
+  for (const [variant, options] of VARIANTS.entries()) {
+    const bounds = await planShapes(src, options)
+    const moved = shapesFor(bounds)
+    moved.diagram.edges = await routeFlows(moved, { passes: 1 })
+    const q = layoutQuality(moved)
+    const score = q.lineThroughShape * 1000 + q.shapeOverlaps * 1000 + q.endNotRightmost * 100 + q.lineCrossings * 10 + q.labelsOnLine * 5 + q.bends
+    if (!best || score < best.score) best = { bounds, score, variant }
+    if (q.lineCrossings === 0 && q.lineThroughShape === 0) break
+  }
+  return { bounds: best!.bounds, routes: await routeFlows(shapesFor(best!.bounds)) }
+}
+
+async function planShapes(src: FlowModel, variant: Record<string, string>): Promise<Record<string, Bounds>> {
   const m = src
   const shapes = m.diagram.shapes
   const out: Record<string, Bounds> = {}
@@ -148,7 +189,7 @@ export async function planLayout(src: FlowModel): Promise<Record<string, Bounds>
     return 1 + (n ? depth(scopeKeyOf(n)) : 0)
   }
   for (const s of [...scopes.values()].sort((a, b) => depth(b.key) - depth(a.key))) {
-    const l = await layoutScope(s, sizeOf, (id) => repIn(id, s.key), m)
+    const l = await layoutScope(s, sizeOf, (id) => repIn(id, s.key), m, variant)
     layouts.set(s.key, l)
     if (s.key.startsWith('sub:')) {
       const id = s.key.slice(4)
@@ -246,7 +287,7 @@ export async function planLayout(src: FlowModel): Promise<Record<string, Bounds>
   return out
 }
 
-async function layoutScope(s: Scope, sizeOf: (n: FlowNode) => Size, rep: (id: string) => string | undefined, m: FlowModel): Promise<ScopeLayout> {
+async function layoutScope(s: Scope, sizeOf: (n: FlowNode) => Size, rep: (id: string) => string | undefined, m: FlowModel, variant: Record<string, string>): Promise<ScopeLayout> {
   const ids = new Set(s.members.map((n) => n.id))
   const edges: { id: string; sources: string[]; targets: string[] }[] = []
   const seen = new Set<string>()
@@ -260,13 +301,21 @@ async function layoutScope(s: Scope, sizeOf: (n: FlowNode) => Size, rep: (id: st
   }
   const graph = await elk.layout({
     id: 'root',
-    layoutOptions: ELK_OPTIONS,
+    layoutOptions: { ...ELK_OPTIONS, ...variant },
+    // Within a column the steps keep the order of their lanes (then of where they were), so what elkjs untangles is what is drawn.
     children: s.members.map((n) => ({ id: n.id, ...sizeOf(n) })),
     edges,
   })
   const pos = new Map((graph.children ?? []).map((c) => [c.id, { x: c.x ?? 0, cy: (c.y ?? 0) + (c.height ?? 0) / 2 }]))
   const minX = Math.min(0, ...[...pos.values()].map((p) => p.x))
   for (const p of pos.values()) p.x -= minX
+  // End events close the process: none left of the column of the last step, so no step lies to the right of an end event.
+  const isEnd = (n: FlowNode) => n.type === 'event' && n.position === 'end'
+  const others = s.members.filter((n) => !isEnd(n))
+  if (others.length) {
+    const lastColumn = Math.max(...others.map((n) => pos.get(n.id)!.x))
+    for (const n of s.members) if (isEnd(n)) pos.get(n.id)!.x = Math.max(pos.get(n.id)!.x, lastColumn)
+  }
 
   const placed = new Map<string, Placed>()
   const bandHeights: number[] = []
@@ -325,9 +374,10 @@ async function layoutScope(s: Scope, sizeOf: (n: FlowNode) => Size, rep: (id: st
 }
 
 /** The op: every shape to its planned place, every flow routed again from the new positions. */
-export function applyLayout(m: FlowModel, plan: Record<string, Bounds>): void {
-  for (const [id, b] of Object.entries(plan)) if (m.diagram.shapes[id]) m.diagram.shapes[id] = { ...b }
+export function applyLayout(m: FlowModel, plan: LayoutPlan): void {
+  for (const [id, b] of Object.entries(plan.bounds)) if (m.diagram.shapes[id]) m.diagram.shapes[id] = { ...b }
   m.diagram.edges = {}
+  for (const [id, pts] of Object.entries(plan.routes)) if (m.flows.some((f) => f.id === id)) m.diagram.edges[id] = pts.map((p) => ({ ...p }))
   for (const n of m.nodes) place(m, n.id)
 }
 

@@ -133,10 +133,18 @@ export function renameElement(id: string) {
   useEditor.setState({ selection: [id], focusName: id, help: null })
 }
 
+let laying = false
+
+/** Auto layout; a second click while one runs is ignored, and a big drawing says it is working (it can take seconds). */
 export async function layoutNow() {
+  if (laying) return
+  laying = true
   try {
+    if (useEditor.getState().model.nodes.length > 40) useEditor.getState().say('Laying out…')
     useEditor.getState().say(await layoutModel())
   } catch (e) {
     useEditor.getState().showError(`Not laid out: ${(e as Error).message}`)
+  } finally {
+    laying = false
   }
 }
