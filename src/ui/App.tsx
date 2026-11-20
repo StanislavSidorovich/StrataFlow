@@ -47,7 +47,7 @@ import { Canvas } from './canvas/Canvas'
 import { TOOLS } from './canvas/Palette'
 import { copySelection, cutSelection, duplicateSelection, groupSelection, layoutNow, pasteClipboard, renameElement, ungroupSelection } from './actions'
 import { exportImage, type ExportPreset } from './exportImage'
-import { exportBizagiProject, exportBizagiSheet, exportBpmn, openFiles, saveModel, saveModelAs } from './files'
+import { exportBizagiProject, exportBizagiSheet, exportBizagiSimulation, exportBpmn, openFiles, saveModel, saveModelAs } from './files'
 import { FEEDBACK_URL } from './links'
 import { Menu } from './Menu'
 import { presentExample } from './story/present'
@@ -86,9 +86,9 @@ const save = async (as: boolean) => {
   }
 }
 
-const exportNow = async (reusable: boolean | 'sheet' = false) => {
+const exportNow = async (reusable: boolean | 'sheet' | 'sim' = false) => {
   try {
-    const done = await (reusable === 'sheet' ? exportBizagiSheet() : reusable ? exportBizagiProject() : exportBpmn())
+    const done = await (reusable === 'sheet' ? exportBizagiSheet() : reusable === 'sim' ? exportBizagiSimulation() : reusable ? exportBizagiProject() : exportBpmn())
     if (!done) return
     const { say } = useEditor.getState()
     say(done.problems ? `${done.note} ${done.problems} ${done.problems === 1 ? 'problem' : 'problems'}: Bizagi may reject the file.` : done.note)
@@ -276,6 +276,7 @@ export function App() {
               { label: 'Save as…', keys: 'Ctrl+Shift+S', title: 'Choose where to save', testid: 'save-as', onPick: () => void save(true) },
               { label: 'Export BPMN', icon: <FileDown size={15} />, title: 'Export as BPMN 2.0 XML (.bpmn) for Bizagi Modeler, bpmn.io and other BPMN tools', testid: 'export-bpmn', onPick: () => void exportNow() },
               { label: 'Export for Bizagi, reusable sub-processes', icon: <FileDown size={15} />, title: 'A .zip of BPMN files as the course practice draws them: each sub-process a call activity, its page in a file of its own with the pool and only the lane of the sub-process', testid: 'export-bizagi-project', onPick: () => void exportNow(true) },
+              { label: 'Export for Bizagi simulation', icon: <FileDown size={15} />, title: 'A .bpmn for the Simulation View of Bizagi: a timer or message wait becomes an activity and an event-based gateway an exclusive one, because Bizagi stops the simulation at those. The drawing here does not change', testid: 'export-bizagi-sim', onPick: () => void exportNow('sim') },
               { label: 'Export numbers for Bizagi', icon: <FileDown size={15} />, title: 'An Excel sheet of the Simulate figures in the units of Bizagi (minutes, Most likely / Min / Max, arrival interval) to type into its Simulation View: Bizagi does not read them from the .bpmn', testid: 'export-bizagi-sheet', onPick: () => void exportNow('sheet') },
               { label: 'Export PNG', icon: <ImageIcon size={15} />, title: 'The whole diagram as a PNG picture, for slides and reports', testid: 'export-png', onPick: () => void exportPicture('png') },
               { label: 'Export SVG', icon: <ImageIcon size={15} />, title: 'The whole diagram as an SVG picture (sharp at any size)', testid: 'export-svg', onPick: () => void exportPicture('svg') },

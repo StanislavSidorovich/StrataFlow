@@ -8,6 +8,7 @@ import { addLane, addNode, addPool, appendNode, connect } from '../src/core/ops'
 import { readBpmn } from '../src/core/bpmn/read'
 import { writeBpmn } from '../src/core/bpmn/write'
 import { bizagiSheet, bizagiTime } from '../src/core/bizagiSheet'
+import { forBizagiSimulation } from '../src/core/bpmn/simCopy'
 
 /** start → XOR (a / b) → XOR merge → AND split → c, d → AND join → end. */
 function diamond(): FlowModel {
@@ -121,5 +122,63 @@ describe('Bizagi entry sheet', () => {
     const row = sheets[0].rows.find((r) => r[0] === '3 Resources')!
     expect(row[2]).toBe('Clerk')
     expect(row[5]).toBe(3)
+  })
+})
+
+describe('Bizagi simulation copy', () => {
+  /** start → Ask → event gateway → (timer wait | message wait) → end; a boundary timer on Ask. */
+  function waits(): FlowModel {
+    const m = emptyModel('Waits')
+    const s = addNode(m, { type: 'event', position: 'start' }, { x: 100, y: 100 }, 'Start')
+    const ask = appendNode(m, s.id, { type: 'task' }, 'Ask')
+    const g = appendNode(m, ask.id, { type: 'gateway', kind: 'eventBased' })
+    const timer = appendNode(m, g.id, { type: 'event', position: 'intermediate', trigger: 'timer' }, 'Next day')
+    const reply = addNode(m, { type: 'event', position: 'intermediate', trigger: 'message' }, { x: 500, y: 260 }, 'Reply')
+    connect(m, g.id, reply.id)
+    const end = appendNode(m, timer.id, { type: 'event', position: 'end' }, 'Done')
+    connect(m, reply.id, end.id)
+    timer.sim = { wait: 24 }
+    reply.sim = { wait: 13, waitShape: { kind: 'triangular', min: 4, mode: 12, max: 24 } }
+    return m
+  }
+
+  it('draws a waiting event as an activity that takes the wait as its time, and the event gateway as XOR', async () => {
+    const m = waits()
+    const { model, waits: w, gateways } = forBizagiSimulation(m)
+    expect(w).toHaveLength(2)
+    expect(gateways).toHaveLength(1)
+    const reply = model.nodes.find((n) => n.name === 'Reply')!
+    expect(reply).toMatchObject({ type: 'task', kind: 'receive' })
+    expect(reply.sim).toMatchObject({ duration: 13, durationShape: { kind: 'triangular', mode: 12 } })
+    expect(reply.sim).not.toHaveProperty('wait')
+    expect(model.nodes.find((n) => n.name === 'Next day')).toMatchObject({ type: 'task', kind: 'task', sim: { duration: 24 } })
+    expect(model.nodes.find((n) => n.type === 'gateway')).toMatchObject({ kind: 'exclusive' })
+    expect(model.flows).toHaveLength(m.flows.length)
+    // the export carries no catch event after the gateway and no event-based gateway
+    const xml = await writeBpmn(model)
+    expect(xml).not.toContain('IntermediateCatchEvent')
+    expect(xml).not.toContain('intermediateCatchEvent')
+    expect(xml).not.toContain('eventBasedGateway')
+    expect((await readBpmn(xml)).model.flows).toHaveLength(m.flows.length)
+  })
+
+  it('leaves the model alone and keeps events that do not wait', () => {
+    const m = waits()
+    const before = JSON.stringify(m)
+    const copy = forBizagiSimulation(m)
+    expect(JSON.stringify(m)).toBe(before)
+    expect(copy.model.nodes.filter((n) => n.type === 'event').map((n) => n.name)).toEqual(['Start', 'Done'])
+    const plain = forBizagiSimulation(diamond())
+    expect(plain.waits).toEqual([])
+    expect(plain.gateways).toEqual([])
+  })
+
+  it('the numbers sheet of the copy lists the wait as the time of the activity', () => {
+    const { model } = forBizagiSimulation(waits())
+    model.sim = { unit: 'h', arrivals: 1 }
+    const rows = bizagiSheet(model).sheets[0].rows
+    const time = rows.filter((r) => r[3] === 'Processing time')
+    expect(time.map((r) => r[2]).sort()).toEqual(['Next day', 'Reply'])
+    expect(time.find((r) => r[2] === 'Reply')!.slice(4, 10)).toEqual(['Triangular', null, 720, 240, 1440, null])
   })
 })
