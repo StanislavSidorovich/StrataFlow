@@ -4,7 +4,7 @@ import { create } from 'zustand'
 import { analyseModel, type Analysis } from '../core/analysis'
 import type { FlowModel } from '../core/metamodel'
 import type { SimLevel, SimResult } from '../core/simulate'
-import { describeChange, resolveChanges, type Change } from '../core/whatIf'
+import { describeChanges, resolveChanges, type Change } from '../core/whatIf'
 import { useEditor } from './store'
 import { SimRunner, realWorker } from './simRunner'
 
@@ -164,7 +164,7 @@ export const useRun = create<RunState>()((set, get) => ({
               last: b,
               badges: badgesOf(base),
               error: null,
-              compare: { base: b, scenario: wrap(scen), name: scenario.name, changes: scenario.changes, described: scenario.changes.map((c) => describeChange(model, c)), notes: res.notes },
+              compare: { base: b, scenario: wrap(scen), name: scenario.name, changes: scenario.changes, described: describeChanges(model, scenario.changes), notes: res.notes },
             })
           }))
         } catch (e) {

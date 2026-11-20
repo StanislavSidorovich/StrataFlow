@@ -35,6 +35,7 @@ import { useEditor } from '../store'
 import { useRun, type RunResult } from '../simRun'
 import { useWhatIf } from '../whatIf'
 import { count, fmt, pct } from './simFormat'
+import { defaultScenarioName } from '../../core/simLabels'
 import './whatIf.css'
 
 const perUnit = (u: string) => (u === 'days' ? 'day' : u)
@@ -322,6 +323,9 @@ function ChangeForm({ model }: { model: FlowModel }) {
 
 // ---------------------------------------------------------------- the section
 
+/** Names already in use by a pinned run or the scenario on show, so the next default is the next free "Scenario n". */
+const usedScenarioNames = () => [...useWhatIf.getState().pins.map((p) => p.label), useRun.getState().compare?.name ?? '']
+
 export function WhatIfSection({ a, model, needArrivals }: { a: Analysis | undefined; model: FlowModel; needArrivals: boolean }) {
   const run = useRun()
   const apply = useEditor((s) => s.apply)
@@ -333,7 +337,7 @@ export function WhatIfSection({ a, model, needArrivals }: { a: Analysis | undefi
   const empty = scenario.changes.length === 0
   const active = scenario.changes.length - resolved.dead.length
   const why = !a ? 'Draw a process with a start event first' : empty ? 'Add at least one change: a scenario with no changes is the model itself' : active === 0 ? 'Every change is about an element that is no longer in the model' : needArrivals ? `Level 3 needs the arrival rate: how many new cases per ${perUnit(UNIT_NAMES[model.sim?.unit ?? 'min'])}?` : undefined
-  const go = () => run.startCompare(a?.poolId, { name: scenario.name || scenario.changes.map((c) => describeChange(model, c)).join(', '), changes: scenario.changes }, targets.cycle !== undefined ? { target: targets.cycle } : {})
+  const go = () => run.startCompare(a?.poolId, { name: scenario.name.trim() || defaultScenarioName(usedScenarioNames()), changes: scenario.changes }, targets.cycle !== undefined ? { target: targets.cycle } : {})
   const applyToModel = () => {
     setApplied(null)
     setApplyError(null)
@@ -374,7 +378,7 @@ export function WhatIfSection({ a, model, needArrivals }: { a: Analysis | undefi
       <div className="wi-name row">
         <label>
           Name{' '}
-          <input className="wi-text" value={scenario.name} onChange={(e) => useWhatIf.getState().setName(e.target.value)} placeholder="e.g. Second packer" aria-label="Scenario name" data-testid="wi-name" />
+          <input className="wi-text" value={scenario.name} onChange={(e) => useWhatIf.getState().setName(e.target.value)} placeholder={`${defaultScenarioName(usedScenarioNames())}, or e.g. Second packer`} aria-label="Scenario name" data-testid="wi-name" />
         </label>
         <label title="What the variant costs to introduce, by hand: the model has no figure for it">
           Cost of the variant <ValueField value={scenario.cost} parse={(t) => parseNum(t)} onCommit={(v) => useWhatIf.getState().setCost(v)} placeholder="0" testid="wi-cost" />

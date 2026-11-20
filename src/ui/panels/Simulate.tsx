@@ -4,19 +4,22 @@
 // how busy each lane is. "Keep as AS-IS" remembers the figures, so a redesign (TO-BE) shows what it changes.
 import { useMemo, useState } from 'react'
 import { create } from 'zustand'
-import { FastForward, Pin, PinOff, Play, RotateCcw, StepForward, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, FastForward, Maximize2, Minimize2, Pin, PinOff, Play, RotateCcw, StepForward, X } from 'lucide-react'
 import { analyseModel, convertTime, littlesLaw, UNIT_NAMES, type Analysis } from '../../core/analysis'
 import type { FlowModel, TimeUnit } from '../../core/metamodel'
 import { isDecision } from '../../core/analysis'
 import { parseNum } from '../../core/number'
 import { nodeOf, setCapacity, setFires, setLaneCost, setProbability, setSim, setSimSettings } from '../../core/ops'
 import { pending, playOn, startPlay, stepPlay, type PlayState } from '../../core/play'
+import { hasRates, labelOf, sig } from '../../core/simLabels'
 import { useEditor } from '../store'
 import { HelpQ } from './Help'
 import { NumField } from './NumField'
 import { QueuePanel } from './QueuePanel'
 import { ShapeCell } from './ShapeCell'
 import { SimRunTab } from './SimRun'
+import { MAX_CSS, PanelResizer, RowHighlight, useRowLink, usePanelHeight } from './rowLink'
+import './simTables.css'
 
 export interface Kpis {
   name: string
@@ -79,8 +82,16 @@ export function SimulatePanel() {
   const { tab, pool } = useSim()
   const a = analyses.find((x) => x.poolId === pool) ?? analyses[0]
   const unit = UNIT_NAMES[model.sim?.unit ?? 'min']
+  const size = usePanelHeight()
   return (
-    <section className="check-panel sim-panel" aria-label="Simulate" data-testid="sim-panel">
+    <section
+      className={`check-panel sim-panel${size.collapsed ? ' is-collapsed' : ''}`}
+      style={!size.collapsed && size.height ? { height: size.height, maxHeight: MAX_CSS } : undefined}
+      aria-label="Simulate"
+      data-testid="sim-panel"
+    >
+      <PanelResizer size={size} />
+      <RowHighlight />
       <header>
         <strong>Simulate</strong>
         <div className="sim-tabs" role="tablist">
@@ -105,11 +116,17 @@ export function SimulatePanel() {
         )}
         <span className="muted" />
         <HelpQ card="simulation" />
+        <button className="btn icon" onClick={size.toggleCollapsed} aria-label={size.collapsed ? 'Expand the panel' : 'Collapse the panel'} title={size.collapsed ? 'Show the tables again' : 'Fold the panel down to its title bar'} data-testid="sim-collapse">
+          {size.collapsed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </button>
+        <button className="btn icon" onClick={size.toggleMax} aria-label={size.maximised ? 'Restore the panel height' : 'Make the panel as tall as the window'} title={size.maximised ? 'Back to the remembered height' : 'Maximise: give the tables most of the window'} data-testid="sim-maximise">
+          {size.maximised ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+        </button>
         <button className="btn icon" onClick={() => useSim.getState().setOpen(false)} aria-label="Close Simulate" title="Close">
           <X size={14} />
         </button>
       </header>
-      {tab === 'run' ? <SimRunTab a={a} model={model} /> : !a ? <p className="check-clean">Draw a process with a start event first.</p> : tab === 'play' ? <PlayTab a={a} unit={unit} /> : <FiguresTab a={a} model={model} unit={unit} />}
+      {size.collapsed ? null : tab === 'run' ? <SimRunTab a={a} model={model} /> : !a ? <p className="check-clean">Draw a process with a start event first.</p> : tab === 'play' ? <PlayTab a={a} unit={unit} /> : <FiguresTab a={a} model={model} unit={unit} />}
     </section>
   )
 }
@@ -177,6 +194,8 @@ function PlayTab({ a, unit }: { a: Analysis; unit: string }) {
 function FiguresTab({ a, model, unit }: { a: Analysis; model: FlowModel; unit: string }) {
   const apply = useEditor((s) => s.apply)
   const baseline = useSim((s) => s.baseline)
+  const row = useRowLink()
+  const rated = hasRates(model)
   const [showAll, setShowAll] = useState(false)
   const k: Kpis = { name: model.name || a.name, cycleTime: a.cycleTime, processingTime: a.processingTime, waitingTime: a.waitingTime, efficiency: a.efficiency, cost: a.cost, unit }
   const keep = () => {
@@ -219,7 +238,7 @@ function FiguresTab({ a, model, unit }: { a: Analysis; model: FlowModel; unit: s
         <Kpi label="Processing" value={a.processingTime} base={baseline?.processingTime} unit={unit} lowerIsBetter testid="kpi-processing" title="Theoretical cycle time: only the work, no waiting" />
         <Kpi label="Waiting" value={a.waitingTime} base={baseline?.waitingTime} unit={unit} lowerIsBetter testid="kpi-waiting" title="Cycle time minus processing" />
         <Kpi label="Efficiency" value={a.efficiency} base={baseline?.efficiency} percent testid="kpi-efficiency" title="Cycle time efficiency = processing / cycle time" />
-        <Kpi label="Cost per case" value={a.cost} base={baseline?.cost} lowerIsBetter testid="kpi-cost" title="Average cost of one case" />
+        <Kpi label="Cost per case" value={a.cost} base={baseline?.cost} lowerIsBetter testid="kpi-cost" title={rated ? 'Average cost of one case' : 'No task cost and no lane rate is typed, so there is no cost to show (not 0)'} blank={rated ? undefined : 'no rates'} />
         <div className="sim-baseline">
           {baseline ? (
             <>
@@ -256,6 +275,7 @@ function FiguresTab({ a, model, unit }: { a: Analysis; model: FlowModel; unit: s
       <table className="sim-table" data-testid="sim-steps">
         <thead>
           <tr>
+            <th title="Row number, in the order of the table">#</th>
             <th>Activity</th>
             <th title="Expected runs per case: 0.3 = in 30 % of cases, 1.25 = once plus a 25 % rework">Runs</th>
             <th title={`Processing time of one run, in ${unit}: the average`}>Duration</th>
@@ -266,13 +286,15 @@ function FiguresTab({ a, model, unit }: { a: Analysis; model: FlowModel; unit: s
           </tr>
         </thead>
         <tbody>
-          {steps.map((s) => {
+          {steps.map((s, i) => {
             const node = nodeOf(model, s.id)
+            const label = labelOf(model, s.id)
             return (
-              <tr key={s.id} className={s.missing ? 'is-missing' : undefined}>
-                <td>
-                  <button className="link" onClick={() => useEditor.getState().select([s.id])}>
-                    {s.name}
+              <tr key={s.id} {...row(s.id, s.missing ? 'is-missing' : undefined)}>
+                <td className="sim-no">{i + 1}</td>
+                <td className="sim-name">
+                  <button className="link" onClick={() => useEditor.getState().select([s.id])} title={label}>
+                    {label}
                   </button>
                 </td>
                 <td>{fmt(s.runs)}</td>
@@ -307,9 +329,9 @@ function FiguresTab({ a, model, unit }: { a: Analysis; model: FlowModel; unit: s
               model.flows
                 .filter((f) => f.kind === 'sequence' && f.source === g.id)
                 .map((f) => (
-                  <tr key={f.id}>
-                    <td>
-                      {g.name || 'Decision'} · {f.name || nodeOf(model, f.target)?.name || f.target}
+                  <tr key={f.id} {...row(g.id)}>
+                    <td className="sim-name" title={`${labelOf(model, g.id)} · ${f.name || labelOf(model, f.target)}`}>
+                      {labelOf(model, g.id)} · {f.name || labelOf(model, f.target)}
                     </td>
                     <td>
                       <NumField
@@ -337,13 +359,13 @@ function FiguresTab({ a, model, unit }: { a: Analysis; model: FlowModel; unit: s
           </thead>
           <tbody>
             {boundaries.map((b) => (
-              <tr key={b.id}>
-                <td>
+              <tr key={b.id} {...row(b.id)}>
+                <td className="sim-name">
                   <button className="link" onClick={() => useEditor.getState().select([b.id])}>
-                    {b.name || 'Boundary event'}
+                    {labelOf(model, b.id)}
                   </button>
                   {' · '}
-                  {nodeOf(model, b.type === 'event' ? (b.attachedTo ?? '') : '')?.name || 'activity'}
+                  {b.type === 'event' && b.attachedTo ? labelOf(model, b.attachedTo) : 'activity'}
                   <span className="muted"> ({b.type === 'event' && b.interrupting === false ? 'activity goes on' : 'activity stops'})</span>
                 </td>
                 <td>
@@ -428,7 +450,7 @@ function QueueEstimate({ q, unit }: { q: Analysis['queues'][number] | undefined;
   )
 }
 
-function Kpi({ label, value, base, unit, percent, lowerIsBetter, testid, title }: { label: string; value?: number; base?: number; unit?: string; percent?: boolean; lowerIsBetter?: boolean; testid: string; title: string }) {
+function Kpi({ label, value, base, unit, percent, lowerIsBetter, testid, title, blank }: { label: string; value?: number; base?: number; unit?: string; percent?: boolean; lowerIsBetter?: boolean; testid: string; title: string; blank?: string }) {
   const show = (x: number | undefined) => (percent ? pct(x) : fmt(x))
   const delta = value !== undefined && base !== undefined && base !== 0 ? (value - base) / Math.abs(base) : undefined
   const better = delta !== undefined && delta !== 0 && (lowerIsBetter ? delta < 0 : delta > 0)
@@ -436,10 +458,10 @@ function Kpi({ label, value, base, unit, percent, lowerIsBetter, testid, title }
     <div className="sim-kpi" title={title} data-testid={testid}>
       <span className="muted">{label}</span>
       <strong>
-        {show(value)}
-        {unit && value !== undefined && <small> {unit}</small>}
+        {blank ? <span className="muted sim-norates">{blank}</span> : show(value)}
+        {!blank && unit && value !== undefined && <small> {unit}</small>}
       </strong>
-      {base !== undefined && (
+      {!blank && base !== undefined && (
         <small className={delta ? (better ? 'is-better' : 'is-worse') : 'muted'}>
           AS-IS {show(base)}
           {delta ? ` · ${delta > 0 ? '+' : '−'}${Math.round(Math.abs(delta) * 100)} %` : ''}
@@ -465,8 +487,8 @@ function Little({ a, model, unit }: { a: Analysis; model: FlowModel; unit: strin
           <strong>About {fmt(forward, 1)} cases are open at the same time</strong>
           <span className="muted">
             {' '}
-            (Little's law: {fmt(rate)} new per {per} × {fmt(a.cycleTime)} {unit} cycle time
-            {tu !== 'd' && `, or ${fmt(convertTime(1, 'd', tu) * rate!, 1)} new per day × ${fmt(convertTime(a.cycleTime!, tu, 'd'), 1)} days`}
+            (Little's law: {sig(rate)} new per {per} × {fmt(a.cycleTime)} {unit} cycle time
+            {tu !== 'd' && `, or ${sig(convertTime(1, 'd', tu) * rate!)} new per day × ${fmt(convertTime(a.cycleTime!, tu, 'd'), 1)} days`}
             ). A day here is 24 hours.
           </span>
         </p>

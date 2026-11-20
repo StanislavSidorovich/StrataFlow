@@ -14,6 +14,8 @@ import { HelpQ } from './Help'
 import { TryThis } from './TryThis'
 import { NumField } from './NumField'
 import { count, fmt, pct, pm } from './simFormat'
+import { hasRates, sig } from '../../core/simLabels'
+import { useRowLink } from './rowLink'
 import { elementRows, laneRows, processRows } from '../../core/simTables'
 import { useWhatIf } from '../whatIf'
 import { CopyTable, DurationHelper, ExportButton, PinButton, WhatIfSection } from './WhatIf'
@@ -144,6 +146,7 @@ function Progress({ done, total }: { done: number; total: number }) {
 
 function Results({ run, stale, unit, onRun }: { run: RunResult; stale: boolean; unit: string; onRun: () => void }) {
   const { result: r, formula: f } = run
+  const rated = hasRates(useEditor((s) => s.model))
   const badgesOn = useRun((s) => s.badgesOn)
   const timed = r.level >= 2
   return (
@@ -184,11 +187,11 @@ function Results({ run, stale, unit, onRun }: { run: RunResult; stale: boolean; 
         </p>
       )}
       <CaseLine r={r} />
-      {timed && <Tiles r={r} f={f} unit={unit} />}
+      {timed && <Tiles r={r} f={f} unit={unit} rated={rated} />}
       {timed && <Strip r={r} f={f} unit={unit} />}
       {timed && <ProcessTable r={r} f={f} unit={unit} />}
-      <ElementTable r={r} f={f} unit={unit} />
-      {timed && r.lanes.length > 0 && <LaneTable r={r} f={f} unit={unit} />}
+      <ElementTable r={r} f={f} unit={unit} rated={rated} />
+      {timed && r.lanes.length > 0 && <LaneTable r={r} f={f} unit={unit} rated={rated} />}
       {timed && <LittleRow r={r} f={f} unit={unit} />}
       {r.unreached.length > 0 && (
         <p className="muted run-unreached" data-testid="run-unreached">
@@ -217,7 +220,7 @@ function CaseLine({ r }: { r: SimResult }) {
   )
 }
 
-function Tiles({ r, f, unit }: { r: SimResult; f?: Analysis; unit: string }) {
+function Tiles({ r, f, unit, rated }: { r: SimResult; f?: Analysis; unit: string; rated: boolean }) {
   const k = r.kpis
   const waitIv = (): Interval | undefined => {
     if (!k.typedWait || !k.resourceWait) return undefined
@@ -231,23 +234,23 @@ function Tiles({ r, f, unit }: { r: SimResult; f?: Analysis; unit: string }) {
       {r.level === 3 && <Tile label="Waiting for a person" iv={k.resourceWait} unit={unit} testid="run-kpi-waitpeople" title="Time spent in queues for a person (the longest chain of each case): the new number level 3 adds" />}
       <Tile label="Waiting in total" iv={waitIv()} unit={unit} formula={f?.waitingTime} testid="run-kpi-wait" title="Typed waiting plus waiting for a person" />
       <Tile label="Efficiency" iv={k.efficiency} percent formula={f?.efficiency} testid="run-kpi-eff" title="Processing ÷ cycle time" />
-      <Tile label="Cost per case" iv={k.cost} formula={f?.cost} testid="run-kpi-cost" title="Task costs and lane costs" />
+      <Tile label="Cost per case" iv={k.cost} formula={f?.cost} testid="run-kpi-cost" title={rated ? 'Task costs and lane costs' : 'No task cost and no lane rate is typed: there is no cost to show (not 0)'} blank={rated ? undefined : 'no rates'} />
     </div>
   )
 }
 
-function Tile({ label, iv, unit, percent, formula, testid, title }: { label: string; iv?: Interval; unit?: string; percent?: boolean; formula?: number; testid: string; title: string }) {
+function Tile({ label, iv, unit, percent, formula, testid, title, blank }: { label: string; iv?: Interval; unit?: string; percent?: boolean; formula?: number; testid: string; title: string; blank?: string }) {
   if (!iv) return null
   const show = (x: number | undefined) => (percent ? pct(x) : fmt(x))
   return (
     <div className="sim-kpi run-kpi" title={title} data-testid={testid}>
       <span className="muted">{label}</span>
       <strong>
-        {show(iv.mean)}
-        {iv.half !== undefined && <small className="run-half"> ± {percent ? pct(iv.half) : fmt(iv.half)}</small>}
-        {unit && <small> {unit}</small>}
+        {blank ? <span className="muted sim-norates">{blank}</span> : show(iv.mean)}
+        {!blank && iv.half !== undefined && <small className="run-half"> ± {percent ? pct(iv.half) : fmt(iv.half)}</small>}
+        {!blank && unit && <small> {unit}</small>}
       </strong>
-      {formula !== undefined && <small className="muted">Formula {show(formula)}</small>}
+      {!blank && formula !== undefined && <small className="muted">Formula {show(formula)}</small>}
     </div>
   )
 }
@@ -342,7 +345,8 @@ function ProcessTable({ r, f, unit }: { r: SimResult; f?: Analysis; unit: string
   )
 }
 
-function ElementTable({ r, f, unit }: { r: SimResult; f?: Analysis; unit: string }) {
+function ElementTable({ r, f, unit, rated }: { r: SimResult; f?: Analysis; unit: string; rated: boolean }) {
+  const row = useRowLink()
   const rows = useMemo(
     () =>
       r.elements.filter((e) => {
@@ -374,16 +378,16 @@ function ElementTable({ r, f, unit }: { r: SimResult; f?: Analysis; unit: string
             {!level1 && <th title={`Average typed waiting before it starts, in ${unit}`}>Typed wait</th>}
             {people && <th title={`Average wait for a person per run, in ${unit}`}>Wait for a person</th>}
             {people && <th title={`Longest wait for a person, in ${unit}`}>Longest wait</th>}
-            {!level1 && <th title="Task cost and lane costs, per case">Cost per case</th>}
+            {!level1 && <th title={rated ? 'Task cost and lane costs, per case' : 'No task cost and no lane rate is typed'}>Cost per case{!rated && <span className="muted"> · no rates</span>}</th>}
           </tr>
         </thead>
         <tbody>
           {rows.map((e) => {
             const step = f?.steps.find((s) => s.id === e.id)
             return (
-              <tr key={e.id} className={people && longest > 0 && e.resourceWait.mean === longest ? 'is-worst' : undefined} data-testid={`run-el:${e.name}`}>
-                <td>
-                  <button className="link" onClick={() => select(e.id)}>
+              <tr key={e.id} {...row(e.id, people && longest > 0 && e.resourceWait.mean === longest ? 'is-worst' : undefined)} data-testid={`run-el:${e.name}`}>
+                <td className="sim-name">
+                  <button className="link" onClick={() => select(e.id)} title={e.name || e.type}>
                     {e.name || e.type}
                   </button>
                 </td>
@@ -406,7 +410,7 @@ function ElementTable({ r, f, unit }: { r: SimResult; f?: Analysis; unit: string
   )
 }
 
-function LaneTable({ r, f, unit }: { r: SimResult; f?: Analysis; unit: string }) {
+function LaneTable({ r, f, unit, rated }: { r: SimResult; f?: Analysis; unit: string; rated: boolean }) {
   const people = r.level === 3
   const cases = Math.max(1, r.started)
   return (
@@ -422,7 +426,7 @@ function LaneTable({ r, f, unit }: { r: SimResult; f?: Analysis; unit: string })
             {people && <th title="Average number of cases waiting for this lane, and the longest queue seen">Queue avg · longest</th>}
             {people && <th title={`Average wait for a person per request, in ${unit}`}>Wait (run)</th>}
             {people && <th title={`Estimate from queueing theory (M/M/c, Erlang C): random arrivals and times, one queue. In ${unit}`}>Wait (M/M/c est.)</th>}
-            <th title="Lane costs per case">Cost per case</th>
+            <th title="Lane costs per case">Cost per case{!rated && <span className="muted"> · no rates</span>}</th>
           </tr>
         </thead>
         <tbody>
@@ -465,12 +469,12 @@ function LittleRow({ r, f, unit }: { r: SimResult; f?: Analysis; unit: string })
   const formulaWip = f?.cycleTime !== undefined && r.arrivals ? r.arrivals * f.cycleTime : undefined
   return (
     <p className="sim-little run-little" data-testid="run-little">
-      <strong>Little's law:</strong> cases open at once = completed per {per} × cycle time. Run: {fmt(k.wip.mean)} open on average; {fmt(k.throughput.mean, 3)} per {per} × {fmt(k.cycleTime.mean)} {unit} = {fmt(product)}
+      <strong>Little's law:</strong> cases open at once = completed per {per} × cycle time. Run: {fmt(k.wip.mean)} open on average; {sig(k.throughput.mean, 2)} per {per} × {fmt(k.cycleTime.mean)} {unit} = {fmt(product)}
       {r.stuck + r.open === 0 ? ' (equal: it holds for every run in which all cases complete).' : ' (not equal: some cases did not complete).'}
       {formulaWip !== undefined && (
         <>
           {' '}
-          Formula: {fmt(r.arrivals)} new per {per} × {fmt(f!.cycleTime)} {unit} = {fmt(formulaWip)}.
+          Formula: {sig(r.arrivals)} new per {per} × {fmt(f!.cycleTime)} {unit} = {fmt(formulaWip)}.
         </>
       )}
     </p>

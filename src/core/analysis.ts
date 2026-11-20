@@ -9,6 +9,7 @@
 // One process level is solved at a time (a pool's top level, a sub-process's content) by iterating the
 // expected value of every step until it settles, which handles loops of any shape. Boundary events and
 // messages from other pools are not part of the figures (the notes say so when the model has them).
+import { labelOf } from './simLabels'
 import type { Flow, FlowModel, FlowNode, TimeUnit } from './metamodel'
 import { isArtifact } from './metamodel'
 import { mmc } from './queue'
@@ -91,7 +92,6 @@ const scale = (a: Totals, k: number): Totals => ({ time: a.time * k, proc: a.pro
 const together = (xs: Totals[]): Totals => ({ time: Math.max(0, ...xs.map((x) => x.time)), proc: Math.max(0, ...xs.map((x) => x.proc)), cost: xs.reduce((s, x) => s + x.cost, 0) })
 
 const DECIDES = ['exclusive', 'inclusive', 'complex', 'eventBased']
-const name = (n: FlowNode) => n.name || n.id
 
 export const isDecision = (n: FlowNode | undefined, outs: number) => n?.type === 'gateway' && DECIDES.includes(n.kind) && outs > 1
 export const isParallelSplit = (n: FlowNode | undefined, outs: number) => outs > 1 && !!n && !(n.type === 'gateway' && DECIDES.includes(n.kind))
@@ -159,6 +159,8 @@ export function analyseModel(m: FlowModel): Analysis[] {
 }
 
 function analyse(m: FlowModel, top: FlowNode[], poolId: string | undefined, title: string): Analysis {
+  /** Rows and notes read the same everywhere: the lane when a name repeats, "XOR before …" for an unnamed gateway. */
+  const name = (n: FlowNode) => labelOf(m, n.id)
   const notes = new Set<string>()
   const note = (t: string) => notes.add(t)
   const steps: StepFigures[] = []

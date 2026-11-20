@@ -16,6 +16,7 @@
 import type { Flow, FlowModel, FlowNode, LoopKind, Shape, TimeUnit } from './metamodel'
 import { isArtifact } from './metamodel'
 import { branchShares, convertTime, isDecision, matchingJoin } from './analysis'
+import { labelOf } from './simLabels'
 import { hashSeed, makeRng, streamFor, sample, validateShape, type Rng } from './random'
 
 export type SimLevel = 1 | 2 | 3
@@ -597,7 +598,7 @@ export class Simulation {
     for (const n of steps) {
       const outs = seq.filter((f) => f.source === n.id)
       const ins = seq.filter((f) => f.target === n.id)
-      const name = n.name || n.id
+      const name = labelOf(m, n.id)
       const sim = n.sim ?? {}
       const eo = ov.elements?.[n.id]
       const info: Info = {

@@ -71,6 +71,11 @@ export function ShapeCell({ node, which, unit }: { node: FlowNode; which: 'durat
           </option>
         ))}
       </select>
+      {needsFigure && (
+        <span className="sim-shape-hint" data-testid={`${which}-hint:${name}`}>
+          enter {which === 'duration' ? 'Duration' : 'Waiting'} first
+        </span>
+      )}
       {shape &&
         PARAMS[shape.kind].map((p) => (
           <NumField

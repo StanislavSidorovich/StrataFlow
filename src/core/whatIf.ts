@@ -7,6 +7,7 @@ import { branchShares, isDecision, UNIT_NAMES } from './analysis'
 import type { FlowModel, TimeUnit } from './metamodel'
 import { parseNum } from './number'
 import { ModelError, flowOf, laneOf, nodeOf, setCapacity, setFires, setProbability, setSim, setSimSettings } from './ops'
+import { foldRepeats, labelOf, plainLabel } from './simLabels'
 import type { SimOverrides, SimResult } from './simulate'
 
 export type Change =
@@ -41,7 +42,8 @@ export interface Choice {
   label: string
 }
 
-const nm = (m: FlowModel, id: string) => nodeOf(m, id)?.name || nodeOf(m, id)?.type || id
+const nmFull = (m: FlowModel, id: string) => (nodeOf(m, id) ? labelOf(m, id) : id)
+const nm = nmFull
 
 const isActivity = (m: FlowModel, id: string) => {
   const n = nodeOf(m, id)
@@ -99,7 +101,7 @@ export function picksFor(m: FlowModel, kind: ChangeKind): Choice[] {
     case 'branch':
       return m.flows.filter((f) => isBranch(m, f.id)).map((f) => ({ id: f.id, label: flowLabel(m, f.id) }))
     default:
-      return m.nodes.filter((n) => validTarget(m, kind, n.id)).map((n) => ({ id: n.id, label: n.name || n.type }))
+      return m.nodes.filter((n) => validTarget(m, kind, n.id)).map((n) => ({ id: n.id, label: nm(m, n.id) }))
   }
 }
 
@@ -228,7 +230,9 @@ const r = (x: number) => String(Math.round(x * 1e4) / 1e4)
 const pc = (x: number | undefined) => (x === undefined ? '?' : `${Math.round(x * 1000) / 10} %`)
 
 /** "Packer 1 → 2", "arrivals × 1.5", "Pack goods time 1 → 0.5 h", "skip Check stock". */
-export function describeChange(m: FlowModel, c: Change): string {
+export function describeChange(m: FlowModel, c: Change, plain = false): string {
+  /** `plain`: the name without its lane, so that the same change on three equal names can be folded. */
+  const nm = (mm: FlowModel, id: string) => (plain && nodeOf(mm, id) ? plainLabel(mm, id) : nmFull(mm, id))
   const unit = UNIT_NAMES[m.sim?.unit ?? 'min']
   switch (c.kind) {
     case 'arrivals':
@@ -239,11 +243,11 @@ export function describeChange(m: FlowModel, c: Change): string {
     case 'wait': {
       const n = nodeOf(m, c.id)
       const was = n?.sim?.[c.kind]
-      return `${n ? n.name || n.type : c.id} ${c.kind === 'wait' ? 'wait' : 'time'} ${was === undefined ? '0' : r(was)} → ${r(c.value)} ${unit}`
+      return `${n ? nm(m, c.id) : c.id} ${c.kind === 'wait' ? 'wait' : 'time'} ${was === undefined ? '0' : r(was)} → ${r(c.value)} ${unit}`
     }
     case 'cost': {
       const n = nodeOf(m, c.id)
-      return `${n ? n.name || n.type : c.id} cost ${n?.sim?.cost === undefined ? '0' : r(n.sim.cost)} → ${r(c.value)}`
+      return `${n ? nm(m, c.id) : c.id} cost ${n?.sim?.cost === undefined ? '0' : r(n.sim.cost)} → ${r(c.value)}`
     }
     case 'branch': {
       const f = flowOf(m, c.id)
@@ -253,11 +257,16 @@ export function describeChange(m: FlowModel, c: Change): string {
     }
     case 'fires': {
       const n = nodeOf(m, c.id)
-      return `${n ? n.name || 'boundary event' : c.id} chance ${pc(n?.sim?.fires ?? 0)} → ${pc(c.value)}`
+      return `${n ? nm(m, c.id) : c.id} chance ${pc(n?.sim?.fires ?? 0)} → ${pc(c.value)}`
     }
     case 'skip':
       return `skip ${nodeOf(m, c.id) ? nm(m, c.id) : c.id}`
   }
+}
+
+/** The changes of a scenario as short lines: the same change on equal names reads "Check stock wait 2 → 1 h ×3". */
+export function describeChanges(m: FlowModel, cs: Change[]): string[] {
+  return foldRepeats(cs.map((c) => describeChange(m, c, true)))
 }
 
 /** Why a change cannot be added yet, or nothing. */
