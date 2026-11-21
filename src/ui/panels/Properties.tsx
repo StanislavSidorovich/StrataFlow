@@ -31,6 +31,7 @@ import {
   rename,
   setCollapsed,
   resetFlowRoute,
+  setFlowLabelOffset,
   reverseFlow,
   setDefaultFlow,
   setFlow,
@@ -372,6 +373,11 @@ function FlowProps({ model, id }: { model: FlowModel; id: string }) {
         {(model.diagram.edges[id] || f.sourceSide || f.targetSide) && (
           <button className="btn" onClick={() => apply((m) => resetFlowRoute(m, id))} title="Forget the bends and sides you chose: the line is routed by itself again" data-testid="auto-route">
             <Route size={14} /> Auto route
+          </button>
+        )}
+        {f.labelOffset && f.name && (
+          <button className="btn" onClick={() => apply((m) => setFlowLabelOffset(m, id, null))} title="Put the name back where it is placed by itself" data-testid="reset-label">
+            <Route size={14} /> Reset name
           </button>
         )}
       </div>

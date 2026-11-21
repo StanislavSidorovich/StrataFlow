@@ -17,7 +17,7 @@ export function edgeLabelBoxes(m: FlowModel, flows: Flow[], paths: Map<string, P
   return flows
     .filter((f) => f.name && paths.has(f.id))
     .map((f) => {
-      const box = labelBox(paths.get(f.id)!, f.name, solid.map((n) => shapes[n.id]))
+      const box = labelBox(paths.get(f.id)!, f.name, solid.map((n) => shapes[n.id]), f.labelOffset)
       const inner = { x: box.x + 1, y: box.y + 1, width: box.width - 2, height: box.height - 2 }
       const onLine = [...paths.values()].some((pts) => pts.slice(1).some((p, i) => hitsRect(pts[i], p, inner)))
       const onShape = solid.some((n) => shapes[n.id].x < inner.x + inner.width && inner.x < shapes[n.id].x + shapes[n.id].width && shapes[n.id].y < inner.y + inner.height && inner.y < shapes[n.id].y + shapes[n.id].height)

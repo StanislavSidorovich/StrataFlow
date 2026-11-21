@@ -65,6 +65,8 @@ export function parseModel(text: string): FlowModel {
   }
   for (const f of m.flows) {
     f.name ??= ''
+    const o = f.labelOffset
+    if (o !== undefined && !(o && typeof o === 'object' && Number.isFinite(o.dx) && Number.isFinite(o.dy))) delete f.labelOffset
     for (const end of [f.source, f.target]) if (!nodes.has(end) && !pools.has(end)) fail(`Flow ${f.id}: no element ${end}`)
   }
   sanitizeSim(m)

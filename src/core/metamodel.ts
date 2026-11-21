@@ -118,6 +118,8 @@ export interface Flow {
   /** The side of the source / target the flow leaves / enters by, when the user chose it (else the facing sides). */
   sourceSide?: Side
   targetSide?: Side
+  /** Where the user dragged the name: its distance from the place the app would put it (follows the line when it is re-routed). Absent = the default place. */
+  labelOffset?: { dx: number; dy: number }
 }
 
 export type Side = 'top' | 'right' | 'bottom' | 'left'

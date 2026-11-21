@@ -1184,6 +1184,10 @@ h2.with-help {
   pointer-events: all;
   z-index: 5;
 }
+.bpmn-edge-label.is-movable {
+  cursor: grab;
+  touch-action: none;
+}
 .help-card h2 {
   font-size: 17px;
   margin-bottom: 4px;

@@ -1,15 +1,17 @@
 // BPMN connections: sequence (solid, filled arrow), message (dashed, open circle → open arrow),
 // association and data association (dotted). Drawn along DI waypoints; without them (a new flow, or an
 // end has moved) routed orthogonally between the sides of the two shapes that face each other.
-import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, Position, useInternalNode, useStore, type Edge, type EdgeProps, type InternalNode } from '@xyflow/react'
+import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, Position, useInternalNode, useReactFlow, useStore, type Edge, type EdgeProps, type InternalNode } from '@xyflow/react'
 import type { Bounds, FlowKind, Point, Side } from '../../core/metamodel'
 import { labelBox } from '../../core/edgeLabel'
 import { pathWithJumps } from '../../core/jumps'
 import { route, routeSides } from '../../core/routing'
+import { setFlowLabelOffset } from '../../core/ops'
+import { useEditor } from '../store'
 import { ChangeBadge, type ChangeMark } from './nodes'
 import './edge-label.css'
 
-export type FlowData = { kind: FlowKind; name: string; points?: { x: number; y: number }[]; sourceSide?: Side; targetSide?: Side; isDefault?: boolean; conditional?: boolean; passed?: boolean; drop?: boolean; change?: ChangeMark; ghost?: boolean; draw?: 'source' | 'target'; jumps?: Point[] }
+export type FlowData = { kind: FlowKind; name: string; points?: { x: number; y: number }[]; sourceSide?: Side; targetSide?: Side; isDefault?: boolean; conditional?: boolean; labelOffset?: { dx: number; dy: number }; passed?: boolean; drop?: boolean; change?: ChangeMark; ghost?: boolean; draw?: 'source' | 'target'; jumps?: Point[] }
 export type FlowEdge = Edge<FlowData, 'flow'>
 
 export type Box = { x: number; y: number; w: number; h: number; pool: boolean }
@@ -79,6 +81,7 @@ export function BpmnEdge({ id, source, target, data, sourceX, sourceY, targetX, 
   const sb = boxOf(useInternalNode(source))
   const tb = boxOf(useInternalNode(target))
   // The shapes this flow must not run through (shared by all flows, so one subscription is cheap).
+  const rf = useReactFlow()
   const lookup = useStore((s) => s.nodeLookup)
   if (sb && tb) {
     const [sp, tp] = facingSides(sb, tb, data?.kind === 'message')
@@ -99,12 +102,37 @@ export function BpmnEdge({ id, source, target, data, sourceX, sourceY, targetX, 
   if (pts && pts.length >= 2) {
     path = pathWithJumps(pts, data?.jumps)
     // The name sits beside the start of the line, off it (core/edgeLabel: the layout measure reads the same rule).
-    const box = labelBox(pts, data?.name ?? '', [...lookup.values()].filter((n) => n.type === 'shape').map((n) => { const b = boxOf(n)!; return { x: b.x, y: b.y, width: b.w, height: b.h } }))
+    const box = labelBox(pts, data?.name ?? '', [...lookup.values()].filter((n) => n.type === 'shape').map((n) => { const b = boxOf(n)!; return { x: b.x, y: b.y, width: b.w, height: b.h } }), data?.labelOffset)
     labelX = box.x
     labelY = box.y
     placed = true
   } else {
     ;[path, labelX, labelY] = getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 0 })
+    labelX += data?.labelOffset?.dx ?? 0
+    labelY += data?.labelOffset?.dy ?? 0
+  }
+  // Drag the name to move it off whatever it overlaps: the distance from its default place is kept in the flow (one undo step per drag).
+  const draggable = !!data?.name && !data.ghost && !data.change && !data.draw
+  const startDrag = (e: React.PointerEvent) => {
+    if (!draggable || e.button !== 0) return
+    e.stopPropagation()
+    e.preventDefault()
+    const from = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY })
+    const base = data?.labelOffset ?? { dx: 0, dy: 0 }
+    let moved = false
+    const move = (ev: PointerEvent) => {
+      const p = rf.screenToFlowPosition({ x: ev.clientX, y: ev.clientY })
+      if (!moved && Math.hypot(p.x - from.x, p.y - from.y) < 3) return
+      moved = true
+      useEditor.getState().apply((m) => setFlowLabelOffset(m, id, { dx: base.dx + p.x - from.x, dy: base.dy + p.y - from.y }), { coalesce: `label:${id}` })
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      if (!moved) useEditor.getState().select([id])
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
   }
   const marker = kind === 'sequence' ? 'url(#bpmn-arrow)' : kind === 'message' ? 'url(#bpmn-open-arrow)' : kind === 'data' ? 'url(#bpmn-line-arrow)' : undefined
   return (
@@ -126,7 +154,7 @@ export function BpmnEdge({ id, source, target, data, sourceX, sourceY, targetX, 
       )}
       {data?.name && (
         <EdgeLabelRenderer>
-          <div className={`bpmn-edge-label${placed ? ' is-placed' : ''} nodrag nopan`} style={{ transform: placed ? `translate(${labelX}px, ${labelY}px)` : `translate(-50%, -100%) translate(${labelX}px, ${labelY - 2}px)` }}>
+          <div className={`bpmn-edge-label${placed ? ' is-placed' : ''}${draggable ? ' is-movable' : ''} nodrag nopan`} onPointerDown={startDrag} title={draggable ? 'Drag to move the name' : undefined} style={{ transform: placed ? `translate(${labelX}px, ${labelY}px)` : `translate(-50%, -100%) translate(${labelX}px, ${labelY - 2}px)` }}>
             {data.name}
           </div>
         </EdgeLabelRenderer>

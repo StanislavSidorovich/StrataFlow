@@ -13,6 +13,7 @@
 // - the content of a collapsed sub-process is drawn in a diagram of its own, as bpmn.io does.
 import { BpmnModdle } from 'bpmn-moddle'
 import { obstaclesOf } from '../ops'
+import { labelBox } from '../edgeLabel'
 import { route } from '../routing'
 import { isArtifact, type Bounds, type EventTrigger, type FlowModel, type FlowNode, type GatewayKind, type Lane, type LoopKind, type Point, type TaskKind } from '../metamodel'
 
@@ -384,7 +385,7 @@ export async function writeBpmn(m: FlowModel, opts: WriteOptions = {}): Promise<
     const ends = [node(f.source), node(f.target)].filter(Boolean).map((n) => hidden(n!))
     const plane = planeOf(ends.find((h) => h !== undefined) && ends.every((h) => h === ends[0]) ? ends[0] : undefined)
     const waypoint = () => pts.map((p) => make('dc:Point', { x: Math.round(p.x) + shift, y: Math.round(p.y) }))
-    plane.push(make('bpmndi:BPMNEdge', { id: fresh(`${f.id}_di`), bpmnElement: el.get(f.id), waypoint: waypoint(), ...label(flowLabel(f.name, pts)) }))
+    plane.push(make('bpmndi:BPMNEdge', { id: fresh(`${f.id}_di`), bpmnElement: el.get(f.id), waypoint: waypoint(), ...label(f.name && f.labelOffset ? labelBox(pts, f.name, labelObstacles(m), f.labelOffset) : flowLabel(f.name, pts)) }))
     const line = lines.get(f.id)
     if (line) plane.push(make('bpmndi:BPMNEdge', { id: fresh(`${line.id}_di`), bpmnElement: line, waypoint: waypoint() }))
   }
@@ -412,7 +413,12 @@ function outerLabel(n: FlowNode, b: Bounds): Bounds | undefined {
 }
 
 /** A flow's name sits on the middle of its longest segment, as on the canvas. */
-function flowLabel(name: string, pts: Point[]): Bounds | undefined {
+/** The shapes a flow's name keeps clear of on the canvas: every step, event, gateway, data and note. */
+export function labelObstacles(m: FlowModel): Bounds[] {
+  return m.nodes.flatMap((n) => (m.diagram.shapes[n.id] ? [m.diagram.shapes[n.id]] : []))
+}
+
+export function flowLabel(name: string, pts: Point[]): Bounds | undefined {
   if (!name || pts.length < 2) return undefined
   let best = 0
   const len = (i: number) => Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y)

@@ -89,7 +89,9 @@ export async function planLayout(src: FlowModel): Promise<LayoutPlan> {
   // A large drawing is laid out once (routing is the cost); a small one is cheap to lay out again, and the
   // variant of elkjs's ordering with the tidiest result wins.
   if (src.nodes.length > SMALL_MODEL) {
-    const bounds = await planShapes(src, VARIANTS[0])
+    // Twice: the second pass reads the first one's rows, so laying out again changes nothing.
+    const first = await planShapes(src, VARIANTS[0])
+    const bounds = await planShapes(shapesFor(first), VARIANTS[0])
     return { bounds, routes: await routeFlows(shapesFor(bounds)) }
   }
   let best: { bounds: Record<string, Bounds>; score: number; variant: number } | undefined
@@ -163,7 +165,8 @@ async function planShapes(src: FlowModel, variant: Record<string, string>): Prom
     return s
   }
   // Members in band order, then by where they were: elkjs keeps that order where it can.
-  const ordered = [...steps].sort((a, b) => shapes[a.id].y - shapes[b.id].y || shapes[a.id].x - shapes[b.id].x)
+  const midY = (n: FlowNode) => shapes[n.id].y + shapes[n.id].height / 2
+  const ordered = [...steps].sort((a, b) => midY(a) - midY(b) || shapes[a.id].x - shapes[b.id].x)
   for (const n of ordered) scope(scopeKeyOf(n)).members.push(n)
   for (const s of scopes.values()) s.members.sort((a, b) => s.bandOf(a) - s.bandOf(b))
 
@@ -326,19 +329,22 @@ async function layoutScope(s: Scope, sizeOf: (n: FlowNode) => Size, rep: (id: st
     // Rows: steps sorted by elkjs's height; a step joins the last row when level with it and not in its way.
     const items = s.members.filter((n) => s.bandOf(n) === band).sort((a, b) => pos.get(a.id)!.cy - pos.get(b.id)!.cy)
     const rows: { anchor: number; ids: string[]; height: number }[] = []
+    const reach = m.nodes.length > SMALL_MODEL ? Infinity : ROW_SNAP
     for (const n of items) {
       const p = pos.get(n.id)!
       const w = sizeOf(n).width
-      const last = rows.at(-1)
-      const clash = last?.ids.some((id) => {
+      // The row nearest to where elkjs put it among those it fits in (no step of the row in its columns), within reach.
+      const fits = rows.filter((r) => !r.ids.some((id) => {
         const q = pos.get(id)!
         return p.x < q.x + sizeOf(nodeOf(m, id)!).width + 10 && q.x < p.x + w + 10
-      })
-      if (last && !clash && Math.abs(p.cy - last.anchor) <= ROW_SNAP) {
-        last.ids.push(n.id)
-        last.height = Math.max(last.height, sizeOf(n).height)
+      }))
+      const row = fits.filter((r) => Math.abs(p.cy - r.anchor) <= reach).sort((a, b) => Math.abs(p.cy - a.anchor) - Math.abs(p.cy - b.anchor))[0]
+      if (row) {
+        row.ids.push(n.id)
+        row.height = Math.max(row.height, sizeOf(n).height)
       } else rows.push({ anchor: p.cy, ids: [n.id], height: sizeOf(n).height })
     }
+    rows.sort((a, b) => a.anchor - b.anchor)
     let y = PAD_TOP
     for (const r of rows) {
       for (const id of r.ids) {

@@ -375,6 +375,16 @@ export function setFlowRoute(m: FlowModel, flowId: string, route: { source?: Sid
   } else if (route.source !== undefined || route.target !== undefined) delete m.diagram.edges[flowId]
 }
 
+/** Moves the name of a flow by (dx, dy) from its default place; null puts it back. Whole units, so files stay tidy. */
+export function setFlowLabelOffset(m: FlowModel, flowId: string, offset: { dx: number; dy: number } | null): void {
+  const f = flowOf(m, flowId)
+  if (!f) throw new ModelError(`No flow ${flowId}`)
+  const dx = offset ? Math.round(offset.dx) : 0
+  const dy = offset ? Math.round(offset.dy) : 0
+  if (!offset || !Number.isFinite(dx) || !Number.isFinite(dy) || (dx === 0 && dy === 0)) delete f.labelOffset
+  else f.labelOffset = { dx, dy }
+}
+
 /** Back to the automatic route: sides facing each other, no bends of the user's. */
 export function resetFlowRoute(m: FlowModel, flowId: string): void {
   setFlowRoute(m, flowId, { source: null, target: null, points: null })

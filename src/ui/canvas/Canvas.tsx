@@ -185,6 +185,7 @@ export function toEdges(model: FlowModel, selected: Set<string>, page: string | 
         points: model.diagram.edges[f.id],
         sourceSide: f.sourceSide,
         targetSide: f.targetSide,
+        labelOffset: f.labelOffset,
         isDefault: src?.type === 'gateway' && src.defaultFlow === f.id,
         conditional: !!f.condition && src?.type !== 'gateway',
         passed: passed.has(f.id),

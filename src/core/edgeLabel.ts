@@ -42,7 +42,13 @@ function candidates(pts: Point[], i: number, width: number, height: number, lead
  * the flow's own other segments; when every place is taken, the first choice. A short first segment (under the
  * label's length) is tried last, since the label would hang past its bend.
  */
-export function labelBox(pts: Point[], name: string, obstacles: Bounds[] = []): Bounds {
+export function labelBox(pts: Point[], name: string, obstacles: Bounds[] = [], offset?: { dx: number; dy: number }): Bounds {
+  const home = labelHome(pts, name, obstacles)
+  return offset ? { ...home, x: home.x + offset.dx, y: home.y + offset.dy } : home
+}
+
+/** The default place of a flow's name, before the user moves it. */
+export function labelHome(pts: Point[], name: string, obstacles: Bounds[] = []): Bounds {
   const { width, height } = labelSize(name)
   const len = (k: number) => Math.abs(pts[k + 1].x - pts[k].x) + Math.abs(pts[k + 1].y - pts[k].y)
   const order = pts.slice(1).map((_, k) => k)

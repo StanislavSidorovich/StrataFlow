@@ -5,7 +5,8 @@
 import { BpmnModdle } from 'bpmn-moddle'
 import { pageOf, place } from '../ops'
 import { cleanShape } from '../random'
-import { SIM_NS } from './write'
+import { labelHome } from '../edgeLabel'
+import { SIM_NS, flowLabel, labelObstacles } from './write'
 import { isArtifact, type Bounds, type EventTrigger, type Flow, type FlowModel, type FlowNode, type GatewayKind, type Lane, type LoopKind, type Participant, type SimFigures, type SimSettings, type TaskKind } from '../metamodel'
 
 /** A moddle element: typed loosely on purpose, the reader checks `$type` itself. */
@@ -217,6 +218,7 @@ export async function readBpmn(xml: string): Promise<ReadResult> {
   const shapes: FlowModel['diagram']['shapes'] = {}
   const edges: FlowModel['diagram']['edges'] = {}
   const expanded = new Set<string>()
+  const labels: Record<string, Bounds> = {} // a flow's name: where the file draws it
   const keptIds = new Set(kept.map((f) => f.id))
   for (const diagram of (defs.diagrams ?? []) as El[])
     for (const d of (diagram.plane?.planeElement ?? []) as El[]) {
@@ -227,7 +229,11 @@ export async function readBpmn(xml: string): Promise<ReadResult> {
         const { x, y, width, height } = d.bounds as Bounds
         shapes[ref] = { x, y, width, height }
         if (d.isExpanded) expanded.add(ref)
-      } else if (d.$type === 'bpmndi:BPMNEdge') edges[ref] = ((d.waypoint ?? []) as El[]).map((p) => ({ x: p.x, y: p.y }))
+      } else if (d.$type === 'bpmndi:BPMNEdge') {
+        edges[ref] = ((d.waypoint ?? []) as El[]).map((p) => ({ x: p.x, y: p.y }))
+        const lb = d.label?.bounds as Bounds | undefined
+        if (lb && Number.isFinite(lb.x) && Number.isFinite(lb.y)) labels[ref] = lb
+      }
     }
   for (const lane of lanes) {
     const pool = lane.participantId ? shapes[lane.participantId] : undefined
@@ -269,6 +275,19 @@ export async function readBpmn(xml: string): Promise<ReadResult> {
 
   const name = (collaboration?.name || processes.find((p) => poolOf.has(p.id))?.name || (participants.length ? '' : processes[0]?.name) || '').trim()
   const model: FlowModel = { format: 'strata-flow', version: 1, name, participants, lanes, nodes, flows: kept, diagram: { shapes, edges } }
+  // A name the file draws away from where our writer puts it was moved by hand: keep it as an offset from where the canvas puts it.
+  const obstacles = labelObstacles(model)
+  for (const f of kept) {
+    const lb = labels[f.id]
+    const pts = edges[f.id]
+    if (!lb || !f.name || !pts || pts.length < 2) continue
+    const auto = flowLabel(f.name, pts)!
+    if (Math.abs(lb.x - auto.x) <= 2 && Math.abs(lb.y - auto.y) <= 2) continue
+    const home = labelHome(pts, f.name, obstacles)
+    const dx = Math.round(lb.x - home.x)
+    const dy = Math.round(lb.y - home.y)
+    if (dx || dy) f.labelOffset = { dx, dy }
+  }
   // Data and annotations belong to no lane in BPMN: like the editor, put them where they sit.
   // On a collapsed sub-process's page they take its pool and lane, as steps drawn there do.
   for (const n of nodes) {

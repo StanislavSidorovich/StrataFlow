@@ -7,6 +7,7 @@ import { addNode, addPool } from '../src/core/ops'
 import { autoLayout } from '../src/core/layout'
 import { labelProblems, layoutQuality } from '../src/core/layoutQuality'
 import { CASES } from './fixtures/cases'
+import { drawThreePoolModel } from './fixtures/three-pool-model'
 import { drawWideModel } from './fixtures/wide-model'
 
 /** Auto layout before the rewrite, measured the same way: lines through shapes, crossings, bends, end events not last, names on lines. */
@@ -92,5 +93,38 @@ describe('auto layout quality', () => {
     const q = layoutQuality(m)
     expect(q).toMatchObject({ lineThroughShape: 0, shapeOverlaps: 0, endNotRightmost: 0 })
     expect(Date.now() - t).toBeLessThan(30000)
+  }, 60000)
+})
+
+// A large collaboration (35 tasks, three pools, four lanes, event gateways, boundary timers, loops, messages) scattered
+// on purpose. Before v0.22.0 the lanes grew a row for every distinct height elkjs chose (Sales 826 px, the drawing 2266 px
+// tall for 58 shapes); steps whose columns do not meet now share a row.
+describe('auto layout of a large collaboration', () => {
+  const lay = async () => {
+    const m = emptyModel('Three pools')
+    drawThreePoolModel(m)
+    expect(m.nodes.filter((n) => n.type === 'task').length).toBeGreaterThanOrEqual(30)
+    await autoLayout(m)
+    return m
+  }
+
+  it('is tidy and compact: no overlaps or lines through shapes, lanes no taller than their parallel branches need', async () => {
+    const m = await lay()
+    const q = layoutQuality(m)
+    expect(q).toMatchObject({ lineThroughShape: 0, shapeOverlaps: 0, endNotRightmost: 0 })
+    expect(q.labelsOnLine, JSON.stringify(labelProblems(m))).toBeLessThanOrEqual(2)
+    expect(q.lineCrossings).toBeLessThanOrEqual(90)
+    expect(q.bends).toBeLessThanOrEqual(140)
+    const pools = m.participants.map((p) => m.diagram.shapes[p.id])
+    const height = Math.max(...pools.map((s) => s.y + s.height)) - Math.min(...pools.map((s) => s.y))
+    expect(height, 'height of all pools together').toBeLessThanOrEqual(1700)
+    for (const l of m.lanes) expect(m.diagram.shapes[l.id].height, `lane ${l.name}`).toBeLessThanOrEqual(450)
+  }, 60000)
+
+  it('laying out again gives the same drawing', async () => {
+    const m = await lay()
+    const once = JSON.stringify(m.diagram)
+    await autoLayout(m)
+    expect(JSON.stringify(m.diagram)).toBe(once)
   }, 60000)
 })
