@@ -1,4 +1,11 @@
-// A copy of the model that Bizagi Modeler's Simulation View accepts (v0.21.2).
+// A copy of the model that Bizagi Modeler's Simulation View accepts (v0.21.2, names on flows v0.22.1).
+// 2026-11-21, tried in Bizagi on cut-down copies and then on the whole AS-IS model: the simulation fails or loses its
+// cases when (1) an event gateway stands in the model (cases vanish at it: an exclusive gateway runs), (2) an
+// imported waiting event carries StrataFlow's figure attributes `sf:wait...` (the same event drawn in Bizagi runs; with
+// the attributes taken off it runs too), and (3) a sequence flow after a gateway has a NAME (Yes / No): the same
+// model runs when the flows carry no name (a name on the gateway itself is fine). The copy therefore drops the flow
+// names (`droppedNames`); the gateway keeps its question.
+
 // Tried in Bizagi on cut-down copies of one real model: a timer or message event that WAITS (an intermediate
 // catch event) after a gateway makes "The simulation has failed" at once, with an event-based gateway as well as
 // with an exclusive one; the same model with those waits drawn as activities simulates. So for the copy a waiting
@@ -15,6 +22,8 @@ export interface SimCopy {
   gateways: string[]
   /** End events removed because a sibling branch of the same exclusive gateway already ends in another one. */
   mergedEnds: string[]
+  /** Sequence flows whose name was left out (Bizagi's simulation fails on a named flow after a gateway). */
+  droppedNames: number
 }
 
 const WAITING = ['timer', 'message', 'signal', 'conditional'] as const
@@ -53,7 +62,26 @@ export function forBizagiSimulation(model: FlowModel): SimCopy {
   // A flow's drawn route ends at the old, smaller shape: let the writer route it again.
   for (const f of m.flows) if (waits.includes(f.source) || waits.includes(f.target)) delete m.diagram.edges[f.id]
   const mergedEnds = mergeSiblingEnds(m)
-  return { model: m, waits, gateways, mergedEnds }
+  let droppedNames = 0
+  for (const f of m.flows) {
+    if (f.kind !== 'sequence' || !f.name) continue
+    f.name = ''
+    delete f.labelOffset
+    droppedNames++
+  }
+  return { model: m, waits, gateways, mergedEnds, droppedNames }
+}
+
+/**
+ * The numbers sheet is written from the copy, but a share of a flow is clearer with its name ("Yes"): the names the
+ * copy dropped are read back from the model they came from, by flow id.
+ */
+export function restoreFlowNames(copy: FlowModel, original: FlowModel): void {
+  const names = new Map(original.flows.map((f) => [f.id, f.name]))
+  for (const f of copy.flows) {
+    const name = names.get(f.id)
+    if (!f.name && name) f.name = name
+  }
 }
 
 const isPlainEnd = (n: FlowNode | undefined): boolean =>

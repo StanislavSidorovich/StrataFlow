@@ -130,18 +130,18 @@ export async function exportBpmn(): Promise<{ note: string; problems: number } |
 /** Export for Bizagi's Simulation View: waiting events drawn as activities, event gateways exclusive (see `simCopy`). */
 export async function exportBizagiSimulation(): Promise<{ note: string; problems: number } | null> {
   const { model } = useEditor.getState()
-  let made = { waits: 0, gateways: 0 }
+  let made = { waits: 0, gateways: 0, names: 0 }
   const name = await saveExport(`${fileBaseName(model.name)}-bizagi-sim.bpmn`, 'bpmn', async () => {
     const { writeBpmn } = await import('../core/bpmn/write')
     const { collapseForBizagi } = await import('../core/bpmn/pages')
     const { forBizagiSimulation } = await import('../core/bpmn/simCopy')
     const copy = forBizagiSimulation(collapseForBizagi(model).model)
-    made = { waits: copy.waits.length, gateways: copy.gateways.length }
+    made = { waits: copy.waits.length, gateways: copy.gateways.length, names: copy.droppedNames }
     return new Blob([await writeBpmn(copy.model)], { type: 'application/xml' })
   })
   if (!name) return null
-  const what = [made.waits ? `${made.waits} waiting ${made.waits === 1 ? 'event' : 'events'} drawn as activities` : '', made.gateways ? `${made.gateways} event-based ${made.gateways === 1 ? 'gateway' : 'gateways'} made exclusive` : ''].filter(Boolean).join(', ')
-  return { note: `Exported ${name} for Bizagi's Simulation View${what ? `: ${what}` : ''}. Bizagi stops the simulation at a timer or message wait after a gateway. Use Export numbers for Bizagi for the figures; your drawing here is unchanged.`, problems: 0 }
+  const what = [made.waits ? `${made.waits} waiting ${made.waits === 1 ? 'event' : 'events'} drawn as activities` : '', made.gateways ? `${made.gateways} event-based ${made.gateways === 1 ? 'gateway' : 'gateways'} made exclusive` : '', made.names ? `${made.names} flow ${made.names === 1 ? 'name' : 'names'} left out` : ''].filter(Boolean).join(', ')
+  return { note: `Exported ${name} for Bizagi's Simulation View${what ? `: ${what}` : ''}. Bizagi's simulation fails on a timer or message wait with figures on it, loses the cases at an event gateway and fails on a named flow after a gateway. Use Export numbers for Bizagi for the figures; your drawing here is unchanged.`, problems: 0 }
 }
 
 /** The figures of Simulate as a sheet in Bizagi's units and field order: Bizagi does not read them from the .bpmn. */
@@ -150,9 +150,14 @@ export async function exportBizagiSheet(): Promise<{ note: string; problems: num
   const { bizagiSheet, bizagiSheetFileName } = await import('../core/bizagiSheet')
   const { xlsxBlob } = await import('../core/xlsx')
   // The same copy as the simulation export, so a wait is listed as the time of the activity it became.
-  const { forBizagiSimulation } = await import('../core/bpmn/simCopy')
-  const sheet = bizagiSheet(forBizagiSimulation(model).model)
-  const name = await saveExport(bizagiSheetFileName(model), 'xlsx', async () => xlsxBlob(sheet.sheets))
+  const { forBizagiSimulation, restoreFlowNames } = await import('../core/bpmn/simCopy')
+  const { flowLabelsSheet } = await import('../core/bizagiSheet')
+  const copy = forBizagiSimulation(model).model
+  // The names the copy leaves out are listed on a second sheet; the shares on the first keep them in their wording.
+  const labels = flowLabelsSheet(model, copy)
+  restoreFlowNames(copy, model)
+  const sheet = bizagiSheet(copy)
+  const name = await saveExport(bizagiSheetFileName(model), 'xlsx', async () => xlsxBlob([...sheet.sheets, ...(labels ? [labels] : [])]))
   if (!name) return null
   return { note: sheet.rows ? `Saved ${name}: ${sheet.rows} settings in Bizagi's units (minutes, Most likely / Min / Max) to type into Simulation View.` : `Saved ${name}: Flow holds no simulation figures yet, so the sheet only says so.`, problems: 0 }
 }

@@ -7,8 +7,8 @@ import { lintModel } from '../src/core/lint'
 import { addLane, addNode, addPool, appendNode, connect } from '../src/core/ops'
 import { readBpmn } from '../src/core/bpmn/read'
 import { writeBpmn } from '../src/core/bpmn/write'
-import { bizagiSheet, bizagiTime } from '../src/core/bizagiSheet'
-import { forBizagiSimulation } from '../src/core/bpmn/simCopy'
+import { bizagiSheet, flowLabelsSheet, bizagiTime } from '../src/core/bizagiSheet'
+import { forBizagiSimulation, restoreFlowNames } from '../src/core/bpmn/simCopy'
 
 /** start → XOR (a / b) → XOR merge → AND split → c, d → AND join → end. */
 function diamond(): FlowModel {
@@ -181,6 +181,61 @@ describe('Bizagi simulation copy', () => {
     expect(time.map((r) => r[2]).sort()).toEqual(['Next day', 'Reply'])
     expect(time.find((r) => r[2] === 'Reply')!.slice(4, 10)).toEqual(['Triangular', null, 720, 240, 1440, null])
   })
+  it('leaves the names of sequence flows out of the copy (a named flow after a gateway fails in Bizagi), not the gateway question', async () => {
+    const m = diamond()
+    const g = m.nodes.find((n) => n.type === 'gateway')!
+    g.name = 'Behind the schedule?'
+    const named = m.flows.filter((f) => f.kind === 'sequence' && f.source === g.id)
+    named[0].name = 'Yes'
+    named[1].name = 'No'
+    named[0].labelOffset = { dx: 4, dy: 4 }
+    const before = JSON.stringify(m)
+    const copy = forBizagiSimulation(m)
+    expect(copy.droppedNames).toBe(2)
+    expect(copy.model.flows.filter((f) => f.kind === 'sequence').every((f) => !f.name)).toBe(true)
+    expect(copy.model.nodes.find((n) => n.id === g.id)!.name).toBe('Behind the schedule?')
+    expect(JSON.stringify(m)).toBe(before)
+    const xml = await writeBpmn(copy.model)
+    expect(xml).toContain('Behind the schedule?')
+    expect(xml).not.toMatch(/<bpmn:sequenceFlow [^>]*name="(Yes|No)"/)
+    expect(forBizagiSimulation(diamond()).droppedNames).toBe(0)
+  })
+
+  it('the numbers sheet keeps the flow names ("Yes") although the copy dropped them, and says how long to run', () => {
+    const m = diamond()
+    m.sim = { unit: 'h', arrivals: 1 / 168, cases: 200 }
+    const xor = m.nodes.find((n) => n.type === 'gateway')!
+    const outs = m.flows.filter((f) => f.source === xor.id)
+    outs[0].name = 'Yes'
+    outs[0].probability = 0.9
+    outs[1].probability = 0.1
+    const copy = forBizagiSimulation(m).model
+    expect(copy.flows.find((f) => f.id === outs[0].id)!.name).toBe('')
+    restoreFlowNames(copy, m)
+    expect(copy.flows.find((f) => f.id === outs[0].id)!.name).toBe('Yes')
+    const rows = bizagiSheet(copy).sheets[0].rows
+    expect(rows.find((r) => typeof r[3] === 'string' && (r[3] as string).includes('(Yes)'))).toBeTruthy()
+    expect(JSON.stringify(rows)).toContain('Scenario duration: 200 cases')
+    expect(JSON.stringify(rows)).toContain('1400 days')
+  })
+
+  it('lists the dropped flow names on a sheet of their own, for typing them into Bizagi by hand', () => {
+    const m = diamond()
+    const xor = m.nodes.find((n) => n.type === 'gateway')!
+    xor.name = 'Ready?'
+    const outs = m.flows.filter((f) => f.source === xor.id)
+    outs[0].name = 'Yes'
+    outs[1].name = 'No'
+    const copy = forBizagiSimulation(m).model
+    const sheet = flowLabelsSheet(m, copy)!
+    expect(sheet.name).toBe('Labels to add')
+    const body = sheet.rows.slice(4)
+    expect(body).toHaveLength(2)
+    expect(body.map((r) => r[3]).sort()).toEqual(['No', 'Yes'])
+    expect(body.every((r) => r[1] === 'Ready?')).toBe(true)
+    expect(flowLabelsSheet(diamond(), forBizagiSimulation(diamond()).model)).toBeUndefined()
+  })
+
   /** start → XOR → (A → end 1 | B → end 2 | end 3 directly); a second XOR with one end of its own. */
   function threeEnds(): FlowModel {
     const m = emptyModel('Ends')

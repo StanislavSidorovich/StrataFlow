@@ -110,6 +110,7 @@ export function bizagiSheet(m: FlowModel): BizagiSheet {
     ["Bizagi does not read Flow's figures from the .bpmn file. All times here are minutes; a triangular time is in Bizagi's field order: Most likely, Min, Max."],
     [`Flow's time unit was ${unit === 'min' ? 'minutes' : unit === 'h' ? 'hours' : 'days'}.${hasCost(m) ? '' : " Costs and rates are not listed: leave Bizagi's cost fields empty."}`],
     ['Import the .bpmn into a new empty Bizagi file (a second import makes a second process). Do level 1 first, then 2, then 3.'],
+    ...(arrivals && arrivals > 0 ? [[`Scenario duration: ${m.sim?.cases ?? 200} cases at this interval need about ${Math.ceil(((m.sim?.cases ?? 200) / arrivals) * (unit === 'min' ? 1 : unit === 'h' ? 60 : 1440) / 1440)} days of simulated time plus the time of the last case; set the duration before Start (in our test the run stopped at 30 days, after 4 cases).`]] : []),
     [],
   ]
   const body: Cell[][] = figures && rows.length
@@ -119,3 +120,34 @@ export function bizagiSheet(m: FlowModel): BizagiSheet {
 }
 
 export const bizagiSheetFileName = (m: FlowModel) => `${(m.name || 'process').trim().replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, '-').toLowerCase()}-bizagi-entry.xlsx`
+
+/**
+ * The flow names the Bizagi simulation copy leaves out (a named flow after a gateway makes Bizagi's simulation fail):
+ * one row per flow, so the owner can type them in by hand after the simulation has been set up. `copy` is the model the
+ * .bpmn was written from; the names come from `original`. Undefined when no name was dropped.
+ */
+export function flowLabelsSheet(original: FlowModel, copy: FlowModel): Sheet | undefined {
+  const label = labelMap(original)
+  const laneOf = (id: string | undefined) => {
+    const n = original.nodes.find((x) => x.id === id)
+    return (n && (original.lanes.find((l) => l.id === n.laneId)?.name?.trim() || original.participants.find((p) => p.id === n.participantId)?.name?.trim())) || ''
+  }
+  const rows: Cell[][] = []
+  for (const f of original.flows) {
+    if (f.kind !== 'sequence' || !f.name) continue
+    if (copy.flows.find((c) => c.id === f.id)?.name) continue
+    rows.push([laneOf(f.source), label.get(f.source) ?? f.source, label.get(f.target) ?? f.target, f.name])
+  }
+  if (!rows.length) return undefined
+  return {
+    name: 'Labels to add',
+    rows: [
+      [bold('Flow names to type into Bizagi by hand')],
+      ["The .bpmn leaves these names out: Bizagi's simulation fails on a named flow after a gateway. After the simulation runs, double-click the flow and type the name, or skip it."],
+      [],
+      ['Lane', 'From (gateway)', 'To', 'Name to type'].map(bold),
+      ...rows,
+    ],
+    widths: [24, 44, 44, 16],
+  }
+}
